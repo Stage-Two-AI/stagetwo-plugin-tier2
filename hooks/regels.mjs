@@ -154,7 +154,7 @@ function weigerPad(relatief) {
       "",
       `Bestand: ${relatief}`,
       "",
-      "Wil je de nieuwste versie van dit bestand? Draai dan /stack-cloudflare:updaten: dat brengt",
+      "Wil je de nieuwste versie van dit bestand? Draai dan /stagetwo-tier2:updaten: dat brengt",
       "de hele app naar de nieuwste template, als pull request.",
       "Wil je dat het anders werkt? Dan is dat een vraag aan Stage Two: zij passen het in",
       "de template aan en iedereen krijgt de verbetering.",
@@ -248,7 +248,7 @@ export function beoordeelStart({ versieLokaal, versieOpAfstand, stempel, nu }) {
   const melding = [
     `stack: er is een nieuwere versie van de Stage Two-template. Deze app staat op versie ${versieLokaal},`,
     `de template is op versie ${versieOpAfstand}. Zeg dit één keer aan de gebruiker, in gewone taal, en`,
-    "bied /stack-cloudflare:updaten aan om de app bij te werken (dat opent een pull request). Voer het",
+    "bied /stagetwo-tier2:updaten aan om de app bij te werken (dat opent een pull request). Voer het",
     "niet uit zonder dat hij erom vraagt.",
   ].join("\n");
   return { melding, nieuweStempel };

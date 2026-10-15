@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Het afhankelijkhedendeel van /stack-cloudflare:updaten: werkt de pakketten van een app bij binnen
+ * Het afhankelijkhedendeel van /stagetwo-tier2:updaten: werkt de pakketten van een app bij binnen
  * de versiegrenzen die in package.json staan, als een eigen pull request naast die van
  * de template (één PR = één onderwerp).
  *
@@ -108,7 +108,7 @@ export function prTekst({ hoofdversies, dependabot }) {
   const regels = [
     "Afhankelijkheden bijgewerkt binnen de versiegrenzen uit `package.json`. Alleen `pnpm-lock.yaml` verandert; `package.json` blijft zoals hij is.",
     "",
-    "Aangemaakt met /stack-cloudflare:updaten vanuit je eigen Claude Code-sessie. Wacht tot de checks groen zijn en druk dan op Merge. Rood? Neem contact op met Stage Two en zet de check niet uit.",
+    "Aangemaakt met /stagetwo-tier2:updaten vanuit je eigen Claude Code-sessie. Wacht tot de checks groen zijn en druk dan op Merge. Rood? Neem contact op met Stage Two en zet de check niet uit.",
   ];
   if (hoofdversies.length > 0) {
     regels.push("", "**Nieuwe hoofdversies (niet meegenomen, die vragen om aandacht van Stage Two):**", "");
@@ -125,8 +125,8 @@ export function afhankelijkheden({ checkout, opAfstand = null }) {
   if (opAfstand !== null && !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(opAfstand)) {
     return mislukt("geef --repo als eigenaar/naam, bijvoorbeeld Mijn-Bedrijf/voorraad");
   }
-  if (!ghAanwezig()) return mislukt("de GitHub-opdrachtregel (gh) ontbreekt; draai eerst /stack-cloudflare:installatie");
-  if (!ghIngelogd()) return mislukt("log eerst in bij GitHub met `gh auth login` (zie /stack-cloudflare:installatie)");
+  if (!ghAanwezig()) return mislukt("de GitHub-opdrachtregel (gh) ontbreekt; draai eerst /stagetwo-tier2:installatie");
+  if (!ghIngelogd()) return mislukt("log eerst in bij GitHub met `gh auth login` (zie /stagetwo-tier2:installatie)");
 
   const origin = opAfstand !== null ? `https://github.com/${opAfstand}.git` : originUrl(checkout);
   if (!origin) return mislukt("deze map heeft geen origin op GitHub; open de map van een app of geef --repo mee");
@@ -156,7 +156,7 @@ export function afhankelijkheden({ checkout, opAfstand = null }) {
       sh("pnpm", ["update", "--no-save", "--ignore-scripts"], { cwd: kloon, timeout: 600000 });
     } catch (fout) {
       ruimOp();
-      if (fout.code === "ENOENT") return mislukt("pnpm ontbreekt op deze computer; draai eerst /stack-cloudflare:installatie");
+      if (fout.code === "ENOENT") return mislukt("pnpm ontbreekt op deze computer; draai eerst /stagetwo-tier2:installatie");
       return mislukt(`pnpm update mislukte: ${eersteRegel(fout)}`);
     }
     const hoofdversies = hoofdversiesVan(kloon);

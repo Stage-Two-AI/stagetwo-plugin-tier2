@@ -130,8 +130,8 @@ test("pad: buiten de projectmap telt als buiten (null)", () => {
 
 // ---------------------------------------------------------------- beoordeelTool: paden
 
-test("tool: Edit van .github/workflows/ci.yml wordt geweigerd en de reden noemt /stack-cloudflare:updaten", () => {
-  geweigerd(bewerk(".github/workflows/ci.yml"), "/stack-cloudflare:updaten", ".github/workflows/ci.yml", "Stage Two", "guard:template");
+test("tool: Edit van .github/workflows/ci.yml wordt geweigerd en de reden noemt /stagetwo-tier2:updaten", () => {
+  geweigerd(bewerk(".github/workflows/ci.yml"), "/stagetwo-tier2:updaten", ".github/workflows/ci.yml", "Stage Two", "guard:template");
 });
 
 test("tool: src/App.tsx, AGENTS.md en package.json zijn toegestaan", () => {
@@ -189,7 +189,7 @@ test("tool: STACK_ALLOW_POLICY_EDIT=1 laat padbewerkingen door, maar niet de Bas
   assert.deepEqual(bewerk(".github/workflows/ci.yml", { env }), TOE);
   assert.deepEqual(bewerk(".claude/hooks/x.mjs", { env }), TOE);
   geweigerd(bash("git push --force", env), "Force pushen");
-  geweigerd(bewerk(".github/workflows/ci.yml", { env: { STACK_ALLOW_POLICY_EDIT: "0" } }), "/stack-cloudflare:updaten");
+  geweigerd(bewerk(".github/workflows/ci.yml", { env: { STACK_ALLOW_POLICY_EDIT: "0" } }), "/stagetwo-tier2:updaten");
 });
 
 test("tool: zonder manifest wordt nooit geweigerd (AE7)", () => {
@@ -246,7 +246,7 @@ test("bash: deploy-commando's worden geweigerd", () => {
 const SESSIE_REGELS = "/home/claude/stack/machines/claudecode/hooks/sessie-check-regels.mjs";
 
 test(
-  "sessie-check: het commando van /stack-cloudflare:updaten gaat door de sessiehook van claudecode vanuit een klantmap",
+  "sessie-check: het commando van /stagetwo-tier2:updaten gaat door de sessiehook van claudecode vanuit een klantmap",
   { skip: !existsSync(SESSIE_REGELS) && "Stack-checkout niet aanwezig op deze machine" },
   async () => {
     const { beoordeelTool: sessieBeoordeelTool } = await import(SESSIE_REGELS);
@@ -279,12 +279,12 @@ test("start: binnen 24 uur na de vorige controle wordt niet gekeken", () => {
   assert.equal(moetControleren({ stempel: { tijdstip: NU.toISOString() }, nu: NU }), false);
 });
 
-test("start: lokaal 9, op afstand 10, geen stempel: melding met beide nummers en /stack-cloudflare:updaten, plus stempel", () => {
+test("start: lokaal 9, op afstand 10, geen stempel: melding met beide nummers en /stagetwo-tier2:updaten, plus stempel", () => {
   const { melding, nieuweStempel } = beoordeelStart({ versieLokaal: 9, versieOpAfstand: 10, stempel: null, nu: NU });
   assert.ok(melding);
   assert.match(melding, /versie 9/);
   assert.match(melding, /versie 10/);
-  assert.match(melding, /\/stack-cloudflare:updaten/);
+  assert.match(melding, /\/stagetwo-tier2:updaten/);
   assert.match(melding, /niet uit zonder dat/);
   assert.doesNotMatch(melding, /\u2014/);
   assert.deepEqual(nieuweStempel, { versieOpAfstand: 10, tijdstip: NU.toISOString() });
@@ -437,7 +437,7 @@ test("hook: PreToolUse in een repo met manifest weigert een templatebestand met 
   const json = JSON.parse(uit.stdout);
   assert.equal(json.hookSpecificOutput.hookEventName, "PreToolUse");
   assert.equal(json.hookSpecificOutput.permissionDecision, "deny");
-  assert.match(json.hookSpecificOutput.permissionDecisionReason, /\/stack-cloudflare:updaten/);
+  assert.match(json.hookSpecificOutput.permissionDecisionReason, /\/stagetwo-tier2:updaten/);
   assert.match(json.hookSpecificOutput.permissionDecisionReason, /\.github\/workflows\/ci\.yml/);
 });
 
@@ -480,7 +480,7 @@ test("hook: SessionStart lokaal 9, op afstand 10, geen stempel: melding en stemp
   assert.equal(eerste.status, 0, eerste.stderr);
   assert.match(eerste.stdout, /versie 9/);
   assert.match(eerste.stdout, /versie 10/);
-  assert.match(eerste.stdout, /\/stack-cloudflare:updaten/);
+  assert.match(eerste.stdout, /\/stagetwo-tier2:updaten/);
   const stempels = readdirSync(data);
   assert.equal(stempels.length, 1);
   assert.match(stempels[0], /\.json$/);
@@ -522,8 +522,8 @@ test("hook: twee repo's van dezelfde klant krijgen twee onafhankelijke stempels"
   const a = maakProject();
   const b = maakProject();
   const data = mkdtempSync(join(tmpdir(), "stack-hook-data-"));
-  assert.match(draaiHook(start(a), { projectmap: a, data, opAfstand: 10 }).stdout, /\/stack-cloudflare:updaten/);
-  assert.match(draaiHook(start(b), { projectmap: b, data, opAfstand: 10 }).stdout, /\/stack-cloudflare:updaten/, "de stempel van a remt b niet");
+  assert.match(draaiHook(start(a), { projectmap: a, data, opAfstand: 10 }).stdout, /\/stagetwo-tier2:updaten/);
+  assert.match(draaiHook(start(b), { projectmap: b, data, opAfstand: 10 }).stdout, /\/stagetwo-tier2:updaten/, "de stempel van a remt b niet");
   assert.equal(readdirSync(data).length, 2);
 });
 

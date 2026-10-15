@@ -315,7 +315,8 @@ test("regelOmgevingen: maakt ontbrekende omgevingen aan en laat een proef-beheer
   assert.ok(gedaan.some((g) => g.startsWith("proef-beheer: blijft")));
 });
 
-test("kiesBeheerRepo: eerst stagetwo-beheer, dan de oude naam stack-beheer, anders null", () => {
+test("kiesBeheerRepo: eerst stagetwo-beheer-tier2, dan de oude namen stagetwo-beheer en stack-beheer, anders null", () => {
+  assert.equal(kiesBeheerRepo("klant", (r) => ["klant/stagetwo-beheer-tier2", "klant/stagetwo-beheer", "klant/stack-beheer"].includes(r)), "klant/stagetwo-beheer-tier2");
   assert.equal(kiesBeheerRepo("klant", (r) => r === "klant/stagetwo-beheer" || r === "klant/stack-beheer"), "klant/stagetwo-beheer");
   assert.equal(kiesBeheerRepo("klant", (r) => r === "klant/stack-beheer"), "klant/stack-beheer");
   assert.equal(kiesBeheerRepo("klant", () => false), null);

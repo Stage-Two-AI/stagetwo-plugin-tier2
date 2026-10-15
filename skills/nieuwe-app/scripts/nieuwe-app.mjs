@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Het script achter /stack-cloudflare:nieuwe-app: maakt een nieuwe app aan uit de openbare
- * Cloudflare-template van Stage Two (Stage-Two-AI/stack-template-cloudflare), onder de
+ * Het script achter /stagetwo-tier2:nieuwe-app: maakt een nieuwe app aan uit de openbare
+ * Cloudflare-template van Stage Two (Stage-Two-AI/app-template-tier2), onder de
  * organisatie van de gebruiker, met
  * zijn eigen login. Dit is het deel van het opzetrecept dat een machine kan doen; het
  * gesprek ervoor (wat moet de app doen, welke databasestand) staat in SKILL.md.
@@ -21,10 +21,10 @@
  *       toegang voor op de computer van de gebruiker (GitHub blijft de enige poort).
  *
  *   node nieuwe-app.mjs --json --inrichten --naam <naam> --eigenaar <org> [--groepen a,b]
- *       kijkt eerst of de app in toegang.json van <org>/stagetwo-beheer staat. Zo niet, dan
- *       opent het een pull request op stagetwo-beheer die hem toevoegt met de gekozen groepen
+ *       kijkt eerst of de app in toegang.json van <org>/stagetwo-beheer-tier2 staat. Zo niet, dan
+ *       opent het een pull request op stagetwo-beheer-tier2 die hem toevoegt met de gekozen groepen
  *       (status `wacht-op-toegang`; de eigenaar keurt goed, daarna opnieuw draaien). Staat
- *       hij erin, dan start het de workflow "App inrichten" in <org>/stagetwo-beheer, wacht tot
+ *       hij erin, dan start het de workflow "App inrichten" in <org>/stagetwo-beheer-tier2, wacht tot
  *       hij klaar is en leest het resultaat uit het logboek. Zo komen Cloudflare en Supabase
  *       erbij zonder dat er een Cloudflare- of Supabase-sleutel op deze computer staat.
  *
@@ -52,10 +52,10 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ghAanwezig, ghIngelogd, git, sh } from "../../../lib/repo.mjs";
 
-export const TEMPLATE = "Stage-Two-AI/stack-template-cloudflare";
+export const TEMPLATE = "Stage-Two-AI/app-template-tier2";
 export const STAGE_TWO_LOGIN = "StageTwoAI";
 // Op het Cloudflare-spoor heeft elke app een eigen database: het inloggen loopt van de
-// deur van Cloudflare via Supabase (zie stack-beheer, inrichten-cloudflare.mjs).
+// deur van Cloudflare via Supabase (zie beheer-template, inrichten-cloudflare.mjs).
 export const DATABASESTANDEN = ["eigen"];
 const HIER = dirname(fileURLToPath(import.meta.url));
 const RULESET_PAD = join(HIER, "..", "ruleset.json");
@@ -135,7 +135,7 @@ export function controleerArgumenten(arg) {
 /**
  * Wie wordt de reviewer in CODEOWNERS? Altijd de bouwer zelf: hij merget zijn eigen
  * pull requests op groene checks, en Stage Two wil geen melding bij elke PR van elke
- * klant-app. Toegang en sleutels bewaakt de eigenaar in stagetwo-beheer, niet hier.
+ * klant-app. Toegang en sleutels bewaakt de eigenaar in stagetwo-beheer-tier2, niet hier.
  */
 export function kiesReviewer({ login }) {
   return login;
@@ -460,14 +460,15 @@ function isKloonVan(map, repo) {
 
 // ---------------------------------------------------------------- inrichten
 
-// De beheer-repo heet sinds 13-10-2026 `stagetwo-beheer`. Klanten die eerder zijn aangesloten
-// hebben nog `stack-beheer`; die naam blijft werken tot ook daar de repo is hernoemd.
-export const BEHEER_REPO = "stagetwo-beheer";
-export const BEHEER_REPO_OUD = "stack-beheer";
+// De beheer-repo heet sinds 15-10-2026 `stagetwo-beheer-tier2` (besluit tier 1 en tier 2).
+// Klanten die nog niet zijn omgezet hebben `stagetwo-beheer` of `stack-beheer`; die namen
+// blijven werken tot ook daar de repo is hernoemd.
+export const BEHEER_REPO = "stagetwo-beheer-tier2";
+export const BEHEER_REPO_OUDE_NAMEN = ["stagetwo-beheer", "stack-beheer"];
 
-/** De beheer-repo van `eigenaar`: eerst de nieuwe naam, dan de oude, anders null. */
+/** De beheer-repo van `eigenaar`: eerst de nieuwe naam, dan de oude namen, anders null. */
 export function kiesBeheerRepo(eigenaar, bestaat = repoBestaat) {
-  for (const naam of [BEHEER_REPO, BEHEER_REPO_OUD]) {
+  for (const naam of [BEHEER_REPO, ...BEHEER_REPO_OUDE_NAMEN]) {
     if (bestaat(`${eigenaar}/${naam}`)) return `${eigenaar}/${naam}`;
   }
   return null;
@@ -492,7 +493,7 @@ export function leesInrichting(logtekst) {
 /** Wat er na een geslaagde inrichting nog open staat. */
 export function nogTeDoenNaInrichting({ resultaat }) {
   const lijst = [
-    "De eerste uitrol: maak een kleine wijziging via /stack-cloudflare:verder-werken en merge de pull request. Tot dan toont het adres \"Deze app wordt ingericht.\", al achter de deur.",
+    "De eerste uitrol: maak een kleine wijziging via /stagetwo-tier2:verder-werken en merge de pull request. Tot dan toont het adres \"Deze app wordt ingericht.\", al achter de deur.",
   ];
   if (resultaat?.waarschuwingen?.length) {
     for (const w of resultaat.waarschuwingen) lijst.push(`Waarschuwing van de inrichting, geef door aan Stage Two: ${w}`);
@@ -556,21 +557,21 @@ function vraagToegangAan(beheer, arg, toegang, sha) {
   return sh("gh", [
     "pr", "create", "--repo", beheer, "--base", "main", "--head", branch,
     "--title", `Toegang: ${arg.naam}`,
-    "--body", `De nieuwe app **${arg.naam}** komt in toegang.json, voor de groep(en) ${arg.groepen.map((g) => `\`${g}\``).join(", ")}.\n\nAangevraagd met /stack-cloudflare:nieuwe-app. Na goedkeuring en merge kan de app worden ingericht.`,
+    "--body", `De nieuwe app **${arg.naam}** komt in toegang.json, voor de groep(en) ${arg.groepen.map((g) => `\`${g}\``).join(", ")}.\n\nAangevraagd met /stagetwo-tier2:nieuwe-app. Na goedkeuring en merge kan de app worden ingericht.`,
   ]);
 }
 
 /**
  * Start de workflow in de beheer-repo en wacht op het resultaat. `gh` doet al het werk
- * met de login van de gebruiker: die heeft Write op stagetwo-beheer (mag starten) en leest
+ * met de login van de gebruiker: die heeft Write op stagetwo-beheer-tier2 (mag starten) en leest
  * het logboek. Er komt geen sleutel van Cloudflare of Supabase aan te pas: die staan
  * alleen in de omgeving beheer van de beheer-repo.
  */
 export function richtIn(arg, { cwd = process.cwd(), wachtMs = 5000, maxWachtMinuten = 30 } = {}) {
   const fout = controleerArgumenten(arg);
   if (fout) return { status: "mislukt", reden: fout };
-  if (!ghAanwezig()) return { status: "mislukt", reden: "de GitHub-opdrachtregel (gh) ontbreekt; draai eerst /stack-cloudflare:installatie" };
-  if (!ghIngelogd()) return { status: "mislukt", reden: "log eerst in bij GitHub met `gh auth login` (zie /stack-cloudflare:installatie)" };
+  if (!ghAanwezig()) return { status: "mislukt", reden: "de GitHub-opdrachtregel (gh) ontbreekt; draai eerst /stagetwo-tier2:installatie" };
+  if (!ghIngelogd()) return { status: "mislukt", reden: "log eerst in bij GitHub met `gh auth login` (zie /stagetwo-tier2:installatie)" };
 
   const beheer = isOrganisatie(arg.eigenaar) ? kiesBeheerRepo(arg.eigenaar) : null;
   if (!beheer) {
@@ -675,11 +676,11 @@ export function voorcontrole(arg, { cwd = process.cwd() } = {}) {
     try {
       sh(cli, ["--version"], { shell: cli === "pnpm" && process.platform === "win32" });
     } catch {
-      return { status: "mislukt", reden: `${cli} staat niet op deze computer; draai eerst /stack-cloudflare:installatie` };
+      return { status: "mislukt", reden: `${cli} staat niet op deze computer; draai eerst /stagetwo-tier2:installatie` };
     }
   }
-  if (!ghAanwezig()) return { status: "mislukt", reden: "de GitHub-opdrachtregel (gh) ontbreekt; draai eerst /stack-cloudflare:installatie" };
-  if (!ghIngelogd()) return { status: "mislukt", reden: "log eerst in bij GitHub met `gh auth login` (zie /stack-cloudflare:installatie)" };
+  if (!ghAanwezig()) return { status: "mislukt", reden: "de GitHub-opdrachtregel (gh) ontbreekt; draai eerst /stagetwo-tier2:installatie" };
+  if (!ghIngelogd()) return { status: "mislukt", reden: "log eerst in bij GitHub met `gh auth login` (zie /stagetwo-tier2:installatie)" };
 
   const gebruiker = login();
   const org = isOrganisatie(arg.eigenaar);

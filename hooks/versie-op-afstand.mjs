@@ -10,7 +10,7 @@
  */
 import { execFileSync } from "node:child_process";
 
-export const STANDAARD_REPO = "Stage-Two-AI/stack-template-cloudflare";
+export const STANDAARD_REPO = "Stage-Two-AI/app-template-tier2";
 
 /** Alleen `eigenaar/repo`, zodat een vreemde waarde in STACK_TEMPLATE_REPO geen rare URL wordt. */
 const REPO_VORM = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Het overzicht achter /stack-cloudflare:updaten: welke apps van de klant zijn uit de Stage Two-template
+ * Het overzicht achter /stagetwo-tier2:updaten: welke apps van de klant zijn uit de Stage Two-template
  * gebouwd, op welke versie staan ze, en welke lopen achter?
  *
  *   node overzicht.mjs --json [--eigenaar <organisatie of account>]...
@@ -78,8 +78,8 @@ function reposVan(eigenaar) {
 }
 
 export function overzicht({ cwd = process.cwd(), eigenaren = [], env = process.env } = {}) {
-  if (!ghAanwezig()) return { status: "mislukt", reden: "de GitHub-opdrachtregel (gh) ontbreekt; draai eerst /stack-cloudflare:installatie" };
-  if (!ghIngelogd()) return { status: "mislukt", reden: "log eerst in bij GitHub met `gh auth login` (zie /stack-cloudflare:installatie)" };
+  if (!ghAanwezig()) return { status: "mislukt", reden: "de GitHub-opdrachtregel (gh) ontbreekt; draai eerst /stagetwo-tier2:installatie" };
+  if (!ghIngelogd()) return { status: "mislukt", reden: "log eerst in bij GitHub met `gh auth login` (zie /stagetwo-tier2:installatie)" };
 
   const doel = versieOpAfstand(templateRepo(env));
   if (doel === null) return { status: "mislukt", reden: "de template is niet bereikbaar (geen netwerk, of nog geen versie-tag); probeer het later opnieuw" };

@@ -15,14 +15,14 @@ en je zelf nieuwe apps kunt beginnen.
 
 Vier commando's, en een bewaker op de achtergrond:
 
-- **Een begin op een nieuwe computer.** Typ `/stack-cloudflare:installatie` en je assistent kijkt wat
+- **Een begin op een nieuwe computer.** Typ `/stagetwo-tier2:installatie` en je assistent kijkt wat
   er op je computer ontbreekt, installeert het, helpt je inloggen bij GitHub en vraagt
   daarna wat je wilt doen. Zie hieronder.
-- **Zelf een nieuwe app beginnen.** Typ `/stack-cloudflare:nieuwe-app`. Je assistent denkt eerst
+- **Zelf een nieuwe app beginnen.** Typ `/stagetwo-tier2:nieuwe-app`. Je assistent denkt eerst
   met je mee (wat moet de app doen en voor wie) en maakt hem daarna aan uit de nieuwste
   Stage Two-template, onder het GitHub-account van je bedrijf. De beheer-repo van je
   bedrijf zet hem daarna online, achter de deur. Zie hieronder.
-- **Verder werken aan een app.** `/stack-cloudflare:verder-werken` is de vaste route voor elke
+- **Verder werken aan een app.** `/stagetwo-tier2:verder-werken` is de vaste route voor elke
   wijziging, ook aan de database. Je hoeft het commando niet te typen: gewoon vragen wat
   je wilt werkt ook. De route staat ook in je app beschreven (`docs/routes/`).
 - **Meekijken terwijl je bouwt.** In de Claude-app start je assistent de app vanzelf op
@@ -37,7 +37,7 @@ Vier commando's, en een bewaker op de achtergrond:
 - **Een melding als er een nieuwere werkwijze is.** Open je je app en heeft Stage Two de
   gedeelde werkwijze verbeterd, dan zegt je assistent dat één keer, hooguit één keer per
   dag. Meer niet: hij doet niets zonder dat jij het vraagt.
-- **Alles updaten met één commando.** Typ `/stack-cloudflare:updaten`, en je assistent werkt alles
+- **Alles updaten met één commando.** Typ `/stagetwo-tier2:updaten`, en je assistent werkt alles
   bij zoals een update van je computer: de plugin, de programma's op je computer, je app
   naar de nieuwste werkwijze en de pakketten van je app. Wat je app verandert komt als
   voorstel (een pull request) dat jij bekijkt en goedkeurt. Daarna vraagt hij of je
@@ -67,31 +67,31 @@ Installeer daarna de Claude-app (claude.ai/download) en log in. Open in het tabb
 **Code** een map (leeg mag, bijvoorbeeld `Documenten\Apps`) en typ in het chatvenster:
 
 ```text
-/plugin marketplace add Stage-Two-AI/stack-plugin-cloudflare
+/plugin marketplace add Stage-Two-AI/stagetwo-plugin-tier2
 ```
 
 Er verschijnt een klein venster met de vraag of je deze bron vertrouwt. Bevestig dat.
-Daarna opent een scherm met plugins waarin `stack-cloudflare` al klaarstaat: klik op het **plusje**
+Daarna opent een scherm met plugins waarin `stagetwo-tier2` al klaarstaat: klik op het **plusje**
 ernaast om hem te installeren. Dat is alles.
 
 Werk je in een terminal en verschijnt dat scherm niet, typ dan ook nog:
 
 ```text
-/plugin install stack-cloudflare@stagetwo-cloudflare
+/plugin install stagetwo-tier2@stagetwo-tier2
 ```
 
-**Controleren dat het werkt.** Typ `/stack-cloudflare:` en kijk of de vier commando's verschijnen
+**Controleren dat het werkt.** Typ `/stagetwo-tier2:` en kijk of de vier commando's verschijnen
 (installatie, nieuwe-app, verder-werken en updaten). Zie je ze niet, sluit Claude Code dan en open de map opnieuw.
 
 **Bijwerken van de plugin zelf.** Dat gaat vanzelf, zonder dat je iets hoeft te typen.
-`/stack-cloudflare:installatie` zet het aan; het werkt in elke map. Kort nadat je de Claude-app
+`/stagetwo-tier2:installatie` zet het aan; het werkt in elke map. Kort nadat je de Claude-app
 hebt geopend en je eerste bericht hebt gestuurd, kijkt Claude Code op de achtergrond of
 er een nieuwe versie is en haalt die binnen. Je hoeft de app daarvoor niet open te
 houden of opnieuw te starten: de nieuwe versie verschijnt vanzelf.
 
 ## Beginnen op een nieuwe computer
 
-Typ `/stack-cloudflare:installatie`. Je assistent kijkt wat er ontbreekt (Git, Node, pnpm en de
+Typ `/stagetwo-tier2:installatie`. Je assistent kijkt wat er ontbreekt (Git, Node, pnpm en de
 GitHub-opdrachtregel) en installeert dat. Twee dingen om te weten:
 
 - **Windows vraagt een paar keer om toestemming.** Er verschijnt dan een venster of dit
@@ -119,12 +119,12 @@ een nieuwe app beginnen, verder werken aan een bestaande app, of alles updaten.
 
 ## Een nieuwe app beginnen
 
-Typ `/stack-cloudflare:nieuwe-app`. Het eerste deel is een gesprek, en dat is bewust: de keuzes
+Typ `/stagetwo-tier2:nieuwe-app`. Het eerste deel is een gesprek, en dat is bewust: de keuzes
 daar zijn achteraf duur om te veranderen.
 
 1. Is het echt een nieuwe app, of past het bij een app die je al hebt? De regel is: één
    app per verzameling gegevens. Gaat het over gegevens die al in een app zitten, dan is
-   het een uitbreiding van die app, en die maak je met `/stack-cloudflare:verder-werken`.
+   het een uitbreiding van die app, en die maak je met `/stagetwo-tier2:verder-werken`.
 2. Wat moet de app doen, voor wie, met welke gegevens, en wat is de eerste versie waar
    iemand echt iets aan heeft?
 3. Een naam, de plek (onder het GitHub-account van je bedrijf, in een nieuwe map op je
@@ -136,10 +136,10 @@ kiezen.
 
 Daarna maakt je assistent de app aan uit de nieuwste template, zet de eerste versie op
 GitHub en beschermt de hoofdtak. Hij eindigt met wat er nog open staat en met de
-volgende stap: open de nieuwe map in Claude Code en typ `/stack-cloudflare:verder-werken`.
+volgende stap: open de nieuwe map in Claude Code en typ `/stagetwo-tier2:verder-werken`.
 
 Hosting, deur en database worden daarna ingericht door de workflow **App inrichten** op
-GitHub, in de beheer-repo van je bedrijf (`stagetwo-beheer`, Stage Two zet die bij de start
+GitHub, in de beheer-repo van je bedrijf (`stagetwo-beheer-tier2`, Stage Two zet die bij de start
 neer). Staat de app nog niet op de toegangslijst, dan opent je assistent eerst een
 voorstel (pull request) op die beheer-repo; de eigenaar keurt dat goed, en dan gaat het
 verder. Je assistent start de workflow en wacht op het resultaat. Dat is bewust zo
@@ -156,7 +156,7 @@ Zegt je assistent dat er een nieuwere versie van de werkwijze is, of wil je het 
 bij de tijd houden, typ dan in de map van je app:
 
 ```text
-/stack-cloudflare:updaten
+/stagetwo-tier2:updaten
 ```
 
 Wat er dan gebeurt, in deze volgorde:
@@ -193,14 +193,14 @@ controle niet uit.
 | "je hebt geen schrijfrecht" | Je account mag niet in deze app schrijven | Vraag de eigenaar van de app je toe te voegen |
 | "installeer pnpm" | `pnpm` ontbreekt op je computer | Vraag Stage Two, of installeer het zoals bij de start is uitgelegd |
 | "er staat al een pull request open" | Er ligt al een voorstel voor deze versie | Bekijk die pull request en merge hem, of vraag Stage Two |
-| Je assistent weigert een bestand te wijzigen | Dat bestand hoort bij de gedeelde werkwijze | Wil je de nieuwste versie: `/stack-cloudflare:updaten`. Wil je het anders: vraag het Stage Two |
-| "er staat al een voorstel voor de afhankelijkheden open" | De pakketten-PR van een vorige keer is nog niet gemerged | Merge die eerst (als de controles groen zijn), of sluit hem, en typ dan opnieuw `/stack-cloudflare:updaten` |
+| Je assistent weigert een bestand te wijzigen | Dat bestand hoort bij de gedeelde werkwijze | Wil je de nieuwste versie: `/stagetwo-tier2:updaten`. Wil je het anders: vraag het Stage Two |
+| "er staat al een voorstel voor de afhankelijkheden open" | De pakketten-PR van een vorige keer is nog niet gemerged | Merge die eerst (als de controles groen zijn), of sluit hem, en typ dan opnieuw `/stagetwo-tier2:updaten` |
 | De preview toont geen gegevens | Deze app heeft nog geen testdatabase ingesteld | Vraag Stage Two; het opleveren via de pull request werkt gewoon |
-| Na installeren zegt `/stack-cloudflare:installatie` nog steeds dat iets ontbreekt | Claude Code kent het nieuwe programma nog niet | De app helemaal afsluiten (Windows: systeemvak rechtsonder, rechtermuisknop op Claude, Afsluiten), opnieuw openen, het gesprek aanklikken in de linkerzijbalk en **ga verder** typen |
+| Na installeren zegt `/stagetwo-tier2:installatie` nog steeds dat iets ontbreekt | Claude Code kent het nieuwe programma nog niet | De app helemaal afsluiten (Windows: systeemvak rechtsonder, rechtermuisknop op Claude, Afsluiten), opnieuw openen, het gesprek aanklikken in de linkerzijbalk en **ga verder** typen |
 | `/plugin marketplace add` lukt niet op Windows | Git ontbreekt | Git installeren zoals onder "Installeren", de app afsluiten via het systeemvak en opnieuw openen |
 | `gh auth login` stopt halverwege | Ctrl+C gedrukt om de code te kopiëren; dat breekt het af | Opnieuw `gh auth login` typen en de nieuwe code onthouden in plaats van kopiëren |
-| "de repo bestaat al" bij `/stack-cloudflare:nieuwe-app` | Er is al een app met die naam | Kies een andere naam |
-| "main is nog niet beschermd" na `/stack-cloudflare:nieuwe-app` | Het GitHub-account staat op het gratis plan | Vraag Stage Two; de app werkt, alleen de bescherming ontbreekt nog |
+| "de repo bestaat al" bij `/stagetwo-tier2:nieuwe-app` | Er is al een app met die naam | Kies een andere naam |
+| "main is nog niet beschermd" na `/stagetwo-tier2:nieuwe-app` | Het GitHub-account staat op het gratis plan | Vraag Stage Two; de app werkt, alleen de bescherming ontbreekt nog |
 
 Kom je er niet uit, dan is de vraag altijd welkom bij Stage Two. Vertel wat je typte en
 wat er terugkwam; de melding is bedoeld om door te geven.
@@ -209,33 +209,38 @@ wat er terugkwam; de melding is bedoeld om door te geven.
 
 Alles hieronder is voor wie de plugin en de template onderhoudt.
 
-### Twee sporen
+### Tier 1 en tier 2
 
-Stage Two heeft sinds 05-10-2026 twee sporen, elk met een eigen template en een eigen plugin:
+Stage Two heeft twee varianten van de stack, elk met een eigen template en een eigen plugin
+(besluit 15-10-2026, `Stack/docs/besluiten/2026-10-15-tier1-en-tier2.md`):
 
-| Spoor | Template | Plugin | Marketplace |
+| Variant | Template | Plugin (deze repo voor tier 2) | Marketplace |
 |---|---|---|---|
-| Vercel | `Stage-Two-AI/stack-template` | `Stage-Two-AI/stack-plugin` (`stack`) | `stagetwo` |
-| Cloudflare | `Stage-Two-AI/stack-template-cloudflare` | deze repo (`stack-cloudflare`) | `stagetwo-cloudflare` |
+| tier 1: alleen Cloudflare (D1, R2) | `Stage-Two-AI/app-template-tier1` | `Stage-Two-AI/stagetwo-plugin-tier1` (`stagetwo-tier1`) | `stagetwo-tier1` |
+| tier 2: Cloudflare met Supabase | `Stage-Two-AI/app-template-tier2` | `Stage-Two-AI/stagetwo-plugin-tier2` (`stagetwo-tier2`) | `stagetwo-tier2` |
 
-Deze repo is begonnen als kopie van `stack-plugin` 2.1.0. Wat anders is:
+Tot 15-10-2026 heette deze plugin `stack-cloudflare` (repo `stack-plugin-cloudflare`,
+marketplace `stagetwo-cloudflare`). Die repo blijft bevroren staan zodat computers die nog
+niet zijn omgezet blijven werken; `installatie` en `updaten` halen de oude plugin weg.
 
-- de template is `Stage-Two-AI/stack-template-cloudflare` (melding, updaten, nieuwe-app);
+Wat deze plugin anders doet dan die van tier 1:
+
+- de template is `Stage-Two-AI/app-template-tier2` (melding, updaten, nieuwe-app);
 - de hook, `updaten` en het overzicht doen alleen iets bij een app met
-  `"variant": "cloudflare"` in `.claude/stack-manifest.json`; een Vercel-app laten ze aan
-  de andere plugin over, ook als beide plugins op één computer staan;
+  `"variant": "cloudflare"` in `.claude/stack-manifest.json` (interne naam, blijft zo);
 - `nieuwe-app` haalt de paden uit `nietMeenemen` weg, zet de Worker-naam in
   `wrangler.jsonc` op de appnaam, geeft elke app een eigen database, en `--inrichten`
-  controleert eerst `toegang.json` van `<org>/stagetwo-beheer` (zo nodig een pull request)
-  en start dan de Cloudflare-variant van **App inrichten** (inputs `app` en `droogloop`);
-- `automatisch-bijwerken.mjs` zet de marketplace `stagetwo-cloudflare`.
+  controleert eerst `toegang.json` van `<org>/stagetwo-beheer-tier2` (oude namen
+  `stagetwo-beheer` en `stack-beheer` werken nog), zo nodig met een pull request, en start
+  dan **App inrichten** (inputs `app` en `droogloop`);
+- `automatisch-bijwerken.mjs` zet de marketplace `stagetwo-tier2` en haalt de oude weg.
 
-Een verbetering die voor beide sporen geldt, doe je in beide repo's.
+Een verbetering die voor beide varianten geldt, doe je in beide repo's.
 
 ### Wat waar staat
 
 ```text
-.claude-plugin/    plugin.json (naam stack-cloudflare, versie) en marketplace.json (naam stagetwo-cloudflare)
+.claude-plugin/    plugin.json (naam stagetwo-tier2, versie) en marketplace.json (naam stagetwo-tier2)
 hooks/             de bewaker (PreToolUse) en de melding bij sessiestart (SessionStart)
 skills/            de vier skills; met een script: updaten (bijwerken.mjs voor de
                    template, afhankelijkheden.mjs, overzicht.mjs), installatie
@@ -260,7 +265,7 @@ gestart vanuit `Stack/bin/stack-sync.mjs`, dat het register en de ruleset meegee
 - De melding vergelijkt `.claude/stack-version` met de hoogste tag `stack-v<n>` op de
   publieke Cloudflare-template (één anonieme `git ls-remote`, drie seconden), met een dagstempel
   per repo in `${CLAUDE_PLUGIN_DATA}`.
-- Het templatedeel van `/stack-cloudflare:updaten` (`bijwerken.mjs`) draait in twee stappen: `--droogloop` (voorcontrole, tijdelijke
+- Het templatedeel van `/stagetwo-tier2:updaten` (`bijwerken.mjs`) draait in twee stappen: `--droogloop` (voorcontrole, tijdelijke
   kloon, kern toepassen, resultaat als JSON) en `--werkmap <map>` (keuzes toepassen,
   committen met de identiteit van de gebruiker, pushen als de boom verschilt, PR openen
   of bijwerken). Elke commit draagt de trailer `Stack-bijwerken: v<n>`; een branch met
@@ -286,25 +291,25 @@ gestart vanuit `Stack/bin/stack-sync.mjs`, dat het register en de ruleset meegee
 
 Vooraf: de template is publiek, de tag `stack-v<n>` van de nieuwste versie staat, de
 accounts van de klant staan (GitHub-organisatie op een betaald plan, Cloudflare met Zero
-Trust, Supabase) en `<klantorg>/stagetwo-beheer` is ingericht met de Cloudflare-variant
-(`bin/klant-inrichten.sh --variant cloudflare` in Stage-Two-AI/stack-beheer), met minstens
-één groep in `toegang.json`. De klant heeft Write op stagetwo-beheer, zodat hij de workflow
+Trust, Supabase) en `<klantorg>/stagetwo-beheer-tier2` is ingericht met de tier 2-variant
+(`bin/klant-inrichten.sh --variant cloudflare` in Stage-Two-AI/beheer-template), met minstens
+één groep in `toegang.json`. De klant heeft Write op stagetwo-beheer-tier2, zodat hij de workflow
 mag starten; de sleutels staan in de omgeving `beheer` en zijn voor hem niet te lezen.
 
 1. Op Windows eerst Git (`winget install -e --id Git.Git` in PowerShell), dán de
    Claude-app. Plugin installeren zoals hierboven onder "Installeren" (desktop-app: één
    commando, vertrouwen bevestigen, plusje). Getest 22-09-2026 en, van een kale VM af,
    01-10-2026 op Windows in de desktop-app.
-2. `/stack-cloudflare:installatie` samen doorlopen: installaties, de terminalstap voor `gh auth login`,
+2. `/stagetwo-tier2:installatie` samen doorlopen: installaties, de terminalstap voor `gh auth login`,
    de git-identiteit. Leg vooraf uit: de UAC-vensters, dat de code van `gh auth login`
    overgetypt wordt (Ctrl+C breekt af), en dat een herstart via het systeemvak gaat en
    het gesprek daarna via de linkerzijbalk terugkomt ("ga verder").
-3. Controleer dat de vier skills verschijnen als `/stack-cloudflare:<naam>`.
+3. Controleer dat de vier skills verschijnen als `/stagetwo-tier2:<naam>`.
 4. Open een app op versie 9 of nieuwer en controleer dat de bewaker vuurt: vraag de agent
    één regel te wijzigen in `.github/workflows/ci.yml`; dat moet geweigerd worden.
-5. Controleer dat de plugin zichzelf bijwerkt. `/stack-cloudflare:installatie` (stap 5) zet dat op
+5. Controleer dat de plugin zichzelf bijwerkt. `/stagetwo-tier2:installatie` (stap 5) zet dat op
    gebruikersniveau aan, in `~/.claude/settings.json`: `env.FORCE_AUTOUPDATE_PLUGINS = "1"`
-   en `extraKnownMarketplaces.stagetwo-cloudflare.autoUpdate = true`. Beide zijn nodig. De desktop-app
+   en `extraKnownMarketplaces.stagetwo-tier2.autoUpdate = true`. Beide zijn nodig. De desktop-app
    start Claude Code met `DISABLE_AUTOUPDATER=1`, en dat zet ook het bijwerken van plugins
    uit; een marketplace die de klant zelf toevoegt, krijgt bovendien geen `autoUpdate`
    (standaard uit). De `autoUpdate` in `.claude/settings.json` van een app (template v11)
@@ -312,13 +317,13 @@ mag starten; de sleutels staan in de omgeving `beheer` en zijn voor hem niet te 
    Windows-VM: na de instelling, één herstart en één bericht kwam 2.0.0 binnen, zonder
    nog een herstart. Controle: vraag de assistent `~/.claude/plugins/installed_plugins.json`
    te tonen.
-6. Loop de melding en `/stack-cloudflare:updaten` één keer samen door, en `/stack-cloudflare:nieuwe-app` als
+6. Loop de melding en `/stagetwo-tier2:updaten` één keer samen door, en `/stagetwo-tier2:nieuwe-app` als
    de klant zelf apps gaat starten. Cloudflare en Supabase richt de workflow "App
-   inrichten" in `<klantorg>/stack-beheer` in (recept: Stage-Two-AI/stack-beheer,
-   `klant-cloudflare/`); die toegang komt nooit op de computer van de klant (besluit
+   inrichten" in `<klantorg>/stagetwo-beheer-tier2` in (recept: Stage-Two-AI/beheer-template,
+   `klant-tier2/`); die toegang komt nooit op de computer van de klant (besluit
    22-09-2026).
 7. Zet in `Stack/projecten.json` de `route` van het project op `plugin`; een app die de
-   klant zelf met `/stack-cloudflare:nieuwe-app` maakte, voeg je toe zodra hij hem meldt.
+   klant zelf met `/stagetwo-tier2:nieuwe-app` maakte, voeg je toe zodra hij hem meldt.
 
 ### Een nieuwe versie uitbrengen
 
@@ -328,7 +333,7 @@ overweg.
 
 1. Plugin: versie in `.claude-plugin/plugin.json` ophogen, pull request, groene check,
    merge naar `main`. Alleen een hoger versienummer laat een klant een update zien.
-2. Template: wijzigingen als pull request op `stack-template-cloudflare`, met
+2. Template: wijzigingen als pull request op `app-template-tier2`, met
    `.claude/stack-version` en `stackVersion` in het manifest opgehoogd. Een bestand uit
    `vervangen` wijzigt alleen samen met zo'n versieverhoging.
 3. Na de merge de tag zetten: `git tag stack-v<n> && git push origin stack-v<n>`. Pas
@@ -343,7 +348,7 @@ De ruleset op `main` (`.github/ruleset.json`) staat: geen directe push, pull req
 met de check `Tests` groen. Opnieuw zetten na een herinrichting:
 
 ```sh
-gh api repos/Stage-Two-AI/stack-plugin-cloudflare/rulesets -X POST --input .github/ruleset.json
+gh api repos/Stage-Two-AI/stagetwo-plugin-tier2/rulesets -X POST --input .github/ruleset.json
 ```
 
 ### Tests
