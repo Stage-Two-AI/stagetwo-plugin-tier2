@@ -3,7 +3,7 @@
  * De beheerde run van Stage Two: gaat het register van projecten langs en brengt wie
  * achterloopt naar de nieuwste template, als pull request van `Stage Two stack-sync`.
  * Dit is Christijns overzicht en noodrem; de gewone weg is dat de klant zelf
- * /stack-cloudflare:updaten draait (KTD2). Dezelfde kern (lib/), dus hetzelfde gedrag.
+ * /stagetwo-tier2:updaten draait (KTD2). Dezelfde kern (lib/), dus hetzelfde gedrag.
  *
  * Dit is geen skill en geen commando van de plugin: het staat onder beheer/ (niet
  * bin/, want die map zet Claude Code op het PATH van elke sessie) en wordt gestart
@@ -182,7 +182,7 @@ export function verwerk({ project, werkmap, tmplMap, doelVersie, rulesetPad, opt
 
   if (versie === null || versie >= doelVersie) return "niets";
   if (route === "plugin") {
-    log(`  ${grijs("route plugin: de klant haalt dit zelf op met /stack-cloudflare:updaten; geen PR van Stage Two")}`);
+    log(`  ${grijs("route plugin: de klant haalt dit zelf op met /stagetwo-tier2:updaten; geen PR van Stage Two")}`);
     return "overgeslagen";
   }
   if (bijwerkPR) {

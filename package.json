@@ -1,5 +1,5 @@
 {
-  "name": "stagetwo-stack-plugin-cloudflare",
+  "name": "stagetwo-plugin-tier2",
   "private": true,
   "type": "module",
   "description": "Stage Two-plugin voor Claude Code. Geen dependencies: alles draait op Node 22 zelf.",

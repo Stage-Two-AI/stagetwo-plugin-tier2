@@ -15,7 +15,7 @@
  *
  * SessionStart: de lokale versie komt uit .claude/stack-version; zonder versienummer
  * gebeurt er niets (geen netwerkvraag). Daarna de stempel lezen uit
- * ${CLAUDE_PLUGIN_DATA}/<eigenaar>_<repo>.json (of ~/.cache/stagetwo-stack-cloudflare/); alleen
+ * ${CLAUDE_PLUGIN_DATA}/<eigenaar>_<repo>.json (of ~/.cache/stagetwo-tier2/); alleen
  * als de regels zeggen dat er gekeken moet worden (geen stempel of ouder dan 24 uur)
  * volgt de netwerkvraag, met een tijdslimiet van drie seconden. De melding gaat als
  * gewone tekst naar stdout en wordt zo context voor de agent; de stempel wordt alleen
@@ -77,7 +77,7 @@ function originUrl(projectmap) {
 }
 
 function stempelMap() {
-  return process.env.CLAUDE_PLUGIN_DATA || join(process.env.HOME || homedir(), ".cache", "stagetwo-stack-cloudflare");
+  return process.env.CLAUDE_PLUGIN_DATA || join(process.env.HOME || homedir(), ".cache", "stagetwo-tier2");
 }
 
 function versieOpAfstandOfTesthaak() {

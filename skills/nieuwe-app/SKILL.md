@@ -1,6 +1,6 @@
 ---
 name: nieuwe-app
-description: Een nieuwe app starten op de manier van Stage Two, op Cloudflare en Supabase - eerst meedenken over wat de app moet doen, dan de app aanmaken uit de nieuwste Cloudflare-template van Stage Two onder de organisatie van de gebruiker, en hosting, deur en database laten inrichten door de beheer-repo. Gebruik dit als de gebruiker /stack-cloudflare:nieuwe-app typt of een nieuwe, losstaande app wil beginnen (niet een uitbreiding van een bestaande app).
+description: Een nieuwe app starten op de manier van Stage Two, op Cloudflare en Supabase - eerst meedenken over wat de app moet doen, dan de app aanmaken uit de nieuwste Cloudflare-template van Stage Two onder de organisatie van de gebruiker, en hosting, deur en database laten inrichten door de beheer-repo. Gebruik dit als de gebruiker /stagetwo-tier2:nieuwe-app typt of een nieuwe, losstaande app wil beginnen (niet een uitbreiding van een bestaande app).
 ---
 
 Je helpt iemand die niet technisch is om een nieuwe app goed te beginnen. Het gesprek
@@ -22,7 +22,7 @@ Vraag wat de gebruiker wil maken, in één of twee zinnen. Toets het aan dit lij
 De regel erachter is simpel en de gebruiker mag hem horen: **één app per verzameling
 gegevens.** Gegevens die op twee plekken staan gaan uit elkaar lopen, en een app die de
 gegevens van een andere app gebruikt is voor iedereen moeilijker te overzien. Is het een
-uitbreiding? Zeg dat, en verwijs naar `/stack-cloudflare:verder-werken` in de map van die app. Stop
+uitbreiding? Zeg dat, en verwijs naar `/stagetwo-tier2:verder-werken` in de map van die app. Stop
 dan hier.
 
 Wil de gebruiker toch een aparte app op de gegevens van een bestaande app, bijvoorbeeld
@@ -65,8 +65,8 @@ precieze bedrag.
   inricht, en dan is de app van het bedrijf en niet van één persoon. Is er geen
   organisatie, zeg dan dat Stage Two die eerst moet aanmaken, en stop hier.
 - **Wie erbij mag.** Lees de groepen uit de toegangslijst:
-  `gh api repos/<eigenaar>/stagetwo-beheer/contents/toegang.json -H "Accept: application/vnd.github.raw"`
-  (bestaat die niet, dan heet de beheer-repo nog `stack-beheer`: gebruik dan die naam).
+  `gh api repos/<eigenaar>/stagetwo-beheer-tier2/contents/toegang.json -H "Accept: application/vnd.github.raw"`
+  (bestaat die niet, dan heet de beheer-repo nog `stagetwo-beheer` of `stack-beheer`: gebruik dan die naam).
   Staat de naam van de app al onder `apps`, dan is dit al geregeld; zeg dat. Zo niet, toon
   dan de groepen (met wie erin zit, in gewone woorden) en laat de gebruiker kiezen. Zijn
   er geen groepen, dan maakt Stage Two die aan; ga gewoon door, stap 5b meldt het.
@@ -92,7 +92,7 @@ Het antwoord is één JSON-object met een `status`.
 
 Zeg dan: "Ik maak hem nu aan; dat duurt een paar minuten." Draai hetzelfde commando met
 `--doe-het` in plaats van `--droogloop`. Vraag geen toestemming meer; het typen van
-`/stack-cloudflare:nieuwe-app` en de bevestiging van het plan waren de opdracht.
+`/stagetwo-tier2:nieuwe-app` en de bevestiging van het plan waren de opdracht.
 
 - `mislukt`: geef `reden` door (dat is de volledige foutmelding). Staat er een `repo` in
   het antwoord, dan is de repo al aangemaakt: **draai precies hetzelfde `--doe-het`-commando
@@ -111,7 +111,7 @@ Zeg dan: "Ik maak hem nu aan; dat duurt een paar minuten." Draai hetzelfde comma
 ## Stap 5b: hosting, deur en database laten inrichten
 
 Hosting en deur (Cloudflare) en de database (Supabase) worden ingericht door de workflow
-**App inrichten** in de beheer-repo van de organisatie (`<eigenaar>/stagetwo-beheer`, bij oudere klanten nog `stack-beheer`), op
+**App inrichten** in de beheer-repo van de organisatie (`<eigenaar>/stagetwo-beheer-tier2`, bij klanten die nog niet zijn omgezet `stagetwo-beheer` of `stack-beheer`), op
 GitHub. Daar staan alle sleutels; op deze computer komt bewust geen Cloudflare- of
 Supabase-toegang. Probeer dat nooit zelf te doen, ook niet als er een opdrachtregel voor
 blijkt te staan (`wrangler`, `supabase`).
@@ -146,9 +146,9 @@ Zeg tot slot, in deze volgorde:
 
 1. Open de nieuwe map in Claude Code (Bestand, map openen). De afspraken en de bewaker
    van de werkwijze werken alleen in de map van de app zelf.
-2. Typ daar `/stack-cloudflare:verder-werken` en beschrijf de eerste versie uit stap 2.
+2. Typ daar `/stagetwo-tier2:verder-werken` en beschrijf de eerste versie uit stap 2.
    Komen er gegevens in, dan begint dat werk met de eerste tabellen; die route zit in
-   `/stack-cloudflare:verder-werken` (met `docs/routes/databasewijziging.md`). De eerste
+   `/stagetwo-tier2:verder-werken` (met `docs/routes/databasewijziging.md`). De eerste
    merge zet de app echt neer.
 3. Laat Stage Two weten dat deze app bestaat (naam en link), zodat hij in het overzicht
    komt en meedoet met updates van de werkwijze.

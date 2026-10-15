@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Het script achter het templatedeel van /stack-cloudflare:updaten: brengt de app van de klant naar de nieuwste
+ * Het script achter het templatedeel van /stagetwo-tier2:updaten: brengt de app van de klant naar de nieuwste
  * versie van de Stage Two-template, als pull request van de klant zelf. Twee aanroepen
  * per ronde (KTD9), allebei vanuit de open checkout van de klant:
  *
@@ -190,7 +190,7 @@ export function droogloop({ checkout, opAfstand = null, env = process.env }) {
   if (opAfstand === null && !isCloudflareApp(checkout)) return ANDER_SPOOR;
 
   const metGh = ghAanwezig();
-  if (opAfstand !== null && !metGh) return mislukt("een andere app bijwerken kan alleen met de GitHub-opdrachtregel (gh); draai eerst /stack-cloudflare:installatie");
+  if (opAfstand !== null && !metGh) return mislukt("een andere app bijwerken kan alleen met de GitHub-opdrachtregel (gh); draai eerst /stagetwo-tier2:installatie");
   if (metGh && !ghIngelogd()) return mislukt("log eerst in bij GitHub met `gh auth login`, dan kan de pull request geopend worden");
 
   const origin = opAfstand !== null ? `https://github.com/${opAfstand}.git` : originUrl(checkout);
@@ -237,7 +237,7 @@ export function droogloop({ checkout, opAfstand = null, env = process.env }) {
     }
     if (!branchHerbouwbaar(kloon, branch)) {
       verwijderWerkmap(werkmap);
-      return gestopt(`op de branch ${branch} staat een commit die niet van /stack-cloudflare:updaten is; bekijk de open pull request voor die branch of verwijder de branch, en draai dan opnieuw`);
+      return gestopt(`op de branch ${branch} staat een commit die niet van /stagetwo-tier2:updaten is; bekijk de open pull request voor die branch of verwijder de branch, en draai dan opnieuw`);
     }
 
     const tmplMap = kloonTemplate({ repo: tmplRepo, doel: join(werkmap, "template") });
@@ -339,7 +339,7 @@ export function voerUit({ werkmap, losOp }) {
     // Tussen de droogloop en nu kan iemand op de branch hebben gecommit; ook dan blijven we ervan af.
     if (!branchHerbouwbaar(kloon, branch)) {
       verwijderWerkmap(werkmap);
-      return gestopt(`op de branch ${branch} staat sinds de droogloop een commit die niet van /stack-cloudflare:updaten is; bekijk de open pull request voor die branch en draai dan opnieuw`);
+      return gestopt(`op de branch ${branch} staat sinds de droogloop een commit die niet van /stagetwo-tier2:updaten is; bekijk de open pull request voor die branch en draai dan opnieuw`);
     }
     const gepusht = !alGelijkOpGitHub(kloon, branch);
     if (gepusht) push(kloon, branch);

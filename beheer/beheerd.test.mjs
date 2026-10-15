@@ -134,7 +134,7 @@ test("route plugin: --status toont het, --doe-het slaat het over met een zin", (
     w.draai(["--status"]);
     assert.match(w.tekst(), /route plugin/);
     w.draai(["--doe-het"]);
-    assert.match(w.tekst(), /de klant haalt dit zelf op met \/stack-cloudflare:updaten/);
+    assert.match(w.tekst(), /de klant haalt dit zelf op met \/stagetwo-tier2:updaten/);
     assert.match(w.tekst(), /overgeslagen: 1/);
     assert.equal(git(w.klant.origin, "branch", "--list", "stack-sync/v9"), "");
   } finally {
