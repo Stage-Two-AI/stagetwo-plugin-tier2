@@ -9,8 +9,10 @@
  * en een antwoord zonder stack-tag geven null: geen melding, geen stempel.
  */
 import { execFileSync } from "node:child_process";
+import { LEVERING } from "../lib/levering.mjs";
 
-export const STANDAARD_REPO = "Stage-Two-AI/app-template-tier2";
+/** De tags van de leveringsrepo van de klant: stopt het abonnement, dan komt er niets meer bij. */
+export const STANDAARD_REPO = LEVERING.template;
 
 /** Alleen `eigenaar/repo`, zodat een vreemde waarde in STACK_TEMPLATE_REPO geen rare URL wordt. */
 const REPO_VORM = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;

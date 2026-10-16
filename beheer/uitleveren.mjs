@@ -1,0 +1,192 @@
+#!/usr/bin/env node
+/**
+ * Het werk achter de workflow Uitleveren (besluit 16-10-2026, levering per klant): zet de
+ * nieuwe versies van plugin en template door naar de leveringsrepo's van een abonnee.
+ *
+ *   node beheer/uitleveren.mjs --lijst
+ *       de orgs uit abonnees.json als JSON-lijst (voor de matrix van de workflow)
+ *
+ *   node beheer/uitleveren.mjs --org <klantorg> [--droog]
+ *       plugin:   deze checkout (HEAD) naar <klantorg>/stagetwo-plugin-tier2, getagd
+ *                 v<versie uit plugin.json>, zonder abonnees.json en het uitleveren zelf, met
+ *                 een levering.json die naar de leveringsrepo's van de klant wijst;
+ *       template: elke tag stack-v<n> van Stage-Two-AI/app-template-tier2 die de klant nog
+ *                 niet heeft, naar <klantorg>/app-template-tier2; main = de nieuwste.
+ *
+ * De klant krijgt geen kopie van onze geschiedenis maar per versie één commit van Stage Two
+ * bovenop zijn eigen main. Zo komt er nooit iets mee dat alleen in de bron hoort (de lijst
+ * met abonnees, eerdere commits), en is een versie die er al staat meteen klaar: een
+ * tweede run doet niets. Er wordt nooit geforceerd: heeft iemand anders op de main van de
+ * leveringsrepo gezet, dan weigert de push en kijkt Stage Two ernaar.
+ *
+ * Inloggen doet de workflow (gh auth setup-git met het token van de GitHub App
+ * stagetwo-levering); dit script praat gewoon https tegen github.com.
+ */
+import { execFileSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { STAGE_TWO } from "../lib/levering.mjs";
+
+const WORTEL = join(dirname(fileURLToPath(import.meta.url)), "..");
+export const IDENTITEIT = { naam: "Stage Two", email: "info@stagetwo.nl" };
+/** Wat alleen in de bron hoort en nooit naar een klant gaat. */
+export const ALLEEN_IN_BRON = [
+  "abonnees.json",
+  ".github/workflows/uitleveren.yml",
+  "beheer/uitleveren.mjs",
+  "beheer/uitleveren.test.mjs",
+];
+const ORG_VORM = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
+
+// ---------------------------------------------------------------- abonnees
+
+/** De orgs uit abonnees.json; een ongeldige naam is een fout, geen stille overslag. */
+export function leesAbonnees(wortel = WORTEL) {
+  const data = JSON.parse(readFileSync(join(wortel, "abonnees.json"), "utf8"));
+  const orgs = (data.abonnees ?? []).map((a) => (typeof a === "string" ? a : a?.org));
+  for (const org of orgs) {
+    if (!ORG_VORM.test(org ?? "")) throw new Error(`abonnees.json: "${org}" is geen geldige GitHub-org`);
+  }
+  return orgs;
+}
+
+/** De leveringsrepo's van een klant: dezelfde namen als bij Stage Two, in zijn eigen org. */
+export function leveringVoor(org) {
+  return {
+    plugin: `${org}/${basename(STAGE_TWO.plugin)}`,
+    template: `${org}/${basename(STAGE_TWO.template)}`,
+  };
+}
+
+// ---------------------------------------------------------------- git
+
+function gitIn(map, args, { input, env } = {}) {
+  return execFileSync("git", ["-C", map, ...args], {
+    encoding: "utf8",
+    input,
+    stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
+    timeout: 300000,
+    env: { ...process.env, GIT_TERMINAL_PROMPT: "0", ...env },
+  }).trim();
+}
+
+/** Alle refs op afstand als Map ref -> sha; een lege repo geeft een lege Map. */
+export function refsOpAfstand(map, url) {
+  const uit = gitIn(map, ["ls-remote", url]);
+  return new Map(uit.split("\n").filter(Boolean).map((r) => r.split("\t").reverse()));
+}
+
+/** De boom van `ref`, zonder de paden in `weglaten` en met de bestanden in `extra` erbij. */
+export function maakBoom(map, ref, { weglaten = [], extra = {} } = {}) {
+  const tijdelijk = mkdtempSync(join(tmpdir(), "uitleveren-"));
+  const env = { GIT_INDEX_FILE: join(tijdelijk, "index") };
+  try {
+    gitIn(map, ["read-tree", ref], { env });
+    for (const pad of weglaten) gitIn(map, ["rm", "--cached", "-q", "--ignore-unmatch", "--", pad], { env });
+    for (const [pad, inhoud] of Object.entries(extra)) {
+      const blob = gitIn(map, ["hash-object", "-w", "--stdin"], { input: inhoud });
+      gitIn(map, ["update-index", "--add", "--cacheinfo", `100644,${blob},${pad}`], { env });
+    }
+    return gitIn(map, ["write-tree"], { env });
+  } finally {
+    rmSync(tijdelijk, { recursive: true, force: true });
+  }
+}
+
+function maakCommit(map, boom, ouder, bericht) {
+  const env = {
+    GIT_AUTHOR_NAME: IDENTITEIT.naam,
+    GIT_AUTHOR_EMAIL: IDENTITEIT.email,
+    GIT_COMMITTER_NAME: IDENTITEIT.naam,
+    GIT_COMMITTER_EMAIL: IDENTITEIT.email,
+  };
+  return gitIn(map, ["commit-tree", boom, ...(ouder ? ["-p", ouder] : []), "-m", bericht], { env });
+}
+
+/**
+ * Levert `versies` (oud naar nieuw, elk { ref, tag, bericht }) uit `bronMap` af in `doelUrl`.
+ * Een tag die de klant al heeft, slaan we over; de rest komt als commit bovenop zijn main
+ * (of op de bestaande main als de inhoud gelijk is) en krijgt zijn tag. Eén atomaire push.
+ */
+export function leverUit({ bronMap, doelUrl, versies, weglaten = [], extra = {}, droog = false }) {
+  const opAfstand = refsOpAfstand(bronMap, doelUrl);
+  let tip = opAfstand.get("refs/heads/main") ?? null;
+  if (tip) gitIn(bronMap, ["fetch", "-q", "--no-tags", doelUrl, "+refs/heads/main:refs/uitleveren/main"]);
+  const nieuw = [];
+  for (const { ref, tag, bericht } of versies) {
+    if (opAfstand.has(`refs/tags/${tag}`)) continue;
+    const boom = maakBoom(bronMap, ref, { weglaten, extra });
+    if (!tip || gitIn(bronMap, ["rev-parse", `${tip}^{tree}`]) !== boom) tip = maakCommit(bronMap, boom, tip, bericht);
+    nieuw.push({ tag, sha: tip });
+  }
+  if (nieuw.length === 0) return { status: "al-bij", repo: doelUrl };
+  if (!droog) {
+    const refs = [`${tip}:refs/heads/main`, ...nieuw.map(({ tag, sha }) => `${sha}:refs/tags/${tag}`)];
+    gitIn(bronMap, ["push", "-q", "--atomic", doelUrl, ...refs]);
+  }
+  return { status: droog ? "zou-leveren" : "geleverd", repo: doelUrl, tags: nieuw.map((n) => n.tag) };
+}
+
+// ---------------------------------------------------------------- plugin en template
+
+/** De plugin op HEAD van `bronMap`, met levering.json voor deze klant. */
+export function pluginVersies(bronMap) {
+  const versie = JSON.parse(gitIn(bronMap, ["show", "HEAD:.claude-plugin/plugin.json"])).version;
+  if (!/^\d+\.\d+\.\d+$/.test(versie ?? "")) throw new Error(`plugin.json heeft geen geldige versie: ${versie}`);
+  const sha = gitIn(bronMap, ["rev-parse", "HEAD"]);
+  return [{ ref: "HEAD", tag: `v${versie}`, bericht: `Plugin ${versie}\n\nBron: ${STAGE_TWO.plugin}@${sha}` }];
+}
+
+export function leveringJson(org) {
+  return `${JSON.stringify(leveringVoor(org), null, 2)}\n`;
+}
+
+/** Elke tag stack-v<n> van de template, van oud naar nieuw. */
+export function templateVersies(bronMap) {
+  return gitIn(bronMap, ["tag", "--list", "stack-v*"])
+    .split("\n")
+    .map((t) => /^stack-v(\d+)$/.exec(t)?.[1])
+    .filter(Boolean)
+    .map(Number)
+    .sort((a, b) => a - b)
+    .map((n) => ({ ref: `stack-v${n}`, tag: `stack-v${n}`, bericht: `Versie ${n}` }));
+}
+
+export function uitleverenAanKlant({ org, pluginMap = WORTEL, templateUrl = `https://github.com/${STAGE_TWO.template}`, droog = false, url = (repo) => `https://github.com/${repo}.git` }) {
+  if (!ORG_VORM.test(org ?? "")) throw new Error(`geen geldige GitHub-org: ${org}`);
+  const doel = leveringVoor(org);
+  const plugin = leverUit({
+    bronMap: pluginMap,
+    doelUrl: url(doel.plugin),
+    versies: pluginVersies(pluginMap),
+    weglaten: ALLEEN_IN_BRON,
+    extra: { "levering.json": leveringJson(org) },
+    droog,
+  });
+  const kloon = mkdtempSync(join(tmpdir(), "uitleveren-template-"));
+  try {
+    execFileSync("git", ["clone", "--quiet", "--bare", templateUrl, kloon], { stdio: "ignore", timeout: 300000, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } });
+    const template = leverUit({ bronMap: kloon, doelUrl: url(doel.template), versies: templateVersies(kloon), droog });
+    return { org, plugin, template };
+  } finally {
+    rmSync(kloon, { recursive: true, force: true });
+  }
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const argv = process.argv.slice(2);
+  try {
+    if (argv.includes("--lijst")) {
+      process.stdout.write(`${JSON.stringify(leesAbonnees())}\n`);
+    } else {
+      const i = argv.indexOf("--org");
+      const uitkomst = uitleverenAanKlant({ org: i >= 0 ? argv[i + 1] : null, droog: argv.includes("--droog") });
+      process.stdout.write(`${JSON.stringify(uitkomst, null, 2)}\n`);
+    }
+  } catch (fout) {
+    process.stderr.write(`${String(fout?.stderr || fout?.message || fout).trim()}\n`);
+    process.exitCode = 1;
+  }
+}

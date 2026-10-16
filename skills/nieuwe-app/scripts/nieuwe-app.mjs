@@ -50,9 +50,11 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { LEVERING, STAGE_TWO } from "../../../lib/levering.mjs";
 import { ghAanwezig, ghIngelogd, git, sh } from "../../../lib/repo.mjs";
 
-export const TEMPLATE = "Stage-Two-AI/app-template-tier2";
+/** De template uit levering.json (een abonnee), anders die van Stage Two; zie lib/levering.mjs. */
+export const TEMPLATE = LEVERING.template;
 export const STAGE_TWO_LOGIN = "StageTwoAI";
 // Op het Cloudflare-spoor heeft elke app een eigen database: het inloggen loopt van de
 // deur van Cloudflare via Supabase (zie beheer-template, inrichten-cloudflare.mjs).
@@ -380,7 +382,7 @@ export function installeer(map, { run = (...args) => pnpm(map, ...args) } = {}) 
 /**
  * Beslist of `--doe-het` nieuw begint, verdergaat of weigert.
  *   repo         bestaat de repo al op GitHub
- *   uitTemplate  is hij gemaakt uit TEMPLATE (anders is het iets van iemand anders)
+ *   uitTemplate  is hij gemaakt uit TEMPLATE of die van Stage Two (anders is het iets van iemand anders)
  *   map          bestaat de map al
  *   mapIsKloon   is die map een kloon van precies deze repo
  */
@@ -443,7 +445,8 @@ function ghApi(methode, pad, velden = {}) {
 
 function uitTemplate(repo) {
   try {
-    return ghJson([`repos/${repo}`]).template_repository?.full_name?.toLowerCase() === TEMPLATE.toLowerCase();
+    const bron = ghJson([`repos/${repo}`]).template_repository?.full_name?.toLowerCase();
+    return bron === TEMPLATE.toLowerCase() || bron === STAGE_TWO.template.toLowerCase();
   } catch {
     return false;
   }

@@ -5,7 +5,8 @@ import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
-import { BRON, aanvullen, automatischBijwerken, instellingenPad, watOntbreekt } from "./automatisch-bijwerken.mjs";
+import { STAGE_TWO } from "../../../lib/levering.mjs";
+import { BRON, aanvullen, automatischBijwerken, instellingenPad, isBronVanStageTwo, watOntbreekt } from "./automatisch-bijwerken.mjs";
 
 const SCRIPT = fileURLToPath(import.meta.url).replace(/\.test\.mjs$/, ".mjs");
 
@@ -46,7 +47,7 @@ test("bestaand bestand: alles van de gebruiker blijft staan, ook de stagetwo-reg
       extraKnownMarketplaces: {
         ander: { source: { source: "github", repo: "x/y" } },
         stagetwo: { source: { source: "github", repo: "Stage-Two-AI/stack-plugin" } },
-        "stagetwo-tier2": { source: { source: "git", url: "https://github.com/Stage-Two-AI/stagetwo-plugin-tier2.git" } },
+        "stagetwo-tier2": { source: { source: "git", url: "https://github.com/Eigen-Org/stagetwo-plugin-tier2.git" } },
       },
     };
     writeFileSync(join(map, "settings.json"), JSON.stringify(voor));
@@ -116,4 +117,34 @@ test("als opdracht: één JSON-object, exitcode 0 bij gezet", () => {
     const uit = execFileSync(process.execPath, [SCRIPT, "--json"], { env: { ...process.env, CLAUDE_CONFIG_DIR: map }, encoding: "utf8" });
     assert.equal(JSON.parse(uit).status, "gezet");
   });
+});
+
+test("levering: een bron van Stage Two gaat naar de leveringsrepo van de klant, een eigen bron blijft", () => {
+  const klant = { source: "github", repo: "Richplant-BV/stagetwo-plugin-tier2" };
+  for (const oud of [
+    { source: "github", repo: STAGE_TWO.plugin },
+    { source: "git", url: `https://github.com/${STAGE_TWO.plugin}.git` },
+  ]) {
+    const voor = { env: { FORCE_AUTOUPDATE_PLUGINS: "1" }, extraKnownMarketplaces: { "stagetwo-tier2": { source: oud, autoUpdate: true } } };
+    assert.deepEqual(watOntbreekt(voor, klant), ["extraKnownMarketplaces.stagetwo-tier2.source"]);
+    const na = aanvullen(voor, klant);
+    assert.deepEqual(na.extraKnownMarketplaces["stagetwo-tier2"], { source: klant, autoUpdate: true });
+    assert.deepEqual(watOntbreekt(na, klant), []);
+  }
+  const eigen = { env: { FORCE_AUTOUPDATE_PLUGINS: "1" }, extraKnownMarketplaces: { "stagetwo-tier2": { source: { source: "github", repo: "x/y" }, autoUpdate: true } } };
+  assert.deepEqual(watOntbreekt(eigen, klant), [], "een bron die niet van Stage Two is, blijft staan");
+});
+
+test("levering: zonder leveringsrepo blijft een bron van Stage Two gewoon staan", () => {
+  const stageTwo = { source: "github", repo: STAGE_TWO.plugin };
+  const voor = { env: { FORCE_AUTOUPDATE_PLUGINS: "1" }, extraKnownMarketplaces: { "stagetwo-tier2": { source: { source: "git", url: `https://github.com/${STAGE_TWO.plugin}` }, autoUpdate: true } } };
+  assert.deepEqual(watOntbreekt(voor, stageTwo), []);
+});
+
+test("isBronVanStageTwo herkent de github- en de git-vorm, en niets anders", () => {
+  assert.ok(isBronVanStageTwo({ source: "github", repo: STAGE_TWO.plugin.toUpperCase() }));
+  assert.ok(isBronVanStageTwo({ source: "git", url: `git@github.com:${STAGE_TWO.plugin}.git` }));
+  assert.ok(!isBronVanStageTwo({ source: "github", repo: "Richplant-BV/stagetwo-plugin-tier2" }));
+  assert.ok(!isBronVanStageTwo({ source: "directory", path: "/x" }));
+  assert.ok(!isBronVanStageTwo(undefined));
 });
