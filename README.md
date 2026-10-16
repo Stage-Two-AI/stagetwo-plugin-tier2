@@ -341,6 +341,27 @@ overweg.
    de ruleset op de template weigert dat.
 4. Registerprojecten: `node bin/stack-sync.mjs --status` in Stack, dan de droogloop,
    dan `--doe-het`.
+5. Abonnees: de workflow **Uitleveren** zet de nieuwe versie vanzelf door (zie hieronder).
+
+### Levering per klant
+
+Een abonnee krijgt plugin en template in zijn eigen GitHub-org, als openbare kopie
+(besluit 16-10-2026, `Stack/docs/besluiten/2026-10-16-levering-per-klant.md`):
+`<klantorg>/stagetwo-plugin-tier2` en `<klantorg>/app-template-tier2`.
+
+- `levering.json` in de root van de plugin wijst naar die twee repo's. De plugin leest het
+  (`lib/levering.mjs`) voor de template (melding, updaten, nieuwe-app) en voor de bron van
+  de marketplace (`automatisch-bijwerken.mjs`). Zonder bestand geldt `Stage-Two-AI`. In
+  deze bronrepo staat het nooit; de workflow schrijft het per klant.
+- `abonnees.json` is de lijst met abonnees (GitHub-orgs). Erin = nieuwe versies; eruit =
+  de leveringsrepo blijft op de laatste versie staan en er komt niets meer bij.
+- De workflow **Uitleveren** (`.github/workflows/uitleveren.yml`, script
+  `beheer/uitleveren.mjs`) draait na elke merge naar `main`, elk uur en met de hand. Per
+  abonnee zet hij een nieuwe pluginversie neer als tag `v<versie>` en elke nieuwe
+  template-tag `stack-v<n>`, elk als één commit van Stage Two bovenop de main van de klant.
+  Onze geschiedenis, `abonnees.json` en het uitleveren zelf gaan niet mee.
+- Schrijfrecht bij de klant gaat via de GitHub App `stagetwo-levering`; recept in
+  `Stack/docs/recepten/github-app-levering.md`.
 
 ### De repo beschermen
 

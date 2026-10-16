@@ -1,0 +1,77 @@
+# Uitleveren (besluit 16-10-2026, levering per klant): zet nieuwe versies van plugin en
+# template door naar de leveringsrepo's van elke klant in abonnees.json.
+#
+#   plugin    een nieuwe versie in plugin.json op main (een release), als tag v<versie>
+#   template  elke nieuwe tag stack-v<n> van Stage-Two-AI/app-template-tier2
+#
+# Wanneer: na elke merge naar main (de plugin), elk uur (een nieuwe template-tag is er dan
+# binnen het uur) en met de hand via "Run workflow" (bijvoorbeeld na een nieuwe abonnee).
+# Een versie die de klant al heeft, slaat hij over; een run zonder iets nieuws doet niets.
+#
+# Schrijven bij de klant gaat via de GitHub App stagetwo-levering, die de klant op alleen
+# zijn twee leveringsrepo's installeert. Nodig in deze repo: de variabele LEVERING_APP_ID
+# en het geheim LEVERING_APP_PRIVATE_KEY (recept: Stack/docs/recepten/github-app-levering.md).
+# Deze workflow, het script en abonnees.json gaan zelf nooit mee naar een klant.
+name: Uitleveren
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: uitleveren
+  cancel-in-progress: false
+
+jobs:
+  abonnees:
+    name: Abonnees
+    runs-on: ubuntu-latest
+    outputs:
+      orgs: ${{ steps.lijst.outputs.orgs }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - id: lijst
+        run: echo "orgs=$(node beheer/uitleveren.mjs --lijst)" >> "$GITHUB_OUTPUT"
+
+  klant:
+    name: ${{ matrix.org }}
+    needs: abonnees
+    if: needs.abonnees.outputs.orgs != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        org: ${{ fromJSON(needs.abonnees.outputs.orgs) }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          # Anders gaat het token van deze repo mee met elke git-aanroep naar github.com,
+          # ook met de push naar de klant, en wint het van het token van de App.
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - id: token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.LEVERING_APP_ID }}
+          private-key: ${{ secrets.LEVERING_APP_PRIVATE_KEY }}
+          owner: ${{ matrix.org }}
+          repositories: stagetwo-plugin-tier2,app-template-tier2
+      - name: Uitleveren
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+          ORG: ${{ matrix.org }}
+        run: |
+          gh auth setup-git
+          node beheer/uitleveren.mjs --org "$ORG"

@@ -15,7 +15,10 @@
  *
  * Het script zet precies twee dingen en laat de rest van het bestand staan:
  *   env.FORCE_AUTOUPDATE_PLUGINS = "1"
- *   extraKnownMarketplaces.stagetwo-tier2 = { source: github Stage-Two-AI/stagetwo-plugin-tier2, autoUpdate: true }
+ *   extraKnownMarketplaces.stagetwo-tier2 = { source: github <plugin uit levering.json>, autoUpdate: true }
+ * De bron is de leveringsrepo van de klant (levering.json, zie lib/levering.mjs), anders
+ * Stage-Two-AI/stagetwo-plugin-tier2. Wijst een bestaande regel nog naar die van Stage Two
+ * terwijl de klant een eigen leveringsrepo heeft, dan gaat de bron naar die leveringsrepo.
  * Een bestaande stagetwo-tier2-regel houdt zijn eigen velden; alleen autoUpdate (en een
  * ontbrekende source) wordt aangevuld. De regels van de plugin onder zijn oude naam
  * (marketplace stagetwo-cloudflare, plugin stack-cloudflare, tot 15-10-2026) haalt het weg,
@@ -32,9 +35,10 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { LEVERING, STAGE_TWO } from "../../../lib/levering.mjs";
 
 export const MARKETPLACE = "stagetwo-tier2";
-export const BRON = { source: "github", repo: "Stage-Two-AI/stagetwo-plugin-tier2" };
+export const BRON = Object.freeze({ source: "github", repo: LEVERING.plugin });
 /** De plugin onder zijn naam van vóór 15-10-2026 (besluit tier 1 en tier 2). */
 export const OUDE_MARKETPLACES = ["stagetwo-cloudflare"];
 export const OUDE_PLUGINS = ["stack-cloudflare@stagetwo-cloudflare"];
@@ -46,12 +50,26 @@ export function instellingenPad(env = process.env) {
   return join(map, "settings.json");
 }
 
-/** Wat er aan deze instellingen ontbreekt; leeg = alles staat goed. */
-export function watOntbreekt(instellingen) {
+/** Wijst deze bron naar de bronrepo van Stage Two (github- of git-vorm)? */
+export function isBronVanStageTwo(source) {
+  const doel = STAGE_TWO.plugin.toLowerCase();
+  if (source?.source === "github") return String(source.repo ?? "").toLowerCase() === doel;
+  if (source?.source === "git") return /github\.com[/:](.+?)(?:\.git)?\/?$/i.exec(String(source.url ?? ""))?.[1]?.toLowerCase() === doel;
+  return false;
+}
+
+/** Moet de bron naar `bron` toe: ontbreekt hij, of wijst hij nog naar Stage Two terwijl er een leveringsrepo is. */
+function bronMoetWeg(regel, bron) {
+  if (!regel?.source) return true;
+  return bron.repo.toLowerCase() !== STAGE_TWO.plugin.toLowerCase() && isBronVanStageTwo(regel.source);
+}
+
+/** Wat er aan deze instellingen ontbreekt; leeg = alles staat goed. `bron` alleen anders in tests. */
+export function watOntbreekt(instellingen, bron = BRON) {
   const mist = [];
   if (instellingen?.env?.FORCE_AUTOUPDATE_PLUGINS !== "1") mist.push("env.FORCE_AUTOUPDATE_PLUGINS");
   const regel = instellingen?.extraKnownMarketplaces?.[MARKETPLACE];
-  if (!regel?.source) mist.push(`extraKnownMarketplaces.${MARKETPLACE}.source`);
+  if (bronMoetWeg(regel, bron)) mist.push(`extraKnownMarketplaces.${MARKETPLACE}.source`);
   if (regel?.autoUpdate !== true) mist.push(`extraKnownMarketplaces.${MARKETPLACE}.autoUpdate`);
   for (const oud of OUDE_MARKETPLACES) {
     if (instellingen?.extraKnownMarketplaces?.[oud] !== undefined) mist.push(`weg: extraKnownMarketplaces.${oud}`);
@@ -62,13 +80,13 @@ export function watOntbreekt(instellingen) {
   return mist;
 }
 
-/** De aangevulde instellingen; het origineel blijft onaangeroerd. */
-export function aanvullen(instellingen) {
+/** De aangevulde instellingen; het origineel blijft onaangeroerd. `bron` alleen anders in tests. */
+export function aanvullen(instellingen, bron = BRON) {
   const uit = { ...instellingen };
   uit.env = { ...(instellingen.env ?? {}), FORCE_AUTOUPDATE_PLUGINS: "1" };
   const markten = { ...(instellingen.extraKnownMarketplaces ?? {}) };
   const regel = { ...(markten[MARKETPLACE] ?? {}) };
-  if (!regel.source) regel.source = { ...BRON };
+  if (bronMoetWeg(regel, bron)) regel.source = { ...bron };
   regel.autoUpdate = true;
   markten[MARKETPLACE] = regel;
   for (const oud of OUDE_MARKETPLACES) delete markten[oud];
