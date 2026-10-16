@@ -95,7 +95,7 @@ export const BASH_REGELS = [
       "met de werkelijkheid, en dan is de historie waardeloos.",
       "",
       "Databasewijziging nodig? Schrijf een migratie in supabase/migrations/.",
-      "Lokaal uitproberen mag wel: `pnpm db:start` en `pnpm db:reset`.",
+      "Een migratie test je door hem te pushen: de Kwaliteitspoort draait hem in een eigen Supabase.",
     ].join("\n"),
   },
 ];
