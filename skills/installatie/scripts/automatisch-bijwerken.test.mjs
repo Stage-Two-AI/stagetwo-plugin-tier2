@@ -148,3 +148,30 @@ test("isBronVanStageTwo herkent de github- en de git-vorm, en niets anders", () 
   assert.ok(!isBronVanStageTwo({ source: "directory", path: "/x" }));
   assert.ok(!isBronVanStageTwo(undefined));
 });
+
+test("--uit zet autoUpdate op false en laat de rest staan; een gewone run zet het daarna niet terug, --aan wel", () => {
+  metMap((map, env) => {
+    writeFileSync(join(map, "settings.json"), JSON.stringify({ theme: "dark", env: { FORCE_AUTOUPDATE_PLUGINS: "1" }, extraKnownMarketplaces: { "stagetwo-tier2": { source: BRON, autoUpdate: true }, ander: { source: { source: "github", repo: "x/y" }, autoUpdate: true } } }));
+    assert.equal(automatischBijwerken({ env, uit: true }).status, "uitgezet");
+    const na = lees(map);
+    assert.equal(na.theme, "dark");
+    assert.deepEqual(na.extraKnownMarketplaces["stagetwo-tier2"], { source: BRON, autoUpdate: false });
+    assert.equal(na.extraKnownMarketplaces.ander.autoUpdate, true, "andere marketplaces blijven onaangeroerd");
+    assert.equal(automatischBijwerken({ env, uit: true }).status, "uit", "tweede keer: niets te doen");
+    assert.equal(automatischBijwerken({ env }).status, "uit", "een gewone run (ook vanuit updaten) respecteert de keuze");
+    assert.equal(automatischBijwerken({ env, controle: true }).status, "uit");
+    assert.equal(lees(map).extraKnownMarketplaces["stagetwo-tier2"].autoUpdate, false);
+    assert.equal(automatischBijwerken({ env, aan: true }).status, "gezet");
+    assert.equal(lees(map).extraKnownMarketplaces["stagetwo-tier2"].autoUpdate, true);
+  });
+});
+
+test("--uit zonder bestand maakt de marketplace-regel aan met autoUpdate false; --uit met --controle schrijft niets", () => {
+  metMap((map, env) => {
+    assert.equal(automatischBijwerken({ env, uit: true, controle: true }).status, "ontbreekt");
+    assert.equal(existsSync(join(map, "settings.json")), false);
+    const uit = execFileSync(process.execPath, [SCRIPT, "--json", "--uit"], { env: { ...process.env, CLAUDE_CONFIG_DIR: map }, encoding: "utf8" });
+    assert.equal(JSON.parse(uit).status, "uitgezet");
+    assert.deepEqual(lees(map), { extraKnownMarketplaces: { "stagetwo-tier2": { source: BRON, autoUpdate: false } } });
+  });
+});

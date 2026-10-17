@@ -4,6 +4,14 @@
  * (~/.claude/settings.json), zodat de klant nooit zelf een commando hoeft te typen.
  *
  *   node automatisch-bijwerken.mjs --json [--controle]
+ *   node automatisch-bijwerken.mjs --json --uit     automatisch bijwerken uitzetten
+ *   node automatisch-bijwerken.mjs --json --aan     weer aanzetten na --uit
+ *
+ * De plugin is software van Stage Two die met de rechten van de bouwer draait. Wil een klant
+ * zelf bepalen wanneer er een nieuwe versie op zijn computer komt, dan zet --uit
+ * `autoUpdate: false` op de marketplace. Een gewone run (ook die in /stagetwo-tier2:updaten)
+ * respecteert dat en zet het niet stilletjes terug; alleen --aan doet dat. De plugin bijwerken
+ * gaat dan met de hand, met /stagetwo-tier2:updaten (deel 1).
  *
  * Waarom dit nodig is (vastgesteld 02-10-2026 op Windows, Claude desktop-app):
  *   - De desktop-app start Claude Code met DISABLE_AUTOUPDATER=1. Dat zet ook het
@@ -27,6 +35,8 @@
  *
  * Uitkomst: één JSON-object met `status`:
  *   al-goed   alles stond er al
+ *   uit       automatisch bijwerken staat bewust uit (autoUpdate: false); er is niets geschreven
+ *   uitgezet  (alleen met --uit) autoUpdate staat nu op false
  *   gezet     het bestand is aangevuld; `gewijzigd` zegt wat (werkt vanaf de volgende start)
  *   ontbreekt (alleen met --controle) wat er nog mist, in `ontbreekt`; er is niets geschreven
  *   mislukt   `reden` in één zin
@@ -94,7 +104,30 @@ export function aanvullen(instellingen, bron = BRON) {
   return uit;
 }
 
-export function automatischBijwerken({ controle = false, env = process.env } = {}) {
+/** Staat automatisch bijwerken bewust uit (met --uit gezet, of door de klant zelf)? */
+export function staatUit(instellingen) {
+  return instellingen?.extraKnownMarketplaces?.[MARKETPLACE]?.autoUpdate === false;
+}
+
+/** De instellingen met automatisch bijwerken uit; de bron wordt zo nodig aangevuld zoals bij aanvullen. */
+export function uitzetten(instellingen, bron = BRON) {
+  const markten = { ...(instellingen.extraKnownMarketplaces ?? {}) };
+  const regel = { ...(markten[MARKETPLACE] ?? {}) };
+  if (bronMoetWeg(regel, bron)) regel.source = { ...bron };
+  regel.autoUpdate = false;
+  markten[MARKETPLACE] = regel;
+  return { ...instellingen, extraKnownMarketplaces: markten };
+}
+
+/** Schrijft eerst naar een tijdelijk bestand en vervangt dan in één keer: nooit een half bestand. */
+function schrijf(pad, instellingen) {
+  mkdirSync(dirname(pad), { recursive: true });
+  const tijdelijk = `${pad}.stack-${process.pid}.tmp`;
+  writeFileSync(tijdelijk, `${JSON.stringify(instellingen, null, 2)}\n`);
+  renameSync(tijdelijk, pad);
+}
+
+export function automatischBijwerken({ controle = false, uit = false, aan = false, env = process.env } = {}) {
   const pad = instellingenPad(env);
   let instellingen = {};
   if (existsSync(pad)) {
@@ -110,16 +143,23 @@ export function automatischBijwerken({ controle = false, env = process.env } = {
       }
     }
   }
+  if (uit) {
+    if (staatUit(instellingen)) return { status: "uit", pad };
+    if (controle) return { status: "ontbreekt", pad, ontbreekt: [`extraKnownMarketplaces.${MARKETPLACE}.autoUpdate = false`] };
+    try {
+      schrijf(pad, uitzetten(instellingen));
+    } catch (fout) {
+      return { status: "mislukt", pad, reden: `kon ${pad} niet schrijven: ${String(fout?.message ?? fout).split("\n")[0]}` };
+    }
+    return { status: "uitgezet", pad };
+  }
+  if (staatUit(instellingen) && !aan) return { status: "uit", pad };
   const ontbreekt = watOntbreekt(instellingen);
   if (ontbreekt.length === 0) return { status: "al-goed", pad };
   if (controle) return { status: "ontbreekt", pad, ontbreekt };
 
   try {
-    mkdirSync(dirname(pad), { recursive: true });
-    // Eerst naar een tijdelijk bestand, dan in één keer vervangen: nooit een half bestand.
-    const tijdelijk = `${pad}.stack-${process.pid}.tmp`;
-    writeFileSync(tijdelijk, `${JSON.stringify(aanvullen(instellingen), null, 2)}\n`);
-    renameSync(tijdelijk, pad);
+    schrijf(pad, aanvullen(instellingen));
   } catch (fout) {
     return { status: "mislukt", pad, reden: `kon ${pad} niet schrijven: ${String(fout?.message ?? fout).split("\n")[0]}` };
   }
@@ -128,7 +168,11 @@ export function automatischBijwerken({ controle = false, env = process.env } = {
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const argv = process.argv.slice(2);
-  const uitkomst = automatischBijwerken({ controle: argv.includes("--controle") });
+  if (argv.includes("--uit") && argv.includes("--aan")) {
+    process.stdout.write(`${JSON.stringify({ status: "mislukt", reden: "--uit en --aan tegelijk kan niet" })}\n`);
+    process.exit(1);
+  }
+  const uitkomst = automatischBijwerken({ controle: argv.includes("--controle"), uit: argv.includes("--uit"), aan: argv.includes("--aan") });
   process.stdout.write(`${JSON.stringify(uitkomst, null, 2)}\n`);
   process.exitCode = uitkomst.status === "mislukt" ? 1 : 0;
 }

@@ -1,6 +1,6 @@
 ---
 name: updaten
-description: Werkt alles bij zoals een update van een besturingssysteem - de Stage Two-plugin zelf, de programma's op deze computer (Git, Node, pnpm, gh), deze app naar de nieuwste Stage Two-template en haar afhankelijkheden (elk als eigen pull request), en daarna desgewenst de andere apps van de klant. Gebruik dit als de gebruiker vraagt om bij te werken, te updaten, de nieuwste versie op te halen, of als de melding bij sessiestart zei dat er een nieuwere template is en de gebruiker daarop ingaat.
+description: Werkt alles bij zoals een update van een besturingssysteem - de Stage Two-plugin zelf, de programma's op deze computer (Git, Node, pnpm, gh), deze app naar de nieuwste Stage Two-template en haar afhankelijkheden (elk als eigen pull request), en daarna desgewenst de andere apps van de klant. Gebruik dit als de gebruiker vraagt om bij te werken, te updaten, de nieuwste versie op te halen, of als de melding bij sessiestart zei dat er een nieuwere template is en de gebruiker daarop ingaat. Ook als de gebruiker het automatisch bijwerken van de plugin uit of weer aan wil zetten.
 ---
 
 Je werkt alles bij, zoals een update van een besturingssysteem: eerst wat op deze
@@ -16,8 +16,8 @@ gebruiker. Mergen doet de gebruiker zelf.
 De gebruiker bouwt zelf; Stage Two richt in en begeleidt. Nieuwe versies komen uit de kopie
 van plugin en template die Stage Two bij de start in de GitHub-organisatie van de klant
 klaarzet (`levering.json`); Stage Two zet daar nieuwe versies in zolang het abonnement loopt, en test elke versie eerst op zijn
-eigen apps. Na de overdracht heeft Stage Two geen toegang tot de apps en zet het daar zelf
-geen voorstellen klaar: dit commando is de weg waarlangs een nieuwe versie in een app komt.
+eigen apps. Na de overdracht heeft Stage Two zelf geen toegang tot de apps en zet het daar
+geen voorstellen klaar; een app verandert nooit vanzelf: dit commando is de weg waarlangs een nieuwe versie in een app komt.
 Houd twee dingen apart als je het uitlegt: de plugin op deze computer werkt zichzelf bij uit
 de kopie (deel 1), en een app verandert alleen via een voorstel dat een bouwer goedkeurt
 (deel 3 tot en met 5). Stopt het abonnement, dan blijft die kopie op de laatste versie staan
@@ -26,6 +26,21 @@ plugin en template mag hij blijven gebruiken, en ze blijven werken, ook zonder S
 
 Staat er geen app open (geen `.claude/stack-manifest.json` in deze map), sla dan deel 3
 en 4 over en ga na deel 2 naar deel 5.
+
+## Alleen automatisch bijwerken uit- of aanzetten
+
+De plugin is software van Stage Two die op deze computer draait met de rechten van de
+gebruiker, en zichzelf bijwerkt uit de kopie in de eigen organisatie. Vraagt de gebruiker om
+dat automatisch bijwerken uit te zetten (of weer aan), doe dan alleen dit en stop daarna:
+
+```sh
+node "${CLAUDE_SKILL_DIR}/../installatie/scripts/automatisch-bijwerken.mjs" --json --uit
+```
+
+Met `--aan` in plaats van `--uit` gaat het weer aan. Bij `uitgezet` of `uit`: zeg dat de
+plugin zich vanaf de volgende start niet meer vanzelf bijwerkt, en dat de gebruiker hem zelf
+bijwerkt met `/stagetwo-tier2:updaten` wanneer hij dat wil. Apps veranderen in beide gevallen
+nooit vanzelf, alleen via een voorstel dat een bouwer goedkeurt.
 
 ## Deel 1: de plugin zelf
 
@@ -36,8 +51,10 @@ plugin 2.1.0 nog niet aan, en de desktop-app zet het standaard uit):
 node "${CLAUDE_SKILL_DIR}/../installatie/scripts/automatisch-bijwerken.mjs" --json
 ```
 
-`gezet` of `al-goed` is goed; bij `mislukt` geef je `reden` door en ga je door. Werk de
-plugin daarna nu meteen bij:
+`gezet` of `al-goed` is goed. `uit` betekent dat de gebruiker het automatisch bijwerken
+bewust heeft uitgezet: laat dat zo en zeg het in één regel; de stap hieronder is dan de
+manier waarop de plugin bijgewerkt wordt. Bij `mislukt` geef je `reden` door en ga je door.
+Werk de plugin daarna nu meteen bij:
 
 ```sh
 claude plugin marketplace update stagetwo-tier2 && claude plugin update stagetwo-tier2@stagetwo-tier2
@@ -128,7 +145,9 @@ Vraag daarna per bestand één keuze:
   komt zo in de pull request te staan.
 
 Weet de gebruiker het niet, dan is **eigen** de veilige keuze: dat verandert niets aan
-wat er nu werkt, en Stage Two kan er later naar kijken.
+wat er nu werkt. Wil de gebruiker dat Stage Two ernaar kijkt: tijdens het project volstaat
+de link naar de pull request; na de overdracht kan Stage Two een privé-repo niet openen, dus
+dan een beschrijving of schermafbeelding, of de owner geeft Stage Two tijdelijk leestoegang.
 
 Let op bij een bestand met een projectdeel, zoals `AGENTS.md`. Zegt de `reden` dat de
 markeringen (`stack:begin` en `stack:end`) ontbreken, dan is **template** geen geldige
@@ -164,7 +183,9 @@ Onthoud voor de samenvatting aan het eind (deel 6), in gewone taal:
 2. waar de pull request staat (`pr.url`, of anders `vergelijkUrl` om hem zelf te openen);
 3. wat hij nu doet: de pull request bekijken, wachten tot de checks groen zijn en op
    Merge drukken. Zijn de checks rood, dan voldoet de app niet aan een nieuwe regel;
-   dan neemt hij contact op met Stage Two en zet hij de check niet uit.
+   dan neemt hij contact op met Stage Two en zet hij de check niet uit (tijdens het project
+   met de link; na de overdracht met een beschrijving of schermafbeelding, want dan kan Stage
+   Two de privé-repo niet openen, tenzij de owner tijdelijk leestoegang geeft).
    Meekijken en meedenken vallen binnen het abonnement; meer werk aan de app doet Stage Two
    op nacalculatie.
 
@@ -230,7 +251,9 @@ Sluit af met één overzicht, in gewone taal:
    de template is bijgewerkt en wat niet (de bestanden waarvoor **eigen** is gekozen).
 2. Wat de gebruiker nu doet: per pull request wachten tot de checks groen zijn en op
    Merge drukken. Zijn de checks rood, dan voldoet de app niet aan een nieuwe regel; dan
-   neemt hij contact op met Stage Two en zet hij de check niet uit.
+   neemt hij contact op met Stage Two en zet hij de check niet uit (tijdens het project
+   met de link; na de overdracht met een beschrijving of schermafbeelding, want dan kan Stage
+   Two de privé-repo niet openen, tenzij de owner tijdelijk leestoegang geeft).
    Meekijken en meedenken vallen binnen het abonnement; meer werk aan de app doet Stage Two
    op nacalculatie.
 3. Is in deel 1 of 2 iets bijgewerkt, zeg dan dat de app opnieuw moet starten, met deze

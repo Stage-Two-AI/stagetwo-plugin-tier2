@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { STAGE_TWO } from "../lib/levering.mjs";
 import { pluginBron } from "../lib/plugin-bron.mjs";
-import { controleerGetest, leesAbonnees, leesOpties, leveringVoor, leverUit, templateVersies, uitleverenAanKlant } from "./uitleveren.mjs";
+import { controleerGetest, leesAbonnees, leesGetestTemplate, leesOpties, leveringVoor, leverUit, templateVersies, uitleverenAanKlant } from "./uitleveren.mjs";
 
 const git = (map, ...args) => execFileSync("git", ["-C", map, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 
@@ -94,7 +94,7 @@ test("plugin: zonder abonnees.json en workflow, met levering.json; tweede run do
     git(tmpl, "tag", "stack-v1");
     const url = (r) => join(map, r);
 
-    const r = uitleverenAanKlant({ org: "Klant-BV", pluginMap: bron, templateUrl: tmpl, url });
+    const r = uitleverenAanKlant({ org: "Klant-BV", getestTemplate: "stack-v1", pluginMap: bron, templateUrl: tmpl, url });
     assert.equal(r.plugin.status, "geleverd");
     assert.deepEqual(r.plugin.tags, ["v2.0.0"]);
     assert.equal(toon(doelPlugin, "main", "abonnees.json"), null, "de abonneelijst gaat nooit mee");
@@ -105,10 +105,10 @@ test("plugin: zonder abonnees.json en workflow, met levering.json; tweede run do
     assert.equal(git(doelPlugin, "log", "--format=%an <%ae>|%s", "main"), "Stage Two <info@stagetwo.nl>|Plugin 2.0.0");
     assert.equal(git(doelPlugin, "rev-list", "--count", "main"), "1", "geen geschiedenis van de bron");
 
-    assert.equal(uitleverenAanKlant({ org: "Klant-BV", pluginMap: bron, templateUrl: tmpl, url }).plugin.status, "al-bij");
+    assert.equal(uitleverenAanKlant({ org: "Klant-BV", getestTemplate: "stack-v1", pluginMap: bron, templateUrl: tmpl, url }).plugin.status, "al-bij");
 
     commitAlles(bron, { ".claude-plugin/plugin.json": JSON.stringify({ version: "2.1.0" }) });
-    const r3 = uitleverenAanKlant({ org: "Klant-BV", pluginMap: bron, templateUrl: tmpl, url });
+    const r3 = uitleverenAanKlant({ org: "Klant-BV", getestTemplate: "stack-v1", pluginMap: bron, templateUrl: tmpl, url });
     assert.deepEqual(r3.plugin.tags, ["v2.1.0"]);
     assert.equal(git(doelPlugin, "rev-list", "--count", "main"), "2");
     assert.equal(git(doelPlugin, "rev-parse", "main^"), git(doelPlugin, "rev-parse", "v2.0.0^{commit}"));
@@ -176,13 +176,13 @@ test("template bij de klant: .claude/settings.json wijst naar de plugin in zijn 
     const doelTemplate = kaal(join(map, "Klant-BV", "app-template-tier2"));
     const url = (r) => join(map, r);
 
-    const r = uitleverenAanKlant({ org: "Klant-BV", pluginMap: bron, templateUrl: tmpl, url });
+    const r = uitleverenAanKlant({ org: "Klant-BV", getestTemplate: "stack-v2", pluginMap: bron, templateUrl: tmpl, url });
     assert.deepEqual(r.template.tags, ["stack-v1", "stack-v2"], "een versie zonder settings.json gaat gewoon mee");
     const geleverd = execFileSync("git", ["-C", doelTemplate, "show", "stack-v2:.claude/settings.json"], { encoding: "utf8" });
     assert.equal(pluginBron(geleverd), "Klant-BV/stagetwo-plugin-tier2");
     assert.equal(geleverd, settings("Klant-BV/stagetwo-plugin-tier2"), "alleen de bron verandert, de opmaak blijft");
     assert.equal(toon(doelTemplate, "stack-v2", "README.md"), "v2");
-    assert.equal(uitleverenAanKlant({ org: "Klant-BV", pluginMap: bron, templateUrl: tmpl, url }).template.status, "al-bij");
+    assert.equal(uitleverenAanKlant({ org: "Klant-BV", getestTemplate: "stack-v2", pluginMap: bron, templateUrl: tmpl, url }).template.status, "al-bij");
   });
 });
 
@@ -195,9 +195,10 @@ test("workflow Uitleveren: alleen met de hand, niet bij een merge en niet elk uu
 });
 
 test("opdrachtregel: --template geeft een eigen bron voor de template (afgeschermde bronrepo)", () => {
-  assert.deepEqual(leesOpties(["--org", "Klant-BV"]), { org: "Klant-BV", droog: false });
-  assert.deepEqual(leesOpties(["--org", "Klant-BV", "--template", "/w/.bron-template", "--droog"]), {
+  assert.deepEqual(leesOpties(["--org", "Klant-BV"]), { org: "Klant-BV", getestTemplate: null, droog: false });
+  assert.deepEqual(leesOpties(["--org", "Klant-BV", "--getest-template", "stack-v3", "--template", "/w/.bron-template", "--droog"]), {
     org: "Klant-BV",
+    getestTemplate: "stack-v3",
     droog: true,
     templateUrl: "/w/.bron-template",
   });
@@ -211,7 +212,7 @@ test("template uit een eigen checkout (zoals de workflow die meegeeft) levert de
     git(checkout, "tag", "stack-v1");
     kaal(join(map, "Klant-BV", "stagetwo-plugin-tier2"));
     const doelTemplate = kaal(join(map, "Klant-BV", "app-template-tier2"));
-    const r = uitleverenAanKlant({ ...leesOpties(["--org", "Klant-BV", "--template", checkout]), pluginMap: bron, url: (r) => join(map, r) });
+    const r = uitleverenAanKlant({ ...leesOpties(["--org", "Klant-BV", "--getest-template", "stack-v1", "--template", checkout]), pluginMap: bron, url: (r) => join(map, r) });
     assert.deepEqual(r.template.tags, ["stack-v1"]);
     assert.equal(toon(doelTemplate, "stack-v1", "README.md"), "v1");
   });
@@ -238,4 +239,57 @@ test("workflow Uitleveren: verplichte invoer getest_versie, gecontroleerd vóór
   assert.match(yml, /GETEST: \$\{\{ inputs\.getest_versie \}\}/);
   assert.doesNotMatch(yml.replace(/GETEST: \$\{\{ inputs\.getest_versie \}\}/, ""), /inputs\.getest_versie/, "invoer alleen via env");
   assert.match(yml, /echo "::error::\$uit"; exit 1/);
+});
+
+test("getest_template: alleen stack-v<n>, anders een duidelijke melding", () => {
+  assert.equal(leesGetestTemplate("stack-v25"), 25);
+  assert.equal(leesGetestTemplate(" stack-v7 "), 7);
+  for (const fout of ["", undefined, null, "25", "v25", "stack-v", "stack-v2x", "stack-v1 stack-v2"]) {
+    assert.throws(() => leesGetestTemplate(fout), /getest_template is .*moet een tag van de template zijn, zoals stack-v25.*tot en met die tag/);
+  }
+});
+
+test("template: alleen tags tot en met getest_template; een nieuwere tag gaat niet mee, een onbekende tag is een fout", () => {
+  metMap((map) => {
+    const tmpl = repo(join(map, "tmpl"), { "README.md": "v1\n" });
+    git(tmpl, "tag", "stack-v1");
+    commitAlles(tmpl, { "README.md": "v2\n" }, "stack-v2");
+    commitAlles(tmpl, { "README.md": "v10\n" }, "stack-v10");
+    assert.deepEqual(templateVersies(tmpl, 2).map((v) => v.tag), ["stack-v1", "stack-v2"]);
+    assert.deepEqual(templateVersies(tmpl, 10).map((v) => v.tag), ["stack-v1", "stack-v2", "stack-v10"]);
+    assert.throws(() => templateVersies(tmpl, 3), /stack-v3, maar die tag bestaat niet in de template \(nieuwste: stack-v10\)/);
+  });
+});
+
+test("uitleverenAanKlant: zonder of met een onbekende getest_template gaat er niets naar de klant, ook geen plugin", () => {
+  metMap((map) => {
+    const bron = repo(join(map, "bron"), { ".claude-plugin/plugin.json": JSON.stringify({ version: "2.4.0" }) });
+    const tmpl = repo(join(map, "tmpl"), { "README.md": "v1\n" });
+    git(tmpl, "tag", "stack-v1");
+    commitAlles(tmpl, { "README.md": "v2\n" }, "stack-v2");
+    const doelPlugin = kaal(join(map, "Klant-BV", "stagetwo-plugin-tier2"));
+    const doelTemplate = kaal(join(map, "Klant-BV", "app-template-tier2"));
+    const url = (r) => join(map, r);
+    const leeg = (doel) => git(doel, "for-each-ref").length === 0;
+
+    assert.throws(() => uitleverenAanKlant({ org: "Klant-BV", pluginMap: bron, templateUrl: tmpl, url }), /getest_template is ""/);
+    assert.throws(() => uitleverenAanKlant({ org: "Klant-BV", getestTemplate: "stack-v9", pluginMap: bron, templateUrl: tmpl, url }), /bestaat niet/);
+    assert.ok(leeg(doelPlugin) && leeg(doelTemplate), "na een fout staat er niets bij de klant");
+
+    const r = uitleverenAanKlant({ org: "Klant-BV", getestTemplate: "stack-v1", pluginMap: bron, templateUrl: tmpl, url });
+    assert.deepEqual(r.template.tags, ["stack-v1"], "stack-v2 is nog niet getest en gaat niet mee");
+    assert.equal(toon(doelTemplate, "main", "README.md"), "v1");
+    assert.equal(git(doelTemplate, "tag", "--list"), "stack-v1");
+  });
+});
+
+test("workflow Uitleveren: verplichte invoer getest_template, gecontroleerd vóór de lijst en meegegeven aan elke klant", () => {
+  const yml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", ".github", "workflows", "uitleveren.yml"), "utf8");
+  const aan = yml.slice(yml.indexOf("\non:"), yml.indexOf("\npermissions:"));
+  assert.match(aan, /\n\s+getest_template:\n\s+description: [^\n]+\n\s+required: true\n\s+type: string/);
+  assert.match(yml, /--getest "\$GETEST" --getest-template "\$GETEST_TEMPLATE"/);
+  assert.ok(yml.indexOf("--getest-template") < yml.indexOf("--lijst"), "eerst de bevestiging, dan de abonnees");
+  assert.match(yml, /--org "\$ORG" --getest-template "\$GETEST_TEMPLATE"/);
+  assert.equal(yml.match(/GETEST_TEMPLATE: \$\{\{ inputs\.getest_template \}\}/g)?.length, 2, "in beide jobs, alleen via env");
+  assert.equal(yml.match(/inputs\.getest_template/g)?.length, 2);
 });

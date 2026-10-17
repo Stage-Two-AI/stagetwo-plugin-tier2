@@ -26,7 +26,7 @@
  *   node nieuwe-app.mjs --json --inrichten --naam <naam> --eigenaar <org> [--groepen a,b]
  *       kijkt eerst of de app in toegang.json van <org>/stagetwo-beheer-tier2 staat. Zo niet, dan
  *       opent het een pull request op stagetwo-beheer-tier2 die hem toevoegt met de gekozen groepen
- *       (status `wacht-op-toegang`; de eigenaar keurt goed, daarna opnieuw draaien). Staat
+ *       (status `wacht-op-toegang`; wie in team toegangsbeheer zit merget, daarna opnieuw draaien). Staat
  *       hij erin, dan start het de workflow "App inrichten" in <org>/stagetwo-beheer-tier2, wacht tot
  *       hij klaar is en leest het resultaat uit het logboek. Zo komen Cloudflare en Supabase
  *       erbij zonder dat er een Cloudflare- of Supabase-sleutel op deze computer staat.
@@ -621,8 +621,9 @@ function leesToegang(beheer) {
 }
 
 /**
- * Opent een pull request op de beheer-repo die de app aan toegang.json toevoegt. De
- * eigenaar van de beheer-repo keurt hem goed; zo beslist een mens wie bij een app mag.
+ * Opent een pull request op de beheer-repo die de app aan toegang.json toevoegt. Omdat hij
+ * alleen toegang.json wijzigt, is de controle Toegang of review groen en merget een lid van
+ * team toegangsbeheer (of de owner) hem zelf; zo beslist een mens wie bij een app mag.
  */
 function vraagToegangAan(beheer, arg, toegang, sha) {
   const branch = `toegang/${arg.naam}`;
@@ -651,7 +652,7 @@ function vraagToegangAan(beheer, arg, toegang, sha) {
   return sh("gh", [
     "pr", "create", "--repo", beheer, "--base", "main", "--head", branch,
     "--title", `Toegang: ${arg.naam}`,
-    "--body", `De nieuwe app **${arg.naam}** komt in toegang.json, voor de groep(en) ${arg.groepen.map((g) => `\`${g}\``).join(", ")}.\n\nAangevraagd met /stagetwo-tier2:nieuwe-app. Na goedkeuring en merge kan de app worden ingericht.`,
+    "--body", `De nieuwe app **${arg.naam}** komt in toegang.json, voor de groep(en) ${arg.groepen.map((g) => `\`${g}\``).join(", ")}.\n\nAangevraagd met /stagetwo-tier2:nieuwe-app. Deze pull request wijzigt alleen toegang.json; na de merge kan de app worden ingericht.`,
   ]);
 }
 
@@ -703,7 +704,7 @@ export function richtIn(arg, { cwd = process.cwd(), wachtMs = 5000, maxWachtMinu
         status: "wacht-op-toegang",
         repo,
         pr,
-        reden: `de app moet eerst in toegang.json; de eigenaar van ${beheer} keurt deze pull request goed, daarna draai je --inrichten opnieuw`,
+        reden: `de app moet eerst in toegang.json; deze pull request wijzigt alleen toegang.json, dus wie in team toegangsbeheer van de organisatie zit (of de owner) merget hem zelf; daarna draai je --inrichten opnieuw`,
       };
     } catch (f) {
       return { status: "mislukt", reden: `de pull request op ${beheer} openen mislukte: ${foutTekst(f)} (heb je Write op ${beheer}?)` };

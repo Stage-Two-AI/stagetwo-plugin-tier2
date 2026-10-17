@@ -6,16 +6,17 @@
  *   node beheer/uitleveren.mjs --lijst
  *       de orgs uit abonnees.json als JSON-lijst (voor de matrix van de workflow)
  *
- *   node beheer/uitleveren.mjs --getest <versie>
- *       stopt met een melding als <versie> niet de versie in plugin.json op HEAD is. De
- *       workflow vraagt die versie als invoer (getest_versie): zo bevestigt Stage Two bij elke
- *       run dat precies deze versie op de eigen apps draait, voordat een klant hem krijgt.
+ *   node beheer/uitleveren.mjs --getest <versie> --getest-template stack-v<n>
+ *       stopt met een melding als <versie> niet de versie in plugin.json op HEAD is, of als
+ *       de templatetag geen stack-v<n> is. De workflow vraagt beide als invoer (getest_versie
+ *       en getest_template): zo bevestigt Stage Two bij elke run welke plugin en welke
+ *       templateversie op de eigen apps draaien, voordat een klant ze krijgt.
  *
- *   node beheer/uitleveren.mjs --org <klantorg> [--template <pad of url>] [--droog]
+ *   node beheer/uitleveren.mjs --org <klantorg> --getest-template stack-v<n> [--template <pad of url>] [--droog]
  *       plugin:   deze checkout (HEAD) naar <klantorg>/stagetwo-plugin-tier2, getagd
  *                 v<versie uit plugin.json>, zonder abonnees.json en het uitleveren zelf, met
  *                 een levering.json die naar de leveringsrepo's van de klant wijst;
- *       template: elke tag stack-v<n> van Stage-Two-AI/app-template-tier2 die de klant nog
+ *       template: elke tag stack-v<n> tot en met de geteste tag van Stage-Two-AI/app-template-tier2 die de klant nog
  *                 niet heeft, naar <klantorg>/app-template-tier2; main = de nieuwste. In
  *                 .claude/settings.json wijst de bron van de plugin daarbij naar
  *                 <klantorg>/stagetwo-plugin-tier2, zodat een app uit die kopie zijn plugin
@@ -201,35 +202,69 @@ export function leveringJson(org) {
   return `${JSON.stringify(leveringVoor(org), null, 2)}\n`;
 }
 
-/** Elke tag stack-v<n> van de template, van oud naar nieuw. */
-export function templateVersies(bronMap) {
-  return gitIn(bronMap, ["tag", "--list", "stack-v*"])
+/**
+ * De invoer getest_template: de nieuwste templatetag die Stage Two op de eigen apps heeft
+ * gedraaid, precies in de vorm stack-v<n>. Geeft n terug, of gooit een fout met wat er moet
+ * gebeuren.
+ */
+export function leesGetestTemplate(tag) {
+  const tekst = String(tag ?? "").trim();
+  const n = /^stack-v(\d+)$/.exec(tekst)?.[1];
+  if (!n) {
+    throw new Error(
+      `getest_template is "${tekst}", maar moet een tag van de template zijn, zoals stack-v25: de nieuwste ` +
+        `templateversie die Stage Two op de eigen apps heeft gedraaid (README, "Een nieuwe versie uitbrengen", stap 4). ` +
+        "Uitleveren levert alleen template-tags tot en met die tag.",
+    );
+  }
+  return Number(n);
+}
+
+/**
+ * Elke tag stack-v<n> van de template, van oud naar nieuw. Met `totEnMet` alleen de tags tot
+ * en met stack-v<totEnMet>; bestaat die tag niet, dan een fout (een tikfout mag niet stilletjes
+ * minder of meer leveren).
+ */
+export function templateVersies(bronMap, totEnMet) {
+  const nummers = gitIn(bronMap, ["tag", "--list", "stack-v*"])
     .split("\n")
     .map((t) => /^stack-v(\d+)$/.exec(t)?.[1])
     .filter(Boolean)
     .map(Number)
-    .sort((a, b) => a - b)
+    .sort((a, b) => a - b);
+  if (totEnMet !== undefined && !nummers.includes(totEnMet)) {
+    throw new Error(
+      `getest_template is stack-v${totEnMet}, maar die tag bestaat niet in de template (nieuwste: ` +
+        `${nummers.length ? `stack-v${nummers.at(-1)}` : "geen"}). Start de workflow opnieuw met de tag die op de eigen apps draait.`,
+    );
+  }
+  return nummers
+    .filter((n) => totEnMet === undefined || n <= totEnMet)
     .map((n) => ({ ref: `stack-v${n}`, tag: `stack-v${n}`, bericht: `Versie ${n}` }));
 }
 
-export function uitleverenAanKlant({ org, pluginMap = WORTEL, templateUrl = `https://github.com/${STAGE_TWO.template}`, droog = false, url = (repo) => `https://github.com/${repo}.git` }) {
+export function uitleverenAanKlant({ org, getestTemplate, pluginMap = WORTEL, templateUrl = `https://github.com/${STAGE_TWO.template}`, droog = false, url = (repo) => `https://github.com/${repo}.git` }) {
   if (!ORG_VORM.test(org ?? "")) throw new Error(`geen geldige GitHub-org: ${org}`);
+  const tot = leesGetestTemplate(getestTemplate);
   const doel = leveringVoor(org);
-  const plugin = leverUit({
-    bronMap: pluginMap,
-    doelUrl: url(doel.plugin),
-    versies: pluginVersies(pluginMap),
-    weglaten: ALLEEN_IN_BRON,
-    extra: { "levering.json": leveringJson(org) },
-    droog,
-  });
   const kloon = mkdtempSync(join(tmpdir(), "uitleveren-template-"));
   try {
+    // Eerst de template lezen en de geteste tag controleren: klopt die niet, dan gaat er ook
+    // geen plugin naar de klant.
     execFileSync("git", ["clone", "--quiet", "--bare", templateUrl, kloon], { stdio: "ignore", timeout: 300000, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } });
+    const templateLijst = templateVersies(kloon, tot);
+    const plugin = leverUit({
+      bronMap: pluginMap,
+      doelUrl: url(doel.plugin),
+      versies: pluginVersies(pluginMap),
+      weglaten: ALLEEN_IN_BRON,
+      extra: { "levering.json": leveringJson(org) },
+      droog,
+    });
     const template = leverUit({
       bronMap: kloon,
       doelUrl: url(doel.template),
-      versies: templateVersies(kloon),
+      versies: templateLijst,
       bewerk: templateBewerkingen(org),
       droog,
     });
@@ -248,7 +283,7 @@ export function leesOpties(argv) {
     if (w === undefined || w.startsWith("--")) throw new Error(`${vlag} vraagt een waarde`);
     return w;
   };
-  const opties = { org: waarde("--org") ?? null, droog: argv.includes("--droog") };
+  const opties = { org: waarde("--org") ?? null, getestTemplate: waarde("--getest-template") ?? null, droog: argv.includes("--droog") };
   const template = waarde("--template");
   if (template !== undefined) opties.templateUrl = template;
   return opties;
@@ -261,7 +296,8 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       process.stdout.write(`${JSON.stringify(leesAbonnees())}\n`);
     } else if (argv.includes("--getest")) {
       const versie = controleerGetest(argv[argv.indexOf("--getest") + 1]);
-      process.stdout.write(`versie ${versie} bevestigd: draait op de eigen apps van Stage Two\n`);
+      const tot = leesGetestTemplate(leesOpties(argv).getestTemplate);
+      process.stdout.write(`plugin ${versie} en template tot en met stack-v${tot} bevestigd: draaien op de eigen apps van Stage Two\n`);
     } else {
       const uitkomst = uitleverenAanKlant(leesOpties(argv));
       process.stdout.write(`${JSON.stringify(uitkomst, null, 2)}\n`);

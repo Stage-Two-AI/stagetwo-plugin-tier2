@@ -18,7 +18,7 @@ er komt alleen niets nieuws bij, en vragen en meedenken stoppen ook.
 Een nieuwe versie raakt twee dingen, en die gaan elk op hun eigen manier:
 
 - **De plugin op je computer** (het gereedschap) werkt zichzelf bij uit de kopie in je eigen
-  organisatie. Daar hoef je niets voor te doen.
+  organisatie. Daar hoef je niets voor te doen; uitzetten kan wel (zie hieronder).
 - **Je apps** veranderen alleen via een voorstel (een pull request) dat een bouwer
   goedkeurt. Open je een app en is er een nieuwe versie, dan meldt je assistent dat; met
   `/stagetwo-tier2:updaten` zet de plugin per app het voorstel klaar. Je keurt het goed of
@@ -36,8 +36,14 @@ exclusief btw. Dependabot, een dienst van GitHub, stelt in elke app updates van 
 npm-pakketten voor, ook zonder abonnement, als pull request die een bouwer goedkeurt; de versies
 van de GitHub-workflows komen met een nieuwe templateversie.
 
-Na de overdracht heeft Stage Two geen eigen account, geen beheerrechten en geen toegang tot
-je apps in de GitHub-organisatie van je bedrijf, en heeft die ook niet nodig. Met een
+Na de overdracht heeft Stage Two geen eigen account, geen beheerrechten en zelf geen toegang
+tot je apps in de GitHub-organisatie van je bedrijf, en heeft die ook niet nodig. Je apps
+veranderen nooit vanzelf. De plugin wel: dat is software van Stage Two die op de computers
+van je bouwers draait met hun rechten, en die zichzelf bijwerkt uit de kopie waar Stage Two
+met een abonnement nieuwe versies in zet. Wil je zelf bepalen wanneer dat gebeurt, vraag je
+assistent dan om het automatisch bijwerken van de plugin uit te zetten (dat doet hij met
+`automatisch-bijwerken.mjs --uit`), en werk de plugin daarna zelf bij met
+`/stagetwo-tier2:updaten` wanneer jij dat wilt. Met een
 abonnement komen nieuwe versies binnen via de GitHub App `stagetwo-levering`. Stage Two
 installeert hem bij de start namens je bedrijf, op alleen de twee kopieën (`stagetwo-plugin-tier2`
 en `app-template-tier2`, "Only select repositories"); je bedrijf kan hem altijd zelf
@@ -189,15 +195,19 @@ volgende stap: open de nieuwe map in Claude Code en typ `/stagetwo-tier2:verder-
 Hosting, deur en database worden daarna ingericht door de workflow **App inrichten** op
 GitHub, in de beheer-repo van je bedrijf (`stagetwo-beheer-tier2`, Stage Two zet die bij de start
 neer). Staat de app nog niet op de toegangslijst, dan opent je assistent eerst een
-voorstel (pull request) op die beheer-repo; de eigenaar keurt dat goed, en dan gaat het
-verder. Je assistent start de workflow en wacht op het resultaat. Dat is bewust zo
+pull request op die beheer-repo die alleen de toegangslijst (`toegang.json`) wijzigt.
+Daarvoor is geen goedkeuring nodig: de controle **Toegang of review** wordt vanzelf
+groen, en wie in het team `toegangsbeheer` zit merget hem zelf (anders doet de owner van
+de organisatie dat). Daarna gaat het verder. Je assistent start de workflow en wacht op
+het resultaat. Dat is bewust zo
 gebouwd: de toegang tot Cloudflare en Supabase hoort niet op een werkcomputer te staan.
 GitHub is de enige plek waar de regels worden afgedwongen, en zo blijft dat. Heeft je
 bedrijf nog geen beheer-repo, dan richt Stage Two de hosting en de database in.
 
-Laat Stage Two weten dat de app bestaat (naam en link), zodat Stage Two bij vragen weet over
-welke app het gaat. Stage Two krijgt daarmee geen toegang tot de app en heeft die ook niet
-nodig: nieuwe versies van de werkwijze haal je zelf in de app binnen met
+Laat Stage Two weten dat de app bestaat (de naam en waarvoor hij is), zodat Stage Two bij
+vragen weet over welke app het gaat. Een link naar de repo helpt alleen tijdens het project;
+na de overdracht kan Stage Two een privé-repo niet openen. Stage Two heeft geen toegang tot de
+app nodig: nieuwe versies van de werkwijze haal je zelf in de app binnen met
 `/stagetwo-tier2:updaten`.
 
 ## Alles updaten
@@ -226,7 +236,9 @@ Wat er dan gebeurt, in deze volgorde:
    onaangeraakt. Alleen als een bestand van de werkwijze bij jou anders is dan verwacht
    (omdat iemand het ooit heeft aangepast) stelt hij een vraag: de nieuwe versie
    overnemen, of jouw versie houden. Twijfel je? Kies "houden"; dat verandert niets aan
-   wat nu werkt, en Stage Two kan er later naar kijken.
+   wat nu werkt. Stage Two kan er daarna naar kijken: tijdens het project met de link naar
+   de pull request, na de overdracht met een beschrijving of schermafbeelding (Stage Two kan
+   je privé-repo's dan niet openen, tenzij de owner tijdelijk leestoegang geeft).
 4. **De pakketten van je app** worden bijgewerkt, binnen de grenzen die in je app
    staan, als een tweede, los voorstel. Daarnaast stelt Dependabot in elke app updates van
    de npm-pakketten voor, ook zonder abonnement; de versies van de GitHub-workflows komen met
@@ -243,7 +255,10 @@ Elk voorstel staat op GitHub als pull request, onder jouw naam, met een uitleg i
 gewone taal. Daarna is het aan jou, precies zoals bij elke andere wijziging: open de
 pull request, wacht tot de controles groen zijn en klik op **Merge**. Zijn de controles rood, dan
 voldoet je app niet aan een nieuwe regel. Neem dan contact op met Stage Two en zet de
-controle niet uit. Meekijken en meedenken valt binnen het abonnement; moet er meer aan je
+controle niet uit. Tijdens het project stuur je de link naar de pull request; na de overdracht
+kan Stage Two je privé-repo's niet openen, dus stuur dan een beschrijving of een
+schermafbeelding van de rode controle, of laat de owner Stage Two tijdelijk leestoegang geven.
+Meekijken en meedenken valt binnen het abonnement; moet er meer aan je
 app gebeuren, dan doet Stage Two dat op nacalculatie (€120 per uur exclusief btw).
 
 ## Als iets niet lukt
@@ -382,6 +397,9 @@ mag starten; de sleutels staan in de omgeving `beheer` en zijn voor hem niet te 
    Windows-VM: na de instelling, één herstart en één bericht kwam 2.0.0 binnen, zonder
    nog een herstart. Controle: vraag de assistent `~/.claude/plugins/installed_plugins.json`
    te tonen.
+   Wil de klant dat niet, dan zet `automatisch-bijwerken.mjs --uit` op dezelfde plek
+   `autoUpdate = false`; een gewone run (ook vanuit `/stagetwo-tier2:updaten`) laat dat staan,
+   alleen `--aan` zet het terug. De plugin bijwerken gaat dan met `/stagetwo-tier2:updaten`.
 6. Loop de melding en `/stagetwo-tier2:updaten` één keer samen door, en `/stagetwo-tier2:nieuwe-app` als
    de klant zelf apps gaat starten. Cloudflare en Supabase richt de workflow "App
    inrichten" in `<klantorg>/stagetwo-beheer-tier2` in (recept: Stage-Two-AI/beheer-template,
@@ -411,12 +429,16 @@ overweg.
    apps, vóór een abonnee hem krijgt.
 5. Abonnees: pas als plugin en template op de eigen apps goed werken, start je de workflow
    **Uitleveren** met de hand: `gh workflow run uitleveren.yml -R
-   Stage-Two-AI/stagetwo-plugin-tier2 -f getest_versie=<versie>`, of op de pagina van de
-   workflow **Run workflow**. De invoer `getest_versie` is verplicht: daarmee bevestig je dat
-   precies die pluginversie op de eigen apps draait. Is het niet de versie in
-   `.claude-plugin/plugin.json` op `main`, dan stopt de run met een melding, vóór er iets naar
-   een klant gaat. Hij start nooit vanzelf, ook niet bij een merge of een nieuwe abonnee. Elke run levert de
-   pluginversie op `main` en alle template-tags die een klant nog niet heeft (zie hieronder).
+   Stage-Two-AI/stagetwo-plugin-tier2 -f getest_versie=<versie> -f getest_template=stack-v<n>`,
+   of op de pagina van de workflow **Run workflow**. Beide invoeren zijn verplicht: daarmee
+   bevestig je welke pluginversie en welke templatetag op de eigen apps draaien. Is
+   `getest_versie` niet de versie in `.claude-plugin/plugin.json` op `main`, of is
+   `getest_template` geen tag `stack-v<n>`, dan stopt de run met een melding, vóór er iets naar
+   een klant gaat; bestaat de tag niet in de template, dan stopt de job van elke klant voordat
+   er iets naar die klant gaat. Hij start nooit vanzelf, ook niet bij een merge of een nieuwe
+   abonnee. Elke run levert de pluginversie op `main` en de template-tags tot en met
+   `getest_template` die een klant nog niet heeft (zie hieronder); een nieuwere tag die nog niet
+   op de eigen apps draait, gaat niet mee.
 
 ### Levering per bedrijf
 
@@ -436,9 +458,9 @@ bronrepo.
 - De workflow **Uitleveren** (`.github/workflows/uitleveren.yml`, script
   `beheer/uitleveren.mjs`) draait alleen met de hand, nadat Stage Two een versie op de eigen
   apps heeft gecontroleerd; ook na een nieuwe abonnee in `abonnees.json`. Elke run levert de
-  pluginversie op `main` en de template-tags die de klant nog niet heeft. Per
-  abonnee zet hij een nieuwe pluginversie neer als tag `v<versie>` en elke nieuwe
-  template-tag `stack-v<n>`, elk als één commit van Stage Two bovenop de main van de klant.
+  pluginversie op `main` en de template-tags tot en met `getest_template` die de klant nog
+  niet heeft. Per abonnee zet hij een nieuwe pluginversie neer als tag `v<versie>` en elke
+  nieuwe template-tag `stack-v<n>` tot en met die tag, elk als één commit van Stage Two bovenop de main van de klant.
   Onze geschiedenis, `abonnees.json` en het uitleveren zelf gaan niet mee.
 - In de template van de klant wijst `.claude/settings.json` naar zijn eigen kopie van de
   plugin (de workflow zet dat per versie). `/nieuwe-app` en het bijwerken zetten dezelfde

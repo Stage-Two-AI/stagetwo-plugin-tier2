@@ -2,17 +2,21 @@
 # template door naar de leveringsrepo's van elke klant in abonnees.json.
 #
 #   plugin    een nieuwe versie in plugin.json op main (een release), als tag v<versie>
-#   template  elke nieuwe tag stack-v<n> van Stage-Two-AI/app-template-tier2
+#   template  elke nieuwe tag stack-v<n> van Stage-Two-AI/app-template-tier2, tot en met
+#             de tag uit getest_template
 #
 # Wanneer: alleen met de hand ("Run workflow", of gh workflow run uitleveren.yml), nadat Stage
 # Two een nieuwe versie op de eigen apps heeft gecontroleerd. Een merge naar main levert dus
 # niets aan klanten: dan krijgen alleen de eigen apps van Stage Two de nieuwe versie (zij
 # installeren de plugin uit deze bronrepo). Ook een nieuwe abonnee in abonnees.json krijgt
-# pas iets na een run met de hand. Elke run levert de nieuwste pluginversie op main en alle
-# template-tags die de klant nog niet heeft.
-# Bij het starten vraagt hij getest_versie: de pluginversie die Stage Two op de eigen apps
-# heeft gedraaid. Is dat niet de versie in plugin.json op main, dan stopt de run vóór er
-# iets naar een klant gaat (node beheer/uitleveren.mjs --getest).
+# pas iets na een run met de hand. Elke run levert de nieuwste pluginversie op main en de
+# template-tags tot en met getest_template die de klant nog niet heeft.
+# Bij het starten vraagt hij getest_versie (de pluginversie) en getest_template (de nieuwste
+# templatetag, zoals stack-v25) die Stage Two op de eigen apps heeft gedraaid. Is de versie
+# niet die in plugin.json op main, of is de tag geen stack-v<n>, dan stopt de run vóór er
+# iets naar een klant gaat (node beheer/uitleveren.mjs --getest). Bestaat de tag niet in de
+# template, dan stopt de job van elke klant voordat er iets naar die klant gaat. Een nieuwere
+# tag dan getest_template gaat nooit mee.
 # Tot 17-10-2026 draaide hij ook elk uur (ongeveer 1.400 Actions-minuten per maand) en daarna
 # vanzelf bij een merge die plugin.json of abonnees.json wijzigde; dat laatste is eraf, zodat
 # geen versie bij een klant komt die Stage Two nog niet zelf heeft gebruikt.
@@ -30,6 +34,10 @@ on:
     inputs:
       getest_versie:
         description: Pluginversie die op de eigen apps van Stage Two draait (gelijk aan plugin.json op main, bijvoorbeeld 2.3.0)
+        required: true
+        type: string
+      getest_template:
+        description: Nieuwste templatetag die op de eigen apps van Stage Two draait (bijvoorbeeld stack-v25); nieuwere tags gaan niet mee
         required: true
         type: string
 
@@ -56,8 +64,9 @@ jobs:
       - name: Versie getest op de eigen apps
         env:
           GETEST: ${{ inputs.getest_versie }}
+          GETEST_TEMPLATE: ${{ inputs.getest_template }}
         run: |
-          if ! uit=$(node beheer/uitleveren.mjs --getest "$GETEST" 2>&1); then
+          if ! uit=$(node beheer/uitleveren.mjs --getest "$GETEST" --getest-template "$GETEST_TEMPLATE" 2>&1); then
             echo "::error::$uit"; exit 1
           fi
           echo "$uit"
@@ -111,6 +120,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
           ORG: ${{ matrix.org }}
+          GETEST_TEMPLATE: ${{ inputs.getest_template }}
         run: |
           gh auth setup-git
-          node beheer/uitleveren.mjs --org "$ORG" --template "$GITHUB_WORKSPACE/.bron-template"
+          node beheer/uitleveren.mjs --org "$ORG" --getest-template "$GETEST_TEMPLATE" --template "$GITHUB_WORKSPACE/.bron-template"
