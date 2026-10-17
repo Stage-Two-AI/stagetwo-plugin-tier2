@@ -1,11 +1,16 @@
-# Stage Two-plugin voor Claude Code (Cloudflare)
+# Stage Two-plugin voor Claude Code (tier 2)
 
-Je hebt een app die Stage Two voor je heeft gebouwd, en je werkt eraan met Claude Code.
-Deze versie van de plugin is voor apps die op **Cloudflare** draaien, met hun gegevens bij
-**Supabase**. Stage Two vertelt je bij de start welke plugin bij jouw bedrijf hoort.
-Deze plugin zorgt dat Claude Code daarbij de werkwijze van Stage Two kent en bewaakt, en
-dat je zelf verbeteringen aan die werkwijze kunt ophalen. Ook als Stage Two er niet meer
-bij is.
+Je bouwt zelf apps voor je bedrijf met Claude Code, in de omgeving die Stage Two voor je
+heeft ingericht. Deze versie van de plugin is voor **tier 2**: apps die op **Cloudflare**
+draaien, met hun gegevens bij **Supabase**. Stage Two vertelt je bij de start welke plugin
+bij jouw bedrijf hoort.
+Deze plugin zorgt dat Claude Code daarbij de werkwijze van Stage Two kent en bewaakt.
+
+Wat je hebt, is van jou en blijft werken, ook zonder Stage Two. Zolang het abonnement bij
+Stage Two loopt, zet Stage Two nieuwe versies van deze plugin en van de template in de kopie
+in de GitHub van je eigen organisatie (`stagetwo-plugin-tier2` en `app-template-tier2`);
+stopt het abonnement, dan blijven die op de laatste versie staan. Wat het abonnement wel en
+niet levert, staat in [het aanbod van Stage Two](https://github.com/Stage-Two-AI/Stack/blob/main/AANBOD.md).
 
 Je hoeft geen programmeur te zijn om dit te gebruiken. De eerste keer loopt Stage Two het
 met je door; daarna merk je er weinig van, behalve dat je assistent af en toe iets uitlegt
@@ -159,6 +164,9 @@ bij de tijd houden, typ dan in de map van je app:
 /stagetwo-tier2:updaten
 ```
 
+Zolang het abonnement bij Stage Two loopt, zet Stage Two de voorstellen voor je apps ook
+zelf klaar en kijkt ze na; dit commando is er voor als je het zelf wilt doen.
+
 Wat er dan gebeurt, in deze volgorde:
 
 1. **De plugin zelf** wordt bijgewerkt. Een nieuwe versie werkt na het opnieuw openen
@@ -263,7 +271,7 @@ gestart vanuit `Stack/bin/stack-sync.mjs`, dat het register en de ruleset meegee
   en `.claude/`). Zonder manifest doet hij niets. `STACK_ALLOW_POLICY_EDIT=1` laat
   padbewerkingen door, voor onderhoud aan de template zelf.
 - De melding vergelijkt `.claude/stack-version` met de hoogste tag `stack-v<n>` op de
-  publieke Cloudflare-template (één anonieme `git ls-remote`, drie seconden), met een dagstempel
+  openbare template voor tier 2 (één anonieme `git ls-remote`, drie seconden), met een dagstempel
   per repo in `${CLAUDE_PLUGIN_DATA}`.
 - Het templatedeel van `/stagetwo-tier2:updaten` (`bijwerken.mjs`) draait in twee stappen: `--droogloop` (voorcontrole, tijdelijke
   kloon, kern toepassen, resultaat als JSON) en `--werkmap <map>` (keuzes toepassen,

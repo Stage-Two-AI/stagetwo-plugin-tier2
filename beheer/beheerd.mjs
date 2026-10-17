@@ -228,7 +228,7 @@ export function verwerk({ project, werkmap, tmplMap, doelVersie, rulesetPad, opt
     return "droogloop";
   }
 
-  commit({ map, identiteit: IDENTITEIT, bericht: `chore: stack-template naar versie ${doelVersie}`, versie: doelVersie });
+  commit({ map, identiteit: IDENTITEIT, bericht: `chore: template naar versie ${doelVersie}`, versie: doelVersie });
   if (alGelijkOpGitHub(map, branch)) {
     log(`  ${grijs("staat al zo op GitHub, niets gepusht")}`);
     return "al-bij";

@@ -121,7 +121,7 @@ export function controleerArgumenten(arg) {
   }
   if (!arg.eigenaar) return "geef met --eigenaar het GitHub-account of de organisatie mee waar de app komt";
   if (!DATABASESTANDEN.includes(arg.database)) {
-    return "op het Cloudflare-spoor heeft elke app een eigen database; laat --database weg of geef eigen mee";
+    return "bij tier 2 heeft elke app een eigen database; laat --database weg of geef eigen mee";
   }
   // De beheer-workflow accepteert hooguit 41 tekens (Access- en Supabase-namen krijgen er
   // nog een voorvoegsel en een achtervoegsel bij).
