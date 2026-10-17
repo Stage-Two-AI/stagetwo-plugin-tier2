@@ -78,8 +78,12 @@ precieze bedrag.
 Draai eerst de droogloop, met Bash, precies zo:
 
 ```sh
-node "${CLAUDE_SKILL_DIR}/scripts/nieuwe-app.mjs" --json --droogloop --naam "<naam>" --eigenaar "<eigenaar>" --omschrijving "<omschrijving>"
+node "${CLAUDE_SKILL_DIR}/scripts/nieuwe-app.mjs" --json --droogloop --naam "<naam>" --eigenaar "<eigenaar>" --omschrijving "<omschrijving>" --organisatie "<bedrijfsnaam>"
 ```
+
+`<bedrijfsnaam>` is de naam van het bedrijf waarvoor de app is, zoals je die uit het gesprek of
+de map kent (bijvoorbeeld "Richplant B.V."); die komt in de `LICENSE` van de app. Weet je hem
+niet, laat `--organisatie` dan weg: het script neemt de naam van de organisatie op GitHub.
 
 Het antwoord is één JSON-object met een `status`.
 
@@ -93,6 +97,10 @@ Het antwoord is één JSON-object met een `status`.
 Zeg dan: "Ik maak hem nu aan; dat duurt een paar minuten." Draai hetzelfde commando met
 `--doe-het` in plaats van `--droogloop`. Vraag geen toestemming meer; het typen van
 `/stagetwo-tier2:nieuwe-app` en de bevestiging van het plan waren de opdracht.
+
+Het script zet zelf de `LICENSE` op naam van het bedrijf (het gebruiksrecht van Stage Two
+blijft in `LICENSE-STAGE-TWO`) en laat `.claude/settings.json` naar de kopie van de plugin in
+de eigen organisatie wijzen. Pas die bestanden niet zelf aan.
 
 - `mislukt`: geef `reden` door (dat is de volledige foutmelding). Staat er een `repo` in
   het antwoord, dan is de repo al aangemaakt: **draai precies hetzelfde `--doe-het`-commando

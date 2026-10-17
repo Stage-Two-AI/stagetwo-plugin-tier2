@@ -4,8 +4,15 @@
 #   plugin    een nieuwe versie in plugin.json op main (een release), als tag v<versie>
 #   template  elke nieuwe tag stack-v<n> van Stage-Two-AI/app-template-tier2
 #
-# Wanneer: na elke merge naar main (de plugin), elk uur (een nieuwe template-tag is er dan
-# binnen het uur) en met de hand via "Run workflow" (bijvoorbeeld na een nieuwe abonnee).
+# Wanneer: alleen als er iets nieuws te leveren is, en met de hand.
+#   - een merge naar main die plugin.json wijzigt (een nieuwe versie van de plugin) of
+#     abonnees.json (een nieuwe abonnee);
+#   - met de hand via "Run workflow", na een nieuwe tag stack-v<n> van de template. Een tag in
+#     een andere repo kan deze workflow niet starten zonder extra sleutel; daarom hoort het
+#     starten bij het uitbrengen van een template-versie (zie README, "Een versie uitbrengen").
+#     Wie de template eerst tagt en daarna de nieuwe plugin merget, hoeft niets met de hand:
+#     elke run levert ook alle template-tags die de klant nog niet heeft.
+# Tot 17-10-2026 draaide hij ook elk uur; dat kostte ongeveer 1.400 Actions-minuten per maand.
 # Een versie die de klant al heeft, slaat hij over; een run zonder iets nieuws doet niets.
 #
 # Schrijven bij de klant gaat via de GitHub App stagetwo-levering, die de klant op alleen
@@ -17,8 +24,9 @@ name: Uitleveren
 on:
   push:
     branches: [main]
-  schedule:
-    - cron: "17 * * * *"
+    paths:
+      - ".claude-plugin/plugin.json"
+      - "abonnees.json"
   workflow_dispatch:
 
 permissions:

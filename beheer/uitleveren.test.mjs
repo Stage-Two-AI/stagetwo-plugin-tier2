@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { STAGE_TWO } from "../lib/levering.mjs";
+import { pluginBron } from "../lib/plugin-bron.mjs";
 import { leesAbonnees, leveringVoor, leverUit, templateVersies, uitleverenAanKlant } from "./uitleveren.mjs";
 
 const git = (map, ...args) => execFileSync("git", ["-C", map, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
@@ -160,4 +162,36 @@ test("nooit forceren: staat er een vreemde commit op de leveringsrepo, dan komt 
     leverUit({ bronMap: tmpl, doelUrl: doel, versies: templateVersies(tmpl) });
     assert.equal(git(doel, "log", "--format=%an", "-2", "main"), "Stage Two\nIemand", "de commit van iemand anders blijft in de geschiedenis");
   });
+});
+
+test("template bij de klant: .claude/settings.json wijst naar de plugin in zijn eigen org, de rest is gelijk", () => {
+  metMap((map) => {
+    const settings = (repo) =>
+      `${JSON.stringify({ extraKnownMarketplaces: { "stagetwo-tier2": { source: { source: "github", repo }, autoUpdate: true } } }, null, 2)}\n`;
+    const bron = repo(join(map, "bron"), { ".claude-plugin/plugin.json": JSON.stringify({ version: "2.4.0" }) });
+    const tmpl = repo(join(map, "tmpl"), { "README.md": "v1\n" });
+    git(tmpl, "tag", "stack-v1");
+    commitAlles(tmpl, { "README.md": "v2\n", ".claude/settings.json": settings(STAGE_TWO.plugin) }, "stack-v2");
+    kaal(join(map, "Klant-BV", "stagetwo-plugin-tier2"));
+    const doelTemplate = kaal(join(map, "Klant-BV", "app-template-tier2"));
+    const url = (r) => join(map, r);
+
+    const r = uitleverenAanKlant({ org: "Klant-BV", pluginMap: bron, templateUrl: tmpl, url });
+    assert.deepEqual(r.template.tags, ["stack-v1", "stack-v2"], "een versie zonder settings.json gaat gewoon mee");
+    const geleverd = execFileSync("git", ["-C", doelTemplate, "show", "stack-v2:.claude/settings.json"], { encoding: "utf8" });
+    assert.equal(pluginBron(geleverd), "Klant-BV/stagetwo-plugin-tier2");
+    assert.equal(geleverd, settings("Klant-BV/stagetwo-plugin-tier2"), "alleen de bron verandert, de opmaak blijft");
+    assert.equal(toon(doelTemplate, "stack-v2", "README.md"), "v2");
+    assert.equal(uitleverenAanKlant({ org: "Klant-BV", pluginMap: bron, templateUrl: tmpl, url }).template.status, "al-bij");
+  });
+});
+
+test("workflow Uitleveren: alleen bij een nieuwe versie, een nieuwe abonnee of met de hand, niet meer elk uur", () => {
+  const yml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", ".github", "workflows", "uitleveren.yml"), "utf8");
+  const aan = yml.slice(yml.indexOf("\non:"), yml.indexOf("\npermissions:"));
+  assert.doesNotMatch(aan, /schedule|cron/, "geen schema meer");
+  assert.match(aan, /workflow_dispatch:/);
+  assert.match(aan, /push:\s+branches: \[main\]\s+paths:/);
+  assert.match(aan, /- "\.claude-plugin\/plugin\.json"/);
+  assert.match(aan, /- "abonnees\.json"/);
 });
