@@ -15,10 +15,13 @@ gebruiker. Mergen doet de gebruiker zelf.
 
 De gebruiker bouwt zelf; Stage Two richt in en begeleidt. Nieuwe versies komen uit de kopie
 van plugin en template in de GitHub-organisatie van de klant (`levering.json`); Stage Two
-zet daar nieuwe versies in zolang het abonnement loopt. In die tijd zet Stage Two de
-update-voorstellen voor de apps ook zelf klaar en kijkt ze na; dit commando is er voor als de
-gebruiker het zelf wil doen. Stopt het abonnement, dan blijft die kopie op de laatste versie
-staan en meldt dit commando dat alles bij is.
+zet daar nieuwe versies in zolang het abonnement loopt, en test elke versie eerst op zijn
+eigen apps. Na de overdracht heeft Stage Two geen toegang tot de apps en zet het daar zelf
+geen voorstellen klaar: dit commando is de weg waarlangs een nieuwe versie in een app komt.
+Houd twee dingen apart als je het uitlegt: de plugin op deze computer werkt zichzelf bij uit
+de kopie (deel 1), en een app verandert alleen via een voorstel dat een bouwer goedkeurt
+(deel 3 tot en met 5). Stopt het abonnement, dan blijft die kopie op de laatste versie staan
+en meldt dit commando dat alles bij is.
 
 Staat er geen app open (geen `.claude/stack-manifest.json` in deze map), sla dan deel 3
 en 4 over en ga na deel 2 naar deel 5.

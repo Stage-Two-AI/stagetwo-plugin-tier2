@@ -4,6 +4,9 @@
  * achterloopt naar de nieuwste template, als pull request van `Stage Two stack-sync`.
  * Dit is Christijns overzicht en noodrem; de gewone weg is dat de klant zelf
  * /stagetwo-tier2:updaten draait (KTD2). Dezelfde kern (lib/), dus hetzelfde gedrag.
+ * Na de overdracht heeft Stage Two geen toegang tot de apps van een klant (voorstel
+ * 17-10-2026, abonnement zonder toegang): route `beheerd` is dan alleen voor de eigen
+ * apps van Stage Two en voor een klant die nog in de projectfase zit.
  *
  * Dit is geen skill en geen commando van de plugin: het staat onder beheer/ (niet
  * bin/, want die map zet Claude Code op het PATH van elke sessie) en wordt gestart

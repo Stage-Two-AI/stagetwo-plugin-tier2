@@ -9,27 +9,40 @@ Deze plugin zorgt dat Claude Code daarbij de werkwijze van Stage Two kent en bew
 Wat je hebt, is van jou en blijft werken, ook zonder Stage Two. Zolang je bedrijf een
 abonnement bij Stage Two heeft, zet Stage Two nieuwe versies van deze plugin en van de
 template in de kopie in de GitHub van je eigen organisatie (`stagetwo-plugin-tier2` en
-`app-template-tier2`), en zet Stage Two voor elke app en voor de beheer-repo een
-update-voorstel klaar. Stopt het abonnement, dan blijven die kopieën op de laatste versie
-staan; er komt alleen niets nieuws bij.
+`app-template-tier2`). Stage Two test elke versie eerst op zijn eigen apps. Stopt het
+abonnement, dan blijven die kopieën op de laatste versie staan; er komt alleen niets nieuws
+bij, en vragen en meedenken stoppen ook.
+
+Een nieuwe versie raakt twee dingen, en die gaan elk op hun eigen manier:
+
+- **De plugin op je computer** (het gereedschap) werkt zichzelf bij uit de kopie in je eigen
+  organisatie. Daar hoef je niets voor te doen.
+- **Je apps** veranderen alleen via een voorstel (een pull request) dat een bouwer
+  goedkeurt. Open je een app en is er een nieuwe versie, dan meldt je assistent dat; met
+  `/stagetwo-tier2:updaten` zet de plugin per app het voorstel klaar. Je keurt het goed of
+  laat het liggen. Stage Two zet na de overdracht zelf geen voorstellen in je apps klaar.
 
 Het abonnement kost €150 per maand per bedrijf, ongeacht het aantal apps, exclusief btw. Het
 loopt vanaf de oplevering, het moment waarop Stage Two de omgeving aan je bedrijf overdraagt,
 en is per maand opzegbaar, met een opzegtermijn van één kalendermaand. Daarin zitten nieuwe
-versies van template, plugin en beheer-repo, de update-voorstellen die Stage Two klaarzet en
-nakijkt, een nieuwe versie als een leverancier iets verandert, en vragen en meedenken. Het
-abonnement houdt de omgeving niet bij: beheer en werking blijven na de overdracht bij je
-bedrijf. Niet in het abonnement zitten systeembeheer, een garantie op beschikbaarheid en meer
+versies van template en plugin, die Stage Two eerst op zijn eigen apps test, een nieuwe
+versie als een leverancier iets verandert, een nieuwe versie van de beheer-repo als dat nodig
+is, en vragen en meedenken. Het abonnement houdt de omgeving niet bij: beheer en werking
+blijven na de overdracht bij je bedrijf. Niet in het abonnement zitten systeembeheer, een garantie op beschikbaarheid en meer
 werk aan je apps; dat laatste doet Stage Two op verzoek, op nacalculatie tegen €120 per uur
 exclusief btw. Veiligheidsupdates van pakketten van derden stelt Dependabot, een dienst van
 GitHub, als pull request voor in je eigen repository's, ook zonder abonnement; een bouwer keurt
 ze goed.
 
-Na de overdracht heeft Stage Two geen eigen account en geen beheerrechten meer in de
-GitHub-organisatie van je bedrijf. Met een abonnement komen nieuwe versies en
-update-voorstellen binnen via de GitHub App `stagetwo-levering`, die je bedrijf zelf
-installeert op alleen de repo's die daarvoor nodig zijn. Zeg je op, dan haalt Stage Two je
-bedrijf uit de lijst van abonnees; de app verwijderen kan je bedrijf ook zelf. Meer staat op
+Na de overdracht heeft Stage Two geen eigen account, geen beheerrechten en geen toegang tot
+je apps in de GitHub-organisatie van je bedrijf, en heeft die ook niet nodig. Met een
+abonnement komen nieuwe versies binnen via de GitHub App `stagetwo-levering`, die je bedrijf
+zelf installeert op alleen de twee kopieën (`stagetwo-plugin-tier2` en
+`app-template-tier2`). Die App kan alleen daar schrijven, niet in je apps. Heeft de
+beheer-repo een nieuwe versie nodig, dan vraagt Stage Two dat; de owner van je organisatie
+geeft Stage Two daarvoor tijdelijk toegang tot de beheer-repo en haalt die daarna weer weg.
+Dat valt binnen het abonnement. Zeg je op, dan haalt Stage Two je bedrijf uit de lijst van
+abonnees; de GitHub App verwijderen kan je bedrijf ook zelf. Meer staat op
 [stagetwo.nl/aanbod](https://stagetwo.nl/aanbod).
 
 Je hoeft geen programmeur te zijn om dit te gebruiken. De eerste keer loopt Stage Two het
@@ -117,7 +130,9 @@ Werk je in een terminal en verschijnt dat scherm niet, typ dan ook nog:
 `/stagetwo-tier2:installatie` zet het aan; het werkt in elke map. Kort nadat je de Claude-app
 hebt geopend en je eerste bericht hebt gestuurd, kijkt Claude Code op de achtergrond of
 er een nieuwe versie is en haalt die binnen. Je hoeft de app daarvoor niet open te
-houden of opnieuw te starten: de nieuwe versie verschijnt vanzelf.
+houden of opnieuw te starten: de nieuwe versie verschijnt vanzelf. Dat gaat alleen over de
+plugin op je computer; je apps veranderen pas als een bouwer het voorstel goedkeurt (zie
+"Alles updaten").
 
 ## Beginnen op een nieuwe computer
 
@@ -177,9 +192,10 @@ gebouwd: de toegang tot Cloudflare en Supabase hoort niet op een werkcomputer te
 GitHub is de enige plek waar de regels worden afgedwongen, en zo blijft dat. Heeft je
 bedrijf nog geen beheer-repo, dan richt Stage Two de hosting en de database in.
 
-Laat Stage Two weten dat de app bestaat. Na de overdracht zet de owner van je organisatie de
-app ook bij de repo's waarop de GitHub App `stagetwo-levering` staat. Dan zet Stage Two er,
-zolang het abonnement loopt, ook de update-voorstellen voor klaar.
+Laat Stage Two weten dat de app bestaat (naam en link), zodat Stage Two bij vragen weet over
+welke app het gaat. Stage Two krijgt daarmee geen toegang tot de app en heeft die ook niet
+nodig: nieuwe versies van de werkwijze haal je zelf in de app binnen met
+`/stagetwo-tier2:updaten`.
 
 ## Alles updaten
 
@@ -190,13 +206,15 @@ bij de tijd houden, typ dan in de map van je app:
 /stagetwo-tier2:updaten
 ```
 
-Zolang het abonnement bij Stage Two loopt, zet Stage Two de voorstellen voor je apps ook
-zelf klaar en kijkt ze na; dit commando is er voor als je het zelf wilt doen.
+Dit is de weg waarlangs een nieuwe versie van de werkwijze in je apps komt. Stage Two zet na de
+overdracht zelf geen voorstellen in je apps klaar; Stage Two test elke versie eerst op zijn
+eigen apps en zet hem daarna in de kopie in je eigen organisatie. De plugin op je computer
+werkt zichzelf al bij; je apps veranderen pas als een bouwer het voorstel goedkeurt.
 
 Wat er dan gebeurt, in deze volgorde:
 
-1. **De plugin zelf** wordt bijgewerkt. Een nieuwe versie werkt na het opnieuw openen
-   van de app.
+1. **De plugin zelf** wordt bijgewerkt, voor het geval dat nog niet vanzelf is gebeurd. Een
+   nieuwe versie werkt na het opnieuw openen van de app.
 2. **De programma's op je computer** (Git, Node, pnpm en de GitHub-opdrachtregel) worden
    bijgewerkt. Op Windows vraagt Windows een paar keer of dat mag; klik op **Ja**.
 3. **Je app naar de nieuwste werkwijze.** Je assistent maakt in een tijdelijke kopie van
@@ -377,10 +395,13 @@ overweg.
 3. Na de merge de tag zetten: `git tag stack-v<n> && git push origin stack-v<n>`. Pas
    dan bestaat de versie voor de melding en de skill. Een tag wordt nooit verplaatst;
    de ruleset op de template weigert dat.
-4. Registerprojecten: `node bin/stack-sync.mjs --status` in Stack, dan de droogloop,
-   dan `--doe-het`.
-5. Abonnees: de workflow **Uitleveren** zet een nieuwe pluginversie vanzelf door. Na alleen
-   een nieuwe template-tag start je hem met de hand: `gh workflow run uitleveren.yml -R
+4. Registerprojecten (de eigen apps van Stage Two): `node bin/stack-sync.mjs --status` in
+   Stack, dan de droogloop, dan `--doe-het`. Zo test Stage Two elke versie eerst op de eigen
+   apps, vóór een abonnee hem krijgt.
+5. Abonnees: de workflow **Uitleveren** zet een nieuwe pluginversie vanzelf door, meteen na
+   de merge. Test een nieuwe plugin daarom vóór de merge op een eigen app, met een kloon van
+   de branch (`claude --plugin-dir <map>`). Na alleen een nieuwe template-tag start je hem met
+   de hand, als de eigen apps groen zijn: `gh workflow run uitleveren.yml -R
    Stage-Two-AI/stagetwo-plugin-tier2` (zie hieronder).
 
 ### Levering per bedrijf
@@ -413,12 +434,19 @@ bronrepo.
 - `/nieuwe-app` zet een `LICENSE` op naam van de organisatie (`--organisatie`, anders de naam
   van de org op GitHub); het gebruiksrecht van Stage Two staat in `LICENSE-STAGE-TWO`, dat
   met elke template-versie meekomt (vanaf template versie 22).
-- Schrijfrecht bij de klant gaat via de GitHub App `stagetwo-levering`; recept in
+- Schrijfrecht bij de klant gaat via de GitHub App `stagetwo-levering`, alleen op de twee
+  leveringsrepo's. Rechten: Contents en Workflows `Read and write`, Metadata `Read-only`,
+  verder niets (geen Pull requests, geen apps, geen beheer-repo). Recept in
   `Stack/docs/recepten/github-app-levering.md`.
-- Na de overdracht (voorstel 17-10-2026): Stage Two houdt geen persoonlijk account en geen
-  beheerrechten in de org van de klant, en `.github/CODEOWNERS` gaat naar de klant. De klant
-  installeert `stagetwo-levering` zelf, op alleen de leveringsrepo's, de beheer-repo en de
-  apps. Opzeggen: de org uit `abonnees.json`; de klant kan de app ook zelf verwijderen.
+- Na de overdracht (voorstel 17-10-2026, abonnement zonder toegang): Stage Two houdt geen
+  persoonlijk account, geen beheerrechten en geen toegang tot apps in de org van de klant, en
+  `.github/CODEOWNERS` gaat naar de klant. De klant installeert `stagetwo-levering` zelf, op
+  alleen de twee leveringsrepo's. Update-voorstellen in apps zet de bouwer zelf klaar met
+  `/stagetwo-tier2:updaten`; Stage Two opent geen pull requests bij de klant. De beheerde
+  run (`beheer/beheerd.mjs`) is alleen voor de eigen apps van Stage Two en voor een klant die
+  nog in de projectfase zit. Een nieuwe versie van de beheer-repo alleen op verzoek: de owner
+  geeft Stage Two tijdelijk toegang en haalt die daarna weer weg. Opzeggen: de org uit
+  `abonnees.json`; de klant kan de App ook zelf verwijderen.
 
 ### De repo beschermen
 
@@ -437,6 +465,6 @@ claude plugin validate .
 ```
 
 Licentie: vanaf versie 2.3.0 een eigen gebruiksrecht van Stage Two (zie `LICENSE`): klanten
-mogen de plugin gebruiken en aanpassen om apps te maken, maar niet los doorgeven of doorverkopen.
+mogen de plugin gebruiken en aanpassen voor hun eigen apps, maar niet los doorgeven of doorverkopen.
 Versies tot en met 2.2.0 zijn onder MIT uitgebracht en blijven MIT. De naam Stage Two en de
 huisstijl vallen er niet onder.
