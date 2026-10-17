@@ -249,7 +249,7 @@ Wat er dan gebeurt, in deze volgorde:
    overnemen, of jouw versie houden. Twijfel je? Kies "houden"; dat verandert niets aan
    wat nu werkt. Stage Two kan er daarna naar kijken: tijdens het project met de link naar
    de pull request, na de overdracht met een beschrijving of schermafbeelding (Stage Two kan
-   je privé-repo's dan niet openen, tenzij de owner tijdelijk leestoegang geeft).
+   je privé-repo's dan niet openen).
 4. **De pakketten van je app** worden bijgewerkt, binnen de grenzen die in je app
    staan, als een tweede, los voorstel. Daarnaast stelt Dependabot in elke app updates van
    de npm-pakketten voor, ook zonder abonnement; de versies van de GitHub-workflows komen met
@@ -268,7 +268,7 @@ pull request, wacht tot de controles groen zijn en klik op **Merge**. Zijn de co
 voldoet je app niet aan een nieuwe regel. Neem dan contact op met Stage Two en zet de
 controle niet uit. Tijdens het project stuur je de link naar de pull request; na de overdracht
 kan Stage Two je privé-repo's niet openen, dus stuur dan een beschrijving of een
-schermafbeelding van de rode controle, of laat de owner Stage Two tijdelijk leestoegang geven.
+schermafbeelding van de rode controle.
 Meekijken en meedenken valt binnen het abonnement; moet er meer aan je
 app gebeuren, dan doet Stage Two dat op nacalculatie (€120 per uur exclusief btw).
 

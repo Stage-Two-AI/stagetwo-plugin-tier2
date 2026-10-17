@@ -154,7 +154,7 @@ Vraag daarna per bestand één keuze:
 Weet de gebruiker het niet, dan is **eigen** de veilige keuze: dat verandert niets aan
 wat er nu werkt. Wil de gebruiker dat Stage Two ernaar kijkt: tijdens het project volstaat
 de link naar de pull request; na de overdracht kan Stage Two een privé-repo niet openen, dus
-dan een beschrijving of schermafbeelding, of de owner geeft Stage Two tijdelijk leestoegang.
+dan een beschrijving of schermafbeelding.
 
 Let op bij een bestand met een projectdeel, zoals `AGENTS.md`. Zegt de `reden` dat de
 markeringen (`stack:begin` en `stack:end`) ontbreken, dan is **template** geen geldige
@@ -192,7 +192,7 @@ Onthoud voor de samenvatting aan het eind (deel 6), in gewone taal:
    Merge drukken. Zijn de checks rood, dan voldoet de app niet aan een nieuwe regel;
    dan neemt hij contact op met Stage Two en zet hij de check niet uit (tijdens het project
    met de link; na de overdracht met een beschrijving of schermafbeelding, want dan kan Stage
-   Two de privé-repo niet openen, tenzij de owner tijdelijk leestoegang geeft).
+   Two de privé-repo niet openen).
    Meekijken en meedenken vallen binnen het abonnement; meer werk aan de app doet Stage Two
    op nacalculatie.
 
@@ -260,7 +260,7 @@ Sluit af met één overzicht, in gewone taal:
    Merge drukken. Zijn de checks rood, dan voldoet de app niet aan een nieuwe regel; dan
    neemt hij contact op met Stage Two en zet hij de check niet uit (tijdens het project
    met de link; na de overdracht met een beschrijving of schermafbeelding, want dan kan Stage
-   Two de privé-repo niet openen, tenzij de owner tijdelijk leestoegang geeft).
+   Two de privé-repo niet openen).
    Meekijken en meedenken vallen binnen het abonnement; meer werk aan de app doet Stage Two
    op nacalculatie.
 3. Is in deel 1 of 2 iets bijgewerkt, zeg dan dat de app opnieuw moet starten, met deze
