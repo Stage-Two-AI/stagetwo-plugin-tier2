@@ -47,8 +47,11 @@ nooit vanzelf, alleen via een voorstel dat een bouwer goedkeurt.
 
 ## Deel 1: de plugin zelf
 
-Eerst zorgen dat de plugin zichzelf voortaan bijwerkt (dit staat bij klanten van vóór
-plugin 2.1.0 nog niet aan, en de desktop-app zet het standaard uit):
+Eerst zorgen dat de plugin zichzelf voortaan bijwerkt. Dat staat pas aan als dit script op
+deze computer heeft gedraaid (hier of in `/stagetwo-tier2:installatie`): de plugin toevoegen,
+of ja zeggen als Claude Code in een app vraagt de plugin te installeren, zet het niet aan, want
+voor een marketplace die niet van Anthropic is staat het standaard uit, en de desktop-app zet
+het bijwerken van plugins helemaal uit zolang het script het niet terugzet:
 
 ```sh
 node "${CLAUDE_SKILL_DIR}/../installatie/scripts/automatisch-bijwerken.mjs" --json
@@ -71,7 +74,8 @@ claude plugin uninstall stack-cloudflare@stagetwo-cloudflare 2>/dev/null; claude
 ```
 
 Lukt dat (ook "already up to date" is goed), onthoud dan of er een nieuwe versie is
-binnengekomen: die werkt pas na het opnieuw openen van de app (zie deel 6). Bestaat het
+binnengekomen: die werkt pas na het opnieuw openen van de app of na `/reload-plugins` (zie
+deel 6). Bestaat het
 commando `claude` hier niet, sla dit dan over: met de instelling hierboven werkt de
 plugin zichzelf bij, kort nadat de app de volgende keer gestart is.
 
@@ -262,7 +266,8 @@ Sluit af met één overzicht, in gewone taal:
 3. Is in deel 1 of 2 iets bijgewerkt, zeg dan dat de app opnieuw moet starten, met deze
    uitleg: sluit de Claude-app helemaal af (Windows: rechtsonder in het systeemvak op het
    pijltje **^**, rechtermuisknop op het Claude-icoon, **Afsluiten**; macOS: cmd+Q), open
-   hem opnieuw, klik dit gesprek aan in de linkerzijbalk en typ **ga verder**.
+   hem opnieuw, klik dit gesprek aan in de linkerzijbalk en typ **ga verder**. Is alleen de
+   plugin bijgewerkt (deel 2 niet), dan is `/reload-plugins` in dit gesprek ook genoeg.
 
 ## Wat je niet doet
 

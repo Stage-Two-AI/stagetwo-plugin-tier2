@@ -136,18 +136,26 @@ Werk je in een terminal en verschijnt dat scherm niet, typ dan ook nog:
 **Controleren dat het werkt.** Typ `/stagetwo-tier2:` en kijk of de vier commando's verschijnen
 (installatie, nieuwe-app, verder-werken en updaten). Zie je ze niet, sluit Claude Code dan en open de map opnieuw.
 
-**Bijwerken van de plugin zelf.** Dat gaat vanzelf, zonder dat je iets hoeft te typen.
-`/stagetwo-tier2:installatie` zet het aan; het werkt in elke map. Kort nadat je de Claude-app
-hebt geopend en je eerste bericht hebt gestuurd, kijkt Claude Code op de achtergrond of
-er een nieuwe versie is en haalt die binnen. Je hoeft de app daarvoor niet open te
-houden of opnieuw te starten: de nieuwe versie verschijnt vanzelf. Dat gaat alleen over de
-plugin op je computer; je apps veranderen pas als een bouwer het voorstel goedkeurt (zie
-"Alles updaten").
+**Bijwerken van de plugin zelf.** Dat gaat vanzelf, maar pas als
+`/stagetwo-tier2:installatie` (of het eerste deel van `/stagetwo-tier2:updaten`) één keer op
+deze computer heeft gedraaid; dat werkt in elke map. De plugin toevoegen zoals hierboven,
+of ja zeggen als Claude Code bij het openen van een app vraagt of het de plugin mag
+installeren, is niet genoeg: voor een bron die niet van Anthropic is, staat automatisch
+bijwerken in Claude Code standaard uit, en alleen de installatie zet het aan. Daarna gaat het
+zo: kort nadat je de Claude-app hebt geopend en je eerste bericht hebt gestuurd (binnen
+ongeveer tien minuten), kijkt Claude Code op de achtergrond of er een nieuwe versie is en
+zet die op je computer. Het gesprek dat al open is, houdt de versie waarmee het begon;
+Claude Code meldt dan dat de plugin is bijgewerkt. Typ `/reload-plugins` om de nieuwe versie
+meteen te gebruiken, of laat het: bij de volgende start van de app werkt hij vanzelf. Dat
+gaat alleen over de plugin op je computer; je apps veranderen pas als een bouwer het
+voorstel goedkeurt (zie "Alles updaten").
 
 ## Beginnen op een nieuwe computer
 
-Typ `/stagetwo-tier2:installatie`. Je assistent kijkt wat er ontbreekt (Git, Node, pnpm en de
-GitHub-opdrachtregel) en installeert dat. Twee dingen om te weten:
+Typ `/stagetwo-tier2:installatie`, op elke nieuwe computer, ook als de plugin er al staat.
+Je assistent kijkt wat er ontbreekt (Git, Node, pnpm en de GitHub-opdrachtregel) en
+installeert dat, en zet aan dat de plugin zich voortaan vanzelf bijwerkt (zonder deze stap
+gebeurt dat niet). Twee dingen om te weten:
 
 - **Windows vraagt een paar keer om toestemming.** Er verschijnt dan een venster of dit
   programma wijzigingen mag aanbrengen. Klik op **Ja**. Op een Mac kan om je wachtwoord
@@ -228,8 +236,10 @@ werkt zichzelf al bij; je apps veranderen pas als een bouwer het voorstel goedke
 
 Wat er dan gebeurt, in deze volgorde:
 
-1. **De plugin zelf** wordt bijgewerkt, voor het geval dat nog niet vanzelf is gebeurd. Een
-   nieuwe versie werkt na het opnieuw openen van de app.
+1. **De plugin zelf** wordt bijgewerkt, voor het geval dat nog niet vanzelf is gebeurd, en
+   het automatisch bijwerken gaat aan als dat op deze computer nog niet zo was (tenzij je
+   het bewust hebt uitgezet). Een nieuwe versie werkt na het opnieuw openen van de app, of
+   meteen na `/reload-plugins`.
 2. **De programma's op je computer** (Git, Node, pnpm en de GitHub-opdrachtregel) worden
    bijgewerkt. Op Windows vraagt Windows een paar keer of dat mag; klik op **Ja**.
 3. **Je app naar de nieuwste werkwijze.** Je assistent maakt in een tijdelijke kopie van
@@ -402,8 +412,14 @@ mag starten; de sleutels staan in de omgeving `beheer` en zijn voor hem niet te 
    code.claude.com/docs/en/plugins/loading ("When auto-update runs") en
    code.claude.com/docs/en/settings-reference ("extraKnownMarketplaces"), gelezen 17-10-2026.
    Daarom staat `autoUpdate` sinds template v22 niet meer in de app: anders wint de app altijd
-   van de keuze van de bouwer. Vastgesteld en bewezen op 02-10-2026 op de Windows-VM: na de
-   instelling, één herstart en één bericht kwam 2.0.0 binnen, zonder nog een herstart. Controle: vraag de assistent
+   van de keuze van de bouwer. Gevolg: de plugin toevoegen met `/plugin marketplace add`, of
+   ja zeggen als Claude Code in een app vraagt de plugin te installeren, zet automatisch
+   bijwerken niet aan. Pas `/stagetwo-tier2:installatie` (stap 5) of deel 1 van
+   `/stagetwo-tier2:updaten` doet dat, op elke computer apart. Vastgesteld op 02-10-2026 op de
+   Windows-VM: na de instelling, één herstart en één bericht stond 2.0.0 op de computer,
+   zonder nog een herstart. Een lopende sessie houdt wel de versie die hij bij de start laadde;
+   de nieuwe laadt bij de volgende start of na `/reload-plugins` (zelfde bron, "When
+   auto-update runs"). Controle: vraag de assistent
    `~/.claude/plugins/installed_plugins.json` te tonen.
    Wil de klant dat niet, dan zet `automatisch-bijwerken.mjs --uit` `autoUpdate = false` op
    beide plekken en haalt het `FORCE_AUTOUPDATE_PLUGINS` weg. Dat laatste raakt in de
@@ -426,28 +442,34 @@ een nieuwer manifestformaat; een nieuwe plugin kan altijd met een oudere templat
 overweg.
 
 1. Plugin: versie in `.claude-plugin/plugin.json` ophogen, pull request, groene check,
-   merge naar `main`. Alleen een hoger versienummer laat een computer een update zien. Na de
-   merge krijgen alleen de eigen apps en computers van Stage Two de nieuwe versie: die
-   installeren uit deze bronrepo. Klanten krijgen nog niets (stap 5).
-2. Template: wijzigingen als pull request op `app-template-tier2`, met
+   merge naar `main`. Alleen een hoger versienummer laat een computer een update zien.
+2. Na die merge de bronrepo taggen, zoals bij de template: op de merge-commit
+   `git tag v<versie> && git push origin v<versie>` (bijvoorbeeld `v2.3.0`). Die tag is de
+   versie die klanten later krijgen; een commit die daarna op `main` komt, gaat pas mee met
+   een volgende versie en een volgende tag. Een tag wordt nooit verplaatst. Na de merge
+   krijgen alleen de eigen apps en computers van Stage Two de nieuwe versie: die installeren
+   uit deze bronrepo. Klanten krijgen nog niets (stap 6).
+3. Template: wijzigingen als pull request op `app-template-tier2`, met
    `.claude/stack-version` en `stackVersion` in het manifest opgehoogd. Een bestand uit
    `vervangen` wijzigt alleen samen met zo'n versieverhoging.
-3. Na de merge de tag zetten: `git tag stack-v<n> && git push origin stack-v<n>`. Pas
+4. Na de merge de tag zetten: `git tag stack-v<n> && git push origin stack-v<n>`. Pas
    dan bestaat de versie voor de melding en de skill. Een tag wordt nooit verplaatst;
    de ruleset op de template weigert dat.
-4. Registerprojecten (de eigen apps van Stage Two): `node bin/stack-sync.mjs --status` in
-   Stack, dan de droogloop, dan `--doe-het`. Zo test Stage Two elke versie eerst op de eigen
-   apps, vóór een abonnee hem krijgt.
-5. Abonnees: pas als plugin en template op de eigen apps goed werken, start je de workflow
-   **Uitleveren** met de hand: `gh workflow run uitleveren.yml -R
+5. Eerst de eigen apps bijwerken. Registerprojecten (de eigen apps van Stage Two):
+   `node bin/stack-sync.mjs --status` in Stack, dan de droogloop, dan `--doe-het`. Zo test
+   Stage Two elke versie eerst op de eigen apps, vóór een abonnee hem krijgt.
+6. Dan Uitleveren aan abonnees: pas als plugin en template op de eigen apps goed werken,
+   start je de workflow **Uitleveren** met de hand: `gh workflow run uitleveren.yml -R
    Stage-Two-AI/stagetwo-plugin-tier2 -f getest_versie=<versie> -f getest_template=stack-v<n>`,
    of op de pagina van de workflow **Run workflow**. Beide invoeren zijn verplicht: daarmee
-   bevestig je welke pluginversie en welke templatetag op de eigen apps draaien. Is
-   `getest_versie` niet de versie in `.claude-plugin/plugin.json` op `main`, of is
-   `getest_template` geen tag `stack-v<n>`, dan stopt de run met een melding, vóór er iets naar
-   een klant gaat; bestaat de tag niet in de template, dan stopt de job van elke klant voordat
-   er iets naar die klant gaat. Hij start nooit vanzelf, ook niet bij een merge of een nieuwe
-   abonnee. Elke run levert de pluginversie op `main` en de template-tags tot en met
+   bevestig je welke pluginversie en welke templatetag op de eigen apps draaien. De plugin
+   gaat naar de klant vanaf de tag `v<versie>` uit stap 2, niet vanaf `main`, en heet bij de
+   klant ook `v<versie>`. Bestaat die tag niet, heeft `.claude-plugin/plugin.json` op die tag
+   een ander versienummer, of is `getest_template` geen tag `stack-v<n>`, dan stopt de run met
+   een melding, vóór er iets naar een klant gaat; bestaat de templatetag niet in de template,
+   of heeft een klant al een nieuwere pluginversie, dan stopt de job van die klant voordat er
+   iets naar die klant gaat. Hij start nooit vanzelf, ook niet bij een merge of een nieuwe
+   abonnee. Elke run levert de getagde pluginversie en de template-tags tot en met
    `getest_template` die een klant nog niet heeft (zie hieronder); een nieuwere tag die nog niet
    op de eigen apps draait, gaat niet mee.
 
@@ -469,8 +491,9 @@ bronrepo.
 - De workflow **Uitleveren** (`.github/workflows/uitleveren.yml`, script
   `beheer/uitleveren.mjs`) draait alleen met de hand, nadat Stage Two een versie op de eigen
   apps heeft gecontroleerd; ook na een nieuwe abonnee in `abonnees.json`. Elke run levert de
-  pluginversie op `main` en de template-tags tot en met `getest_template` die de klant nog
-  niet heeft. Per abonnee zet hij een nieuwe pluginversie neer als tag `v<versie>` en elke
+  pluginversie `getest_versie` vanaf de tag `v<versie>` in deze bronrepo en de template-tags
+  tot en met `getest_template` die de klant nog niet heeft. Per abonnee zet hij een nieuwe
+  pluginversie neer als dezelfde tag `v<versie>` en elke
   nieuwe template-tag `stack-v<n>` tot en met die tag, elk als één commit van Stage Two bovenop de main van de klant.
   Onze geschiedenis, `abonnees.json` en het uitleveren zelf gaan niet mee.
 - In de template van de klant wijst `.claude/settings.json` naar zijn eigen kopie van de

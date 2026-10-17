@@ -7,15 +7,19 @@
  *       de orgs uit abonnees.json als JSON-lijst (voor de matrix van de workflow)
  *
  *   node beheer/uitleveren.mjs --getest <versie> --getest-template stack-v<n>
- *       stopt met een melding als <versie> niet de versie in plugin.json op HEAD is, of als
- *       de templatetag geen stack-v<n> is. De workflow vraagt beide als invoer (getest_versie
- *       en getest_template): zo bevestigt Stage Two bij elke run welke plugin en welke
- *       templateversie op de eigen apps draaien, voordat een klant ze krijgt.
+ *       stopt met een melding als de tag v<versie> niet in deze bronrepo staat, als
+ *       plugin.json op die tag een andere versie heeft, of als de templatetag geen stack-v<n>
+ *       is. De workflow vraagt beide als invoer (getest_versie en getest_template): zo
+ *       bevestigt Stage Two bij elke run welke plugin en welke templateversie op de eigen apps
+ *       draaien, voordat een klant ze krijgt.
  *
- *   node beheer/uitleveren.mjs --org <klantorg> --getest-template stack-v<n> [--template <pad of url>] [--droog]
- *       plugin:   deze checkout (HEAD) naar <klantorg>/stagetwo-plugin-tier2, getagd
- *                 v<versie uit plugin.json>, zonder abonnees.json en het uitleveren zelf, met
- *                 een levering.json die naar de leveringsrepo's van de klant wijst;
+ *   node beheer/uitleveren.mjs --org <klantorg> --getest <versie> --getest-template stack-v<n> [--template <pad of url>] [--droog]
+ *       plugin:   de tag v<versie> van deze bronrepo (niet HEAD van main: een commit na de
+ *                 versieverhoging is niet getest) naar <klantorg>/stagetwo-plugin-tier2,
+ *                 daar ook getagd v<versie>, zonder abonnees.json en het uitleveren zelf, met
+ *                 een levering.json die naar de leveringsrepo's van de klant wijst. Heeft de
+ *                 klant al een hogere v-tag, dan stopt het: een oudere versie gaat er nooit
+ *                 overheen;
  *       template: elke tag stack-v<n> tot en met de geteste tag van Stage-Two-AI/app-template-tier2 die de klant nog
  *                 niet heeft, naar <klantorg>/app-template-tier2; main = de nieuwste. In
  *                 .claude/settings.json wijst de bron van de plugin daarbij naar
@@ -169,30 +173,87 @@ export function leverUit({ bronMap, doelUrl, versies, weglaten = [], extra = {},
 
 // ---------------------------------------------------------------- plugin en template
 
-/** De plugin op HEAD van `bronMap`, met levering.json voor deze klant. */
-export function pluginVersies(bronMap) {
-  const versie = JSON.parse(gitIn(bronMap, ["show", "HEAD:.claude-plugin/plugin.json"])).version;
-  if (!/^\d+\.\d+\.\d+$/.test(versie ?? "")) throw new Error(`plugin.json heeft geen geldige versie: ${versie}`);
-  const sha = gitIn(bronMap, ["rev-parse", "HEAD"]);
-  return [{ ref: "HEAD", tag: `v${versie}`, bericht: `Plugin ${versie}\n\nBron: ${STAGE_TWO.plugin}@${sha}` }];
+/** De tag van een pluginversie, in de bronrepo en bij de klant gelijk (zoals stack-v<n> bij de template). */
+export const pluginTag = (versie) => `v${versie}`;
+
+/** De versie in plugin.json op `ref`, of null als dat bestand er niet is. */
+function pluginVersieOp(bronMap, ref) {
+  const tekst = bestandOp(bronMap, ref, ".claude-plugin/plugin.json");
+  return tekst === null ? null : (JSON.parse(tekst).version ?? null);
+}
+
+/** De commit achter tag `tag` in `bronMap`, of null als die tag er niet is. */
+function tagCommit(bronMap, tag) {
+  try {
+    return gitIn(bronMap, ["rev-parse", "--verify", "-q", `refs/tags/${tag}^{commit}`]);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * De plugin zoals hij op tag v<versie> van `bronMap` staat, met als tag bij de klant dezelfde
+ * v<versie>. Roep eerst controleerGetest aan; die zegt wat er mis is als de tag ontbreekt.
+ */
+export function pluginVersies(bronMap, versie) {
+  const tag = pluginTag(versie);
+  const sha = tagCommit(bronMap, tag);
+  if (!sha) throw new Error(`de tag ${tag} bestaat niet in de bronrepo`);
+  return [{ ref: sha, tag, bericht: `Plugin ${versie}\n\nBron: ${STAGE_TWO.plugin}@${sha} (tag ${tag})` }];
 }
 
 /**
  * De bevestiging van de workflow (invoer getest_versie): de versie die Stage Two op de eigen
- * apps heeft gedraaid, moet de versie in plugin.json op HEAD zijn. Een `v` ervoor mag.
+ * apps heeft gedraaid. Een `v` ervoor mag. De tag v<versie> moet in de bronrepo staan en
+ * plugin.json op die tag moet dezelfde versie hebben: Uitleveren levert de plugin vanaf die
+ * tag, niet vanaf HEAD van main, zodat een latere commit niet ongetest naar een klant gaat.
  * Geeft de versie terug, of gooit een fout met wat er moet gebeuren.
  */
 export function controleerGetest(getest, bronMap = WORTEL) {
-  const versie = JSON.parse(gitIn(bronMap, ["show", "HEAD:.claude-plugin/plugin.json"])).version;
-  const opgegeven = String(getest ?? "").trim().replace(/^v/i, "");
-  if (opgegeven === "" || opgegeven !== versie) {
+  const opgegeven = String(getest ?? "").trim();
+  const versie = opgegeven.replace(/^v/i, "");
+  const stappen =
+    'README, "Een nieuwe versie uitbrengen": na de merge de bronrepo taggen ' +
+    "(git tag v<versie> && git push origin v<versie>), dan de eigen apps laten bijwerken, dan Uitleveren";
+  if (!/^\d+\.\d+\.\d+$/.test(versie)) {
+    throw new Error(`getest_versie is "${opgegeven}", maar moet een pluginversie zijn, zoals 2.4.0 (${stappen}).`);
+  }
+  const tag = pluginTag(versie);
+  if (!tagCommit(bronMap, tag)) {
     throw new Error(
-      `getest_versie is "${String(getest ?? "").trim()}", maar plugin.json op main heeft versie ${versie}. ` +
-        `Uitleveren levert alleen een versie die Stage Two eerst op de eigen apps heeft gedraaid: zet ${versie} ` +
-        `op de eigen apps (README, "Een nieuwe versie uitbrengen", stap 4) en start de workflow opnieuw met getest_versie ${versie}.`,
+      `getest_versie is ${versie}, maar de tag ${tag} bestaat niet in de bronrepo. Uitleveren levert de plugin ` +
+        `alleen vanaf die tag, de versie die Stage Two eerst op de eigen apps heeft gedraaid (${stappen}). ` +
+        `Zet de tag op de merge-commit van die versie en start de workflow opnieuw met getest_versie ${versie}.`,
+    );
+  }
+  const opTag = pluginVersieOp(bronMap, `refs/tags/${tag}`);
+  if (opTag !== versie) {
+    throw new Error(
+      `getest_versie is ${versie}, maar plugin.json op de tag ${tag} heeft versie ${opTag ?? "(geen)"}. ` +
+        `De tag staat op de verkeerde commit; er gaat niets naar een klant. Zoek uit hoe dat kwam ` +
+        `voordat je verder gaat (${stappen}).`,
     );
   }
   return versie;
+}
+
+/** Vergelijkt twee versies a.b.c; negatief als a ouder is dan b. */
+function vergelijkVersie(a, b) {
+  const [x, y] = [a, b].map((v) => v.split(".").map(Number));
+  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] - y[i];
+  return 0;
+}
+
+/**
+ * De hoogste v<versie>-tag in een leveringsrepo van een klant (uit refsOpAfstand), of null.
+ * Een oudere versie zou bovenop een nieuwere komen en zijn main terugzetten; dat weigeren we.
+ */
+export function hoogstePluginVersie(refs) {
+  const versies = [...refs.keys()]
+    .map((ref) => /^refs\/tags\/v(\d+\.\d+\.\d+)$/.exec(ref)?.[1])
+    .filter(Boolean)
+    .sort(vergelijkVersie);
+  return versies.at(-1) ?? null;
 }
 
 /** Wat er per versie in de template van de klant anders is dan bij Stage Two: de bron van de plugin. */
@@ -216,7 +277,7 @@ export function leesGetestTemplate(tag) {
   if (!n) {
     throw new Error(
       `getest_template is "${tekst}", maar moet een tag van de template zijn, zoals stack-v25: de nieuwste ` +
-        `templateversie die Stage Two op de eigen apps heeft gedraaid (README, "Een nieuwe versie uitbrengen", stap 4). ` +
+        `templateversie die Stage Two op de eigen apps heeft gedraaid (README, "Een nieuwe versie uitbrengen", stap 5). ` +
         "Uitleveren levert alleen template-tags tot en met die tag.",
     );
   }
@@ -246,20 +307,30 @@ export function templateVersies(bronMap, totEnMet) {
     .map((n) => ({ ref: `stack-v${n}`, tag: `stack-v${n}`, bericht: `Versie ${n}` }));
 }
 
-export function uitleverenAanKlant({ org, getestTemplate, pluginMap = WORTEL, templateUrl = `https://github.com/${STAGE_TWO.template}`, droog = false, url = (repo) => `https://github.com/${repo}.git` }) {
+export function uitleverenAanKlant({ org, getestVersie, getestTemplate, pluginMap = WORTEL, templateUrl = `https://github.com/${STAGE_TWO.template}`, droog = false, url = (repo) => `https://github.com/${repo}.git` }) {
   if (!ORG_VORM.test(org ?? "")) throw new Error(`geen geldige GitHub-org: ${org}`);
+  // Eerst alles controleren wat lokaal kan: de geteste pluginversie (tag in de bronrepo) en
+  // de vorm van de templatetag. Klopt er iets niet, dan gaat er niets naar de klant.
+  const versie = controleerGetest(getestVersie, pluginMap);
   const tot = leesGetestTemplate(getestTemplate);
   const doel = leveringVoor(org);
   const kloon = mkdtempSync(join(tmpdir(), "uitleveren-template-"));
   try {
-    // Eerst de template lezen en de geteste tag controleren: klopt die niet, dan gaat er ook
+    // Dan de template lezen en de geteste tag controleren: klopt die niet, dan gaat er ook
     // geen plugin naar de klant.
     execFileSync("git", ["clone", "--quiet", "--bare", templateUrl, kloon], { stdio: "ignore", timeout: 300000, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } });
     const templateLijst = templateVersies(kloon, tot);
+    const bijKlant = hoogstePluginVersie(refsOpAfstand(pluginMap, url(doel.plugin)));
+    if (bijKlant && vergelijkVersie(versie, bijKlant) < 0) {
+      throw new Error(
+        `getest_versie is ${versie}, maar ${doel.plugin} heeft al ${pluginTag(bijKlant)}. Een oudere versie gaat ` +
+          "nooit over een nieuwere heen; start de workflow met de nieuwste versie die op de eigen apps draait.",
+      );
+    }
     const plugin = leverUit({
       bronMap: pluginMap,
       doelUrl: url(doel.plugin),
-      versies: pluginVersies(pluginMap),
+      versies: pluginVersies(pluginMap, versie),
       weglaten: ALLEEN_IN_BRON,
       extra: { "levering.json": leveringJson(org) },
       droog,
@@ -286,7 +357,12 @@ export function leesOpties(argv) {
     if (w === undefined || w.startsWith("--")) throw new Error(`${vlag} vraagt een waarde`);
     return w;
   };
-  const opties = { org: waarde("--org") ?? null, getestTemplate: waarde("--getest-template") ?? null, droog: argv.includes("--droog") };
+  const opties = {
+    org: waarde("--org") ?? null,
+    getestVersie: waarde("--getest") ?? null,
+    getestTemplate: waarde("--getest-template") ?? null,
+    droog: argv.includes("--droog"),
+  };
   const template = waarde("--template");
   if (template !== undefined) opties.templateUrl = template;
   return opties;
@@ -297,10 +373,11 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   try {
     if (argv.includes("--lijst")) {
       process.stdout.write(`${JSON.stringify(leesAbonnees())}\n`);
-    } else if (argv.includes("--getest")) {
-      const versie = controleerGetest(argv[argv.indexOf("--getest") + 1]);
-      const tot = leesGetestTemplate(leesOpties(argv).getestTemplate);
-      process.stdout.write(`plugin ${versie} en template tot en met stack-v${tot} bevestigd: draaien op de eigen apps van Stage Two\n`);
+    } else if (!argv.includes("--org")) {
+      const opties = leesOpties(argv);
+      const versie = controleerGetest(opties.getestVersie);
+      const tot = leesGetestTemplate(opties.getestTemplate);
+      process.stdout.write(`plugin ${versie} (tag v${versie}) en template tot en met stack-v${tot} bevestigd: draaien op de eigen apps van Stage Two\n`);
     } else {
       const uitkomst = uitleverenAanKlant(leesOpties(argv));
       process.stdout.write(`${JSON.stringify(uitkomst, null, 2)}\n`);
