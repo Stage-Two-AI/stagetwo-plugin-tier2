@@ -136,7 +136,7 @@ dit tot een kwartier kan duren: een nieuwe database moet opstarten. Het antwoord
 
 - `kies-groepen`: de app staat nog niet in de toegangslijst en er zijn geen groepen
   meegegeven. Toon `groepen`, laat kiezen, en draai opnieuw met `--groepen`. Is de lijst
-  leeg, geef dan `reden` door: Stage Two maakt de groepen aan.
+  leeg, geef dan `reden` door: de owner maakt de groepen aan (tijdens het project Stage Two).
 - `wacht-op-toegang`: er staat nu een pull request op de beheer-repo (`pr`) die de app
   aan de toegangslijst toevoegt. Die wijzigt alleen `toegang.json`, dus de controle
   Toegang of review wordt vanzelf groen. Zeg dat de gebruiker hem zelf merget als hij in het
