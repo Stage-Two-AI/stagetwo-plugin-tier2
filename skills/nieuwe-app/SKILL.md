@@ -151,4 +151,5 @@ Zeg tot slot, in deze volgorde:
    `/stagetwo-tier2:verder-werken` (met `docs/routes/databasewijziging.md`). De eerste
    merge zet de app echt neer.
 3. Laat Stage Two weten dat deze app bestaat (naam en link), zodat hij in het overzicht
-   komt en meedoet met updates van de werkwijze.
+   komt en Stage Two er, zolang het abonnement loopt, ook de update-voorstellen voor
+   klaarzet.

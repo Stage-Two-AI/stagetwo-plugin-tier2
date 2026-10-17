@@ -9,8 +9,14 @@ Deze plugin zorgt dat Claude Code daarbij de werkwijze van Stage Two kent en bew
 Wat je hebt, is van jou en blijft werken, ook zonder Stage Two. Zolang het abonnement bij
 Stage Two loopt, zet Stage Two nieuwe versies van deze plugin en van de template in de kopie
 in de GitHub van je eigen organisatie (`stagetwo-plugin-tier2` en `app-template-tier2`);
-stopt het abonnement, dan blijven die op de laatste versie staan. Wat het abonnement wel en
-niet levert, staat in [het aanbod van Stage Two](https://github.com/Stage-Two-AI/Stack/blob/main/AANBOD.md).
+stopt het abonnement, dan blijven die op de laatste versie staan. Het abonnement kost €150
+per maand per klant, ongeacht het aantal apps, exclusief btw en maandelijks opzegbaar.
+Daarin zitten nieuwe versies van plugin en template, de update-voorstellen die Stage Two
+klaarzet en nakijkt, tijdig ingrijpen als er van buitenaf iets verandert, en vragen en
+meedenken; niet daarin zitten systeembeheer, een uptimegarantie en meer werk aan je apps
+(dat doet Stage Two op nacalculatie, €120 per uur exclusief btw). Veiligheidsupdates van
+pakketten komen via Dependabot in je eigen repository's, ook zonder abonnement. Meer staat
+op [stagetwo.nl/aanbod](https://stagetwo.nl/aanbod).
 
 Je hoeft geen programmeur te zijn om dit te gebruiken. De eerste keer loopt Stage Two het
 met je door; daarna merk je er weinig van, behalve dat je assistent af en toe iets uitlegt
@@ -69,11 +75,16 @@ vóór de Claude-app, dan hoeft die daarna niet opnieuw te starten. Op een Mac h
 niet.
 
 Installeer daarna de Claude-app (claude.ai/download) en log in. Open in het tabblad
-**Code** een map (leeg mag, bijvoorbeeld `Documenten\Apps`) en typ in het chatvenster:
+**Code** een map (leeg mag, bijvoorbeeld `Documenten\Apps`) en typ in het chatvenster,
+met de naam van de GitHub-organisatie van je bedrijf in plaats van `<jouw-organisatie>`:
 
 ```text
-/plugin marketplace add Stage-Two-AI/stagetwo-plugin-tier2
+/plugin marketplace add <jouw-organisatie>/stagetwo-plugin-tier2
 ```
+
+Je installeert de plugin altijd uit de kopie in de GitHub van je eigen organisatie. Stage
+Two zet die kopie bij de start voor je klaar en geeft je de precieze regel. Alleen via die
+kopie komen nieuwe versies bij jou binnen.
 
 Er verschijnt een klein venster met de vraag of je deze bron vertrouwt. Bevestig dat.
 Daarna opent een scherm met plugins waarin `stagetwo-tier2` al klaarstaat: klik op het **plusje**
@@ -152,8 +163,8 @@ gebouwd: de toegang tot Cloudflare en Supabase hoort niet op een werkcomputer te
 GitHub is de enige plek waar de regels worden afgedwongen, en zo blijft dat. Heeft je
 bedrijf nog geen beheer-repo, dan richt Stage Two de hosting en de database in.
 
-Laat Stage Two weten dat de app bestaat. Dan komt hij in het overzicht en doet hij mee
-met updates van de werkwijze.
+Laat Stage Two weten dat de app bestaat. Dan komt hij in het overzicht, en zet Stage Two
+er zolang het abonnement loopt ook de update-voorstellen voor klaar.
 
 ## Alles updaten
 
@@ -181,7 +192,9 @@ Wat er dan gebeurt, in deze volgorde:
    wat nu werkt, en Stage Two kan er later naar kijken.
 4. **De pakketten van je app** worden bijgewerkt, binnen de grenzen die in je app
    staan, als een tweede, los voorstel. Grote sprongen naar een nieuwe hoofdversie
-   noemt hij alleen; die pakt Stage Two op.
+   noemt hij alleen. Zolang het abonnement loopt, neemt Stage Two die mee in een nieuwe
+   versie van de werkwijze; zonder abonnement, of als je app er zelf werk voor nodig heeft,
+   kan Stage Two het op nacalculatie doen (€120 per uur exclusief btw).
 5. **Je andere apps.** Je assistent laat zien welke andere apps van je bedrijf nog op
    een oudere werkwijze staan, en vraagt welke je nu wilt bijwerken. Die hoeven niet op
    je computer te staan. Elke gekozen app krijgt zijn eigen voorstellen.
@@ -190,7 +203,8 @@ Elk voorstel staat op GitHub als pull request, onder jouw naam, met een uitleg i
 gewone taal. Daarna is het aan jou, precies zoals bij elke andere wijziging: open de
 pull request, wacht tot de controles groen zijn en klik op **Merge**. Zijn de controles rood, dan
 voldoet je app niet aan een nieuwe regel. Neem dan contact op met Stage Two en zet de
-controle niet uit.
+controle niet uit. Meekijken en meedenken valt binnen het abonnement; moet er meer aan je
+app gebeuren, dan doet Stage Two dat op nacalculatie (€120 per uur exclusief btw).
 
 ## Als iets niet lukt
 
@@ -211,7 +225,8 @@ controle niet uit.
 | "main is nog niet beschermd" na `/stagetwo-tier2:nieuwe-app` | Het GitHub-account staat op het gratis plan | Vraag Stage Two; de app werkt, alleen de bescherming ontbreekt nog |
 
 Kom je er niet uit, dan is de vraag altijd welkom bij Stage Two. Vertel wat je typte en
-wat er terugkwam; de melding is bedoeld om door te geven.
+wat er terugkwam; de melding is bedoeld om door te geven. Vragen en meedenken vallen binnen
+het abonnement; meer werk doet Stage Two op nacalculatie (€120 per uur exclusief btw).
 
 ## Voor Stage Two
 
@@ -355,7 +370,10 @@ overweg.
 
 Een abonnee krijgt plugin en template in zijn eigen GitHub-org, als openbare kopie
 (besluit 16-10-2026, `Stack/docs/besluiten/2026-10-16-levering-per-klant.md`):
-`<klantorg>/stagetwo-plugin-tier2` en `<klantorg>/app-template-tier2`.
+`<klantorg>/stagetwo-plugin-tier2` en `<klantorg>/app-template-tier2`. Een klant installeert
+de plugin altijd uit die kopie (`/plugin marketplace add <klantorg>/stagetwo-plugin-tier2`);
+alleen daar staat `levering.json`. Alleen de eigen apps van Stage Two installeren uit deze
+bronrepo.
 
 - `levering.json` in de root van de plugin wijst naar die twee repo's. De plugin leest het
   (`lib/levering.mjs`) voor de template (melding, updaten, nieuwe-app) en voor de bron van
@@ -388,3 +406,6 @@ claude plugin validate .
 ```
 
 Licentie: MIT (zie `LICENSE`). De naam Stage Two en de huisstijl vallen daar niet onder.
+Nieuwe versies komen onder een eigen gebruiksrecht van Stage Two: gebruiken en aanpassen
+voor je eigen apps, niet doorgeven of doorverkopen; versies die al onder MIT zijn uitgebracht,
+blijven MIT. Zie [stagetwo.nl/aanbod](https://stagetwo.nl/aanbod).

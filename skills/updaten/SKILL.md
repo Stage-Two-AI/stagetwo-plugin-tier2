@@ -13,6 +13,13 @@ Jij wijzigt zelf niets in de bestanden van een app. Alles wat een app verandert,
 via de scripts hieronder, in een tijdelijke kopie, en komt als pull request bij de
 gebruiker. Mergen doet de gebruiker zelf.
 
+De gebruiker bouwt zelf; Stage Two richt in en begeleidt. Nieuwe versies komen uit de kopie
+van plugin en template in de GitHub-organisatie van de klant (`levering.json`); Stage Two
+zet daar nieuwe versies in zolang het abonnement loopt. In die tijd zet Stage Two de
+update-voorstellen voor de apps ook zelf klaar en kijkt ze na; dit commando is er voor als de
+gebruiker het zelf wil doen. Stopt het abonnement, dan blijft die kopie op de laatste versie
+staan en meldt dit commando dat alles bij is.
+
 Staat er geen app open (geen `.claude/stack-manifest.json` in deze map), sla dan deel 3
 en 4 over en ga na deel 2 naar deel 5.
 
@@ -154,6 +161,8 @@ Onthoud voor de samenvatting aan het eind (deel 6), in gewone taal:
 3. wat hij nu doet: de pull request bekijken, wachten tot de checks groen zijn en op
    Merge drukken. Zijn de checks rood, dan voldoet de app niet aan een nieuwe regel;
    dan neemt hij contact op met Stage Two en zet hij de check niet uit.
+   Meekijken en meedenken vallen binnen het abonnement; meer werk aan de app doet Stage Two
+   op nacalculatie.
 
 ## Deel 4: de afhankelijkheden van deze app
 
@@ -174,7 +183,8 @@ Het script werkt de pakketten bij binnen de versiegrenzen uit `package.json`; al
 
 Bij `gepusht` en `bij` staan er twee lijsten bij. `hoofdversies`: pakketten met een
 nieuwe hoofdversie, die bewust niet zijn meegenomen; noem ze en zeg dat Stage Two die
-oppakt. `dependabot`: voorstellen van Dependabot die nog openstaan; noem ze en zeg dat de
+met een abonnement meeneemt in een nieuwe versie van de werkwijze, en anders op
+nacalculatie kan doen. `dependabot`: voorstellen van Dependabot die nog openstaan; noem ze en zeg dat de
 gebruiker ze kan mergen als de checks groen zijn.
 
 ## Deel 5: de andere apps (vraag het eerst)
@@ -213,6 +223,8 @@ Sluit af met één overzicht, in gewone taal:
 2. Wat de gebruiker nu doet: per pull request wachten tot de checks groen zijn en op
    Merge drukken. Zijn de checks rood, dan voldoet de app niet aan een nieuwe regel; dan
    neemt hij contact op met Stage Two en zet hij de check niet uit.
+   Meekijken en meedenken vallen binnen het abonnement; meer werk aan de app doet Stage Two
+   op nacalculatie.
 3. Is in deel 1 of 2 iets bijgewerkt, zeg dan dat de app opnieuw moet starten, met deze
    uitleg: sluit de Claude-app helemaal af (Windows: rechtsonder in het systeemvak op het
    pijltje **^**, rechtermuisknop op het Claude-icoon, **Afsluiten**; macOS: cmd+Q), open
