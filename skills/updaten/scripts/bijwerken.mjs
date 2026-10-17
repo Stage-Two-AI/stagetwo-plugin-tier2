@@ -162,7 +162,7 @@ function isTemplateApp(map) {
 
 const ANDER_SPOOR = {
   status: "ander-spoor",
-  reden: "deze app komt uit de Vercel-template van Stage Two; die werk je bij met /stack:updaten van de andere Stage Two-plugin, niet met deze",
+  reden: "deze app komt uit een oudere template van Stage Two die deze plugin niet bijwerkt; vraag Stage Two hoe deze app bij te werken",
 };
 
 function isCloudflareApp(map) {
@@ -334,7 +334,7 @@ export function voerUit({ werkmap, losOp }) {
       return mislukt("git kent je naam en e-mailadres niet; stel ze in met `git config --global user.name` en `user.email`");
     }
     const eind = { ...resultaat, overgeslagen: nogOvergeslagen, opgelost };
-    commit({ map: kloon, identiteit, bericht: `chore: stack-template naar versie ${resultaat.naar}`, versie: resultaat.naar });
+    commit({ map: kloon, identiteit, bericht: `chore: template naar versie ${resultaat.naar}`, versie: resultaat.naar });
 
     // Tussen de droogloop en nu kan iemand op de branch hebben gecommit; ook dan blijven we ervan af.
     if (!branchHerbouwbaar(kloon, branch)) {

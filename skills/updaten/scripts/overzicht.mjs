@@ -48,7 +48,7 @@ export function leesArgumenten(argv) {
   return uit;
 }
 
-/** De templateversie van een repo op GitHub, of null als hij niet uit de Cloudflare-template komt. */
+/** De templateversie van een repo op GitHub, of null als hij niet uit de template voor tier 2 komt. */
 export function versieVanRepo(repo) {
   try {
     const manifest = JSON.parse(sh("gh", ["api", `repos/${repo}/contents/.claude/stack-manifest.json`, "-H", "Accept: application/vnd.github.raw"]));

@@ -1,6 +1,6 @@
 ---
 name: nieuwe-app
-description: Een nieuwe app starten op de manier van Stage Two, op Cloudflare en Supabase - eerst meedenken over wat de app moet doen, dan de app aanmaken uit de nieuwste Cloudflare-template van Stage Two onder de organisatie van de gebruiker, en hosting, deur en database laten inrichten door de beheer-repo. Gebruik dit als de gebruiker /stagetwo-tier2:nieuwe-app typt of een nieuwe, losstaande app wil beginnen (niet een uitbreiding van een bestaande app).
+description: Een nieuwe app starten op tier 2 van Stage Two, op Cloudflare en Supabase - eerst meedenken over wat de app moet doen, dan de app aanmaken uit de nieuwste template voor tier 2 van Stage Two onder de organisatie van de gebruiker, en hosting, deur en database laten inrichten door de beheer-repo. Gebruik dit als de gebruiker /stagetwo-tier2:nieuwe-app typt of een nieuwe, losstaande app wil beginnen (niet een uitbreiding van een bestaande app).
 ---
 
 Je helpt iemand die niet technisch is om een nieuwe app goed te beginnen. Het gesprek
@@ -49,12 +49,12 @@ het duurste antwoord.
 
 ## Stap 3: wat de app meekrijgt
 
-Hier is niets te kiezen; zeg het in twee zinnen. Elke app op dit spoor staat achter een
+Hier is niets te kiezen; zeg het in twee zinnen. Elke app van tier 2 staat achter een
 deur: alleen de mensen uit de toegangslijst van het bedrijf komen erin, en ze loggen in
 met hun werkaccount (of met een code per mail). En elke app krijgt een eigen database bij
-Supabase, want het inloggen loopt daar doorheen. Een database is gratis zolang het om een
-paar apps gaat; daarna kost hij enkele tientallen euro's per maand, Stage Two weet het
-precieze bedrag.
+Supabase, want het inloggen loopt daar doorheen. Supabase kost het bedrijf ongeveer €22 per
+maand, plus ongeveer €9 per maand per database; een app heeft er twee (echt en test). Die
+bedragen staan ook op stagetwo.nl/aanbod.
 
 ## Stap 4: naam en plek
 
@@ -69,7 +69,8 @@ precieze bedrag.
   (bestaat die niet, dan heet de beheer-repo nog `stagetwo-beheer` of `stack-beheer`: gebruik dan die naam).
   Staat de naam van de app al onder `apps`, dan is dit al geregeld; zeg dat. Zo niet, toon
   dan de groepen (met wie erin zit, in gewone woorden) en laat de gebruiker kiezen. Zijn
-  er geen groepen, dan maakt Stage Two die aan; ga gewoon door, stap 5b meldt het.
+  er geen groepen, dan maakt de owner van de organisatie die aan (tijdens het project
+  Stage Two); ga gewoon door, stap 5b meldt het.
 - **Map.** De app komt als nieuwe submap met de naam van de app onder de map die nu open
   staat. Zeg dat.
 
@@ -150,5 +151,7 @@ Zeg tot slot, in deze volgorde:
    Komen er gegevens in, dan begint dat werk met de eerste tabellen; die route zit in
    `/stagetwo-tier2:verder-werken` (met `docs/routes/databasewijziging.md`). De eerste
    merge zet de app echt neer.
-3. Laat Stage Two weten dat deze app bestaat (naam en link), zodat hij in het overzicht
-   komt en meedoet met updates van de werkwijze.
+3. Laat Stage Two weten dat deze app bestaat (naam en link). Na de overdracht zet de
+   owner van de organisatie de app ook bij de repo's waarop de GitHub App
+   `stagetwo-levering` staat. Dan zet Stage Two er, zolang het abonnement loopt, ook de
+   update-voorstellen voor klaar.
