@@ -379,7 +379,9 @@ overweg.
    de ruleset op de template weigert dat.
 4. Registerprojecten: `node bin/stack-sync.mjs --status` in Stack, dan de droogloop,
    dan `--doe-het`.
-5. Abonnees: de workflow **Uitleveren** zet de nieuwe versie vanzelf door (zie hieronder).
+5. Abonnees: de workflow **Uitleveren** zet een nieuwe pluginversie vanzelf door. Na alleen
+   een nieuwe template-tag start je hem met de hand: `gh workflow run uitleveren.yml -R
+   Stage-Two-AI/stagetwo-plugin-tier2` (zie hieronder).
 
 ### Levering per bedrijf
 
@@ -397,10 +399,20 @@ bronrepo.
 - `abonnees.json` is de lijst met abonnees (GitHub-orgs). Erin = nieuwe versies; eruit =
   de leveringsrepo blijft op de laatste versie staan en er komt niets meer bij.
 - De workflow **Uitleveren** (`.github/workflows/uitleveren.yml`, script
-  `beheer/uitleveren.mjs`) draait na elke merge naar `main`, elk uur en met de hand. Per
+  `beheer/uitleveren.mjs`) draait na een merge die `plugin.json` of `abonnees.json` wijzigt,
+  en met de hand (na een nieuwe template-tag; een tag in een andere repo kan hem niet
+  starten). Elke run levert ook de template-tags die de klant nog niet heeft. Per
   abonnee zet hij een nieuwe pluginversie neer als tag `v<versie>` en elke nieuwe
   template-tag `stack-v<n>`, elk als één commit van Stage Two bovenop de main van de klant.
   Onze geschiedenis, `abonnees.json` en het uitleveren zelf gaan niet mee.
+- In de template van de klant wijst `.claude/settings.json` naar zijn eigen kopie van de
+  plugin (de workflow zet dat per versie). `/nieuwe-app` en het bijwerken zetten dezelfde
+  bron in de app (`lib/plugin-bron.mjs`): een instelling in de app wint in Claude Code van de
+  instelling op gebruikersniveau die `/installatie` zet. Een andere bron telt bij het
+  bijwerken niet als lokale aanpassing.
+- `/nieuwe-app` zet een `LICENSE` op naam van de organisatie (`--organisatie`, anders de naam
+  van de org op GitHub); het gebruiksrecht van Stage Two staat in `LICENSE-STAGE-TWO`, dat
+  met elke template-versie meekomt (vanaf template versie 22).
 - Schrijfrecht bij de klant gaat via de GitHub App `stagetwo-levering`; recept in
   `Stack/docs/recepten/github-app-levering.md`.
 - Na de overdracht (voorstel 17-10-2026): Stage Two houdt geen persoonlijk account en geen

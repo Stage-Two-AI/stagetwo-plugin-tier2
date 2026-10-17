@@ -23,7 +23,13 @@ import {
   vulIn,
   zetDatabaseStand,
   zetWorkerNaam,
+  geldigeOrganisatie,
+  licentieTekst,
+  organisatieNaam,
+  zetLicentie,
+  zetPluginBron,
 } from "./nieuwe-app.mjs";
+import { STAGE_TWO } from "../../../lib/levering.mjs";
 
 function verseTemplate() {
   const map = tijdelijkeMap("nieuwe-app-");
@@ -320,4 +326,84 @@ test("kiesBeheerRepo: eerst stagetwo-beheer-tier2, dan de oude namen stagetwo-be
   assert.equal(kiesBeheerRepo("klant", (r) => r === "klant/stagetwo-beheer" || r === "klant/stack-beheer"), "klant/stagetwo-beheer");
   assert.equal(kiesBeheerRepo("klant", (r) => r === "klant/stack-beheer"), "klant/stack-beheer");
   assert.equal(kiesBeheerRepo("klant", () => false), null);
+});
+
+// ---------------------------------------------------------------- levering: bron en licentie
+
+const SETTINGS_TEMPLATE = `{
+  "extraKnownMarketplaces": {
+    "stagetwo-tier2": {
+      "source": {
+        "source": "github",
+        "repo": "Stage-Two-AI/stagetwo-plugin-tier2"
+      },
+      "autoUpdate": true
+    }
+  },
+  "enabledPlugins": {
+    "stagetwo-tier2@stagetwo-tier2": true
+  }
+}
+`;
+
+test("zetPluginBron: bij een abonnee wijst de app naar zijn eigen kopie van de plugin", () => {
+  const map = verseTemplate();
+  schrijfBestanden(map, { ".claude/settings.json": SETTINGS_TEMPLATE });
+  assert.equal(zetPluginBron(map, "Richplant-BV/stagetwo-plugin-tier2"), "Richplant-BV/stagetwo-plugin-tier2");
+  const na = readFileSync(join(map, ".claude/settings.json"), "utf8");
+  assert.equal(na, SETTINGS_TEMPLATE.replace("Stage-Two-AI/stagetwo-plugin-tier2", "Richplant-BV/stagetwo-plugin-tier2"));
+  assert.equal(zetPluginBron(map, "Richplant-BV/stagetwo-plugin-tier2"), "Richplant-BV/stagetwo-plugin-tier2", "tweede keer: niets te doen");
+});
+
+test("zetPluginBron: zonder levering.json (eigen apps van Stage Two) blijft de bronrepo", () => {
+  const map = verseTemplate();
+  schrijfBestanden(map, { ".claude/settings.json": SETTINGS_TEMPLATE });
+  assert.equal(zetPluginBron(map, STAGE_TWO.plugin), STAGE_TWO.plugin);
+  assert.equal(readFileSync(join(map, ".claude/settings.json"), "utf8"), SETTINGS_TEMPLATE);
+  assert.equal(zetPluginBron(verseTemplate(), "Klant/x"), null, "geen settings: niets te doen");
+});
+
+test("licentieTekst: eigen code van de organisatie, onderdelen van Stage Two in LICENSE-STAGE-TWO", () => {
+  const tekst = licentieTekst("Richplant B.V.", 2026);
+  assert.match(tekst, /Copyright \(c\) 2026 Richplant B\.V\./);
+  assert.match(tekst, /is van Richplant B\.V\. Alle rechten voorbehouden/);
+  assert.match(tekst, /LICENSE-STAGE-TWO/);
+  assert.doesNotMatch(tekst, /<organisatie>|MIT|\u2014/);
+});
+
+test("zetLicentie: vervangt de LICENSE van de template, laat LICENSE-STAGE-TWO en een eigen LICENSE staan", () => {
+  const map = verseTemplate();
+  schrijfBestanden(map, { LICENSE: "Licentie van deze app\n\nis van <organisatie>.\n", "LICENSE-STAGE-TWO": "Gebruiksrecht Stage Two\n" });
+  assert.deepEqual(zetLicentie(map, " Richplant B.V. "), { gezet: true, organisatie: "Richplant B.V." });
+  assert.match(readFileSync(join(map, "LICENSE"), "utf8"), /is van Richplant B\.V\./);
+  assert.equal(readFileSync(join(map, "LICENSE-STAGE-TWO"), "utf8"), "Gebruiksrecht Stage Two\n");
+  // Hervatten of een eigen LICENSE: niet nog eens overschrijven.
+  writeFileSync(join(map, "LICENSE"), "MIT License\nCopyright (c) 2026 Richplant\n");
+  assert.equal(zetLicentie(map, "Ander").gezet, false);
+  assert.match(readFileSync(join(map, "LICENSE"), "utf8"), /Copyright \(c\) 2026 Richplant/);
+});
+
+test("zetLicentie: een oudere template zonder LICENSE-STAGE-TWO blijft zoals hij is", () => {
+  const map = verseTemplate();
+  schrijfBestanden(map, { LICENSE: "MIT License\n\nCopyright (c) 2026 Stage Two\n" });
+  const r = zetLicentie(map, "Richplant B.V.");
+  assert.equal(r.gezet, false);
+  assert.match(r.reden, /LICENSE-STAGE-TWO/);
+  assert.equal(readFileSync(join(map, "LICENSE"), "utf8"), "MIT License\n\nCopyright (c) 2026 Stage Two\n");
+});
+
+test("organisatie: --organisatie wint, dan de naam op GitHub, dan de inlognaam", () => {
+  assert.equal(organisatieNaam("Richplant-BV", "Richplant B.V.", () => "Iets anders"), "Richplant B.V.");
+  assert.equal(organisatieNaam("Richplant-BV", null, () => "Richplant"), "Richplant");
+  assert.equal(organisatieNaam("Richplant-BV", null, () => null), "Richplant-BV");
+  assert.equal(organisatieNaam("Richplant-BV", null, () => "regel\nbreuk"), "Richplant-BV");
+  assert.equal(geldigeOrganisatie("Winco Holland B.V."), true);
+  for (const fout of ["", "x", "a\nb", "<organisatie>", "x".repeat(101)]) assert.equal(geldigeOrganisatie(fout), false, fout);
+});
+
+test("argumenten: --organisatie wordt gelezen en gecontroleerd", () => {
+  const a = leesArgumenten(["--droogloop", "--naam", "voorraad", "--eigenaar", "Org", "--organisatie", "Org B.V."]);
+  assert.equal(a.organisatie, "Org B.V.");
+  assert.equal(controleerArgumenten(a), null);
+  assert.match(controleerArgumenten({ ...a, organisatie: "a\nb" }), /--organisatie/);
 });

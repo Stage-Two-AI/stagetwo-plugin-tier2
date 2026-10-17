@@ -6,18 +6,24 @@
  *   node beheer/uitleveren.mjs --lijst
  *       de orgs uit abonnees.json als JSON-lijst (voor de matrix van de workflow)
  *
- *   node beheer/uitleveren.mjs --org <klantorg> [--droog]
+ *   node beheer/uitleveren.mjs --org <klantorg> [--template <pad of url>] [--droog]
  *       plugin:   deze checkout (HEAD) naar <klantorg>/stagetwo-plugin-tier2, getagd
  *                 v<versie uit plugin.json>, zonder abonnees.json en het uitleveren zelf, met
  *                 een levering.json die naar de leveringsrepo's van de klant wijst;
  *       template: elke tag stack-v<n> van Stage-Two-AI/app-template-tier2 die de klant nog
- *                 niet heeft, naar <klantorg>/app-template-tier2; main = de nieuwste.
+ *                 niet heeft, naar <klantorg>/app-template-tier2; main = de nieuwste. In
+ *                 .claude/settings.json wijst de bron van de plugin daarbij naar
+ *                 <klantorg>/stagetwo-plugin-tier2, zodat een app uit die kopie zijn plugin
+ *                 ook uit de kopie van de klant haalt (lib/plugin-bron.mjs).
  *
  * De klant krijgt geen kopie van onze geschiedenis maar per versie één commit van Stage Two
  * bovenop zijn eigen main. Zo komt er nooit iets mee dat alleen in de bron hoort (de lijst
  * met abonnees, eerdere commits), en is een versie die er al staat meteen klaar: een
  * tweede run doet niets. Er wordt nooit geforceerd: heeft iemand anders op de main van de
  * leveringsrepo gezet, dan weigert de push en kijkt Stage Two ernaar.
+ *
+ * --template: waar de template van Stage Two vandaan komt (standaard de openbare https-url).
+ * De workflow geeft een eigen checkout mee, zodat het ook werkt als de bronrepo is afgeschermd.
  *
  * Inloggen doet de workflow (gh auth setup-git met het token van de GitHub App
  * stagetwo-levering); dit script praat gewoon https tegen github.com.
@@ -28,6 +34,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { STAGE_TWO } from "../lib/levering.mjs";
+import { SETTINGS_PAD, metPluginBron } from "../lib/plugin-bron.mjs";
 
 const WORTEL = join(dirname(fileURLToPath(import.meta.url)), "..");
 export const IDENTITEIT = { naam: "Stage Two", email: "info@stagetwo.nl" };
@@ -78,14 +85,34 @@ export function refsOpAfstand(map, url) {
   return new Map(uit.split("\n").filter(Boolean).map((r) => r.split("\t").reverse()));
 }
 
-/** De boom van `ref`, zonder de paden in `weglaten` en met de bestanden in `extra` erbij. */
-export function maakBoom(map, ref, { weglaten = [], extra = {} } = {}) {
+/** De inhoud van `pad` op `ref`, precies (zonder trim), of null als het bestand er niet is. */
+function bestandOp(map, ref, pad) {
+  try {
+    return execFileSync("git", ["-C", map, "show", `${ref}:${pad}`], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * De boom van `ref`, zonder de paden in `weglaten`, met de bestanden in `extra` erbij, en met
+ * per pad in `bewerk` een functie die de inhoud op `ref` omzet (een ontbrekend bestand slaan
+ * we over).
+ */
+export function maakBoom(map, ref, { weglaten = [], extra = {}, bewerk = {} } = {}) {
   const tijdelijk = mkdtempSync(join(tmpdir(), "uitleveren-"));
   const env = { GIT_INDEX_FILE: join(tijdelijk, "index") };
   try {
     gitIn(map, ["read-tree", ref], { env });
     for (const pad of weglaten) gitIn(map, ["rm", "--cached", "-q", "--ignore-unmatch", "--", pad], { env });
-    for (const [pad, inhoud] of Object.entries(extra)) {
+    const bewerkt = {};
+    for (const [pad, omzetten] of Object.entries(bewerk)) {
+      const oud = bestandOp(map, ref, pad);
+      if (oud === null) continue;
+      const nieuw = omzetten(oud);
+      if (nieuw !== oud) bewerkt[pad] = nieuw;
+    }
+    for (const [pad, inhoud] of Object.entries({ ...bewerkt, ...extra })) {
       const blob = gitIn(map, ["hash-object", "-w", "--stdin"], { input: inhoud });
       gitIn(map, ["update-index", "--add", "--cacheinfo", `100644,${blob},${pad}`], { env });
     }
@@ -110,14 +137,14 @@ function maakCommit(map, boom, ouder, bericht) {
  * Een tag die de klant al heeft, slaan we over; de rest komt als commit bovenop zijn main
  * (of op de bestaande main als de inhoud gelijk is) en krijgt zijn tag. Eén atomaire push.
  */
-export function leverUit({ bronMap, doelUrl, versies, weglaten = [], extra = {}, droog = false }) {
+export function leverUit({ bronMap, doelUrl, versies, weglaten = [], extra = {}, bewerk = {}, droog = false }) {
   const opAfstand = refsOpAfstand(bronMap, doelUrl);
   let tip = opAfstand.get("refs/heads/main") ?? null;
   if (tip) gitIn(bronMap, ["fetch", "-q", "--no-tags", doelUrl, "+refs/heads/main:refs/uitleveren/main"]);
   const nieuw = [];
   for (const { ref, tag, bericht } of versies) {
     if (opAfstand.has(`refs/tags/${tag}`)) continue;
-    const boom = maakBoom(bronMap, ref, { weglaten, extra });
+    const boom = maakBoom(bronMap, ref, { weglaten, extra, bewerk });
     if (!tip || gitIn(bronMap, ["rev-parse", `${tip}^{tree}`]) !== boom) tip = maakCommit(bronMap, boom, tip, bericht);
     nieuw.push({ tag, sha: tip });
   }
@@ -137,6 +164,12 @@ export function pluginVersies(bronMap) {
   if (!/^\d+\.\d+\.\d+$/.test(versie ?? "")) throw new Error(`plugin.json heeft geen geldige versie: ${versie}`);
   const sha = gitIn(bronMap, ["rev-parse", "HEAD"]);
   return [{ ref: "HEAD", tag: `v${versie}`, bericht: `Plugin ${versie}\n\nBron: ${STAGE_TWO.plugin}@${sha}` }];
+}
+
+/** Wat er per versie in de template van de klant anders is dan bij Stage Two: de bron van de plugin. */
+export function templateBewerkingen(org) {
+  const plugin = leveringVoor(org).plugin;
+  return { [SETTINGS_PAD]: (tekst) => metPluginBron(tekst, plugin) };
 }
 
 export function leveringJson(org) {
@@ -168,11 +201,32 @@ export function uitleverenAanKlant({ org, pluginMap = WORTEL, templateUrl = `htt
   const kloon = mkdtempSync(join(tmpdir(), "uitleveren-template-"));
   try {
     execFileSync("git", ["clone", "--quiet", "--bare", templateUrl, kloon], { stdio: "ignore", timeout: 300000, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" } });
-    const template = leverUit({ bronMap: kloon, doelUrl: url(doel.template), versies: templateVersies(kloon), droog });
+    const template = leverUit({
+      bronMap: kloon,
+      doelUrl: url(doel.template),
+      versies: templateVersies(kloon),
+      bewerk: templateBewerkingen(org),
+      droog,
+    });
     return { org, plugin, template };
   } finally {
     rmSync(kloon, { recursive: true, force: true });
   }
+}
+
+/** De opties van de opdrachtregel voor uitleverenAanKlant. */
+export function leesOpties(argv) {
+  const waarde = (vlag) => {
+    const i = argv.indexOf(vlag);
+    if (i < 0) return undefined;
+    const w = argv[i + 1];
+    if (w === undefined || w.startsWith("--")) throw new Error(`${vlag} vraagt een waarde`);
+    return w;
+  };
+  const opties = { org: waarde("--org") ?? null, droog: argv.includes("--droog") };
+  const template = waarde("--template");
+  if (template !== undefined) opties.templateUrl = template;
+  return opties;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -181,8 +235,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     if (argv.includes("--lijst")) {
       process.stdout.write(`${JSON.stringify(leesAbonnees())}\n`);
     } else {
-      const i = argv.indexOf("--org");
-      const uitkomst = uitleverenAanKlant({ org: i >= 0 ? argv[i + 1] : null, droog: argv.includes("--droog") });
+      const uitkomst = uitleverenAanKlant(leesOpties(argv));
       process.stdout.write(`${JSON.stringify(uitkomst, null, 2)}\n`);
     }
   } catch (fout) {
