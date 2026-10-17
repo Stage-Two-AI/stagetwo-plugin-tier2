@@ -186,14 +186,12 @@ test("template bij de klant: .claude/settings.json wijst naar de plugin in zijn 
   });
 });
 
-test("workflow Uitleveren: alleen bij een nieuwe versie, een nieuwe abonnee of met de hand, niet meer elk uur", () => {
+test("workflow Uitleveren: alleen met de hand, niet bij een merge en niet elk uur", () => {
   const yml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", ".github", "workflows", "uitleveren.yml"), "utf8");
   const aan = yml.slice(yml.indexOf("\non:"), yml.indexOf("\npermissions:"));
   assert.doesNotMatch(aan, /schedule|cron/, "geen schema meer");
   assert.match(aan, /workflow_dispatch:/);
-  assert.match(aan, /push:\s+branches: \[main\]\s+paths:/);
-  assert.match(aan, /- "\.claude-plugin\/plugin\.json"/);
-  assert.match(aan, /- "abonnees\.json"/);
+  assert.doesNotMatch(aan, /push:|pull_request|release:|tags:/, "een merge naar main levert niets aan klanten: eerst controleert Stage Two de versie op de eigen apps");
 });
 
 test("opdrachtregel: --template geeft een eigen bron voor de template (afgeschermde bronrepo)", () => {

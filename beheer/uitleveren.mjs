@@ -44,6 +44,8 @@ export const ALLEEN_IN_BRON = [
   ".github/workflows/uitleveren.yml",
   "beheer/uitleveren.mjs",
   "beheer/uitleveren.test.mjs",
+  "beheer/levering-omzetten.mjs",
+  "beheer/levering-omzetten.test.mjs",
 ];
 const ORG_VORM = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
 

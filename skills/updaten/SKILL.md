@@ -14,14 +14,15 @@ via de scripts hieronder, in een tijdelijke kopie, en komt als pull request bij 
 gebruiker. Mergen doet de gebruiker zelf.
 
 De gebruiker bouwt zelf; Stage Two richt in en begeleidt. Nieuwe versies komen uit de kopie
-van plugin en template in de GitHub-organisatie van de klant (`levering.json`); Stage Two
-zet daar nieuwe versies in zolang het abonnement loopt, en test elke versie eerst op zijn
+van plugin en template die Stage Two bij de start in de GitHub-organisatie van de klant
+klaarzet (`levering.json`); Stage Two zet daar nieuwe versies in zolang het abonnement loopt, en test elke versie eerst op zijn
 eigen apps. Na de overdracht heeft Stage Two geen toegang tot de apps en zet het daar zelf
 geen voorstellen klaar: dit commando is de weg waarlangs een nieuwe versie in een app komt.
 Houd twee dingen apart als je het uitlegt: de plugin op deze computer werkt zichzelf bij uit
 de kopie (deel 1), en een app verandert alleen via een voorstel dat een bouwer goedkeurt
 (deel 3 tot en met 5). Stopt het abonnement, dan blijft die kopie op de laatste versie staan
-en meldt dit commando dat alles bij is.
+en meldt dit commando dat alles bij is. Wat de klant bouwt en zijn gegevens zijn van hem;
+plugin en template mag hij blijven gebruiken, en ze blijven werken, ook zonder Stage Two.
 
 Staat er geen app open (geen `.claude/stack-manifest.json` in deze map), sla dan deel 3
 en 4 over en ga na deel 2 naar deel 5.
@@ -185,9 +186,12 @@ Het script werkt de pakketten bij binnen de versiegrenzen uit `package.json`; al
 - `mislukt`: geef `reden` door en ga door met deel 5.
 
 Bij `gepusht` en `bij` staan er twee lijsten bij. `hoofdversies`: pakketten met een
-nieuwe hoofdversie, die bewust niet zijn meegenomen; noem ze en zeg dat Stage Two die
-met een abonnement meeneemt in een nieuwe versie van de werkwijze, en anders op
-nacalculatie kan doen. `dependabot`: voorstellen van Dependabot die nog openstaan; noem ze en zeg dat de
+nieuwe hoofdversie, die bewust niet zijn meegenomen; noem ze. Zeg erbij: kleine updates
+stelt Dependabot vanzelf voor; een grote versie van een pakket van de app zet de bouwer zelf
+door, met jouw hulp, als een gewone wijziging via `/stagetwo-tier2:verder-werken`, of
+Stage Two doet het op verzoek tegen nacalculatie (€120 per uur exclusief btw). Wijzigingen
+aan apps vallen buiten het abonnement. Begin er niet zelf aan zonder dat de gebruiker
+erom vraagt. `dependabot`: voorstellen van Dependabot die nog openstaan; noem ze en zeg dat de
 gebruiker ze kan mergen als de checks groen zijn.
 
 ## Deel 5: de andere apps (vraag het eerst)

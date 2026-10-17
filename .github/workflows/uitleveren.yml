@@ -4,15 +4,15 @@
 #   plugin    een nieuwe versie in plugin.json op main (een release), als tag v<versie>
 #   template  elke nieuwe tag stack-v<n> van Stage-Two-AI/app-template-tier2
 #
-# Wanneer: alleen als er iets nieuws te leveren is, en met de hand.
-#   - een merge naar main die plugin.json wijzigt (een nieuwe versie van de plugin) of
-#     abonnees.json (een nieuwe abonnee);
-#   - met de hand via "Run workflow", na een nieuwe tag stack-v<n> van de template. Een tag in
-#     een andere repo kan deze workflow niet starten zonder extra sleutel; daarom hoort het
-#     starten bij het uitbrengen van een template-versie (zie README, "Een versie uitbrengen").
-#     Wie de template eerst tagt en daarna de nieuwe plugin merget, hoeft niets met de hand:
-#     elke run levert ook alle template-tags die de klant nog niet heeft.
-# Tot 17-10-2026 draaide hij ook elk uur; dat kostte ongeveer 1.400 Actions-minuten per maand.
+# Wanneer: alleen met de hand ("Run workflow", of gh workflow run uitleveren.yml), nadat Stage
+# Two een nieuwe versie op de eigen apps heeft gecontroleerd. Een merge naar main levert dus
+# niets aan klanten: dan krijgen alleen de eigen apps van Stage Two de nieuwe versie (zij
+# installeren de plugin uit deze bronrepo). Ook een nieuwe abonnee in abonnees.json krijgt
+# pas iets na een run met de hand. Elke run levert de nieuwste pluginversie op main en alle
+# template-tags die de klant nog niet heeft.
+# Tot 17-10-2026 draaide hij ook elk uur (ongeveer 1.400 Actions-minuten per maand) en daarna
+# vanzelf bij een merge die plugin.json of abonnees.json wijzigde; dat laatste is eraf, zodat
+# geen versie bij een klant komt die Stage Two nog niet zelf heeft gebruikt.
 # Een versie die de klant al heeft, slaat hij over; een run zonder iets nieuws doet niets.
 #
 # Schrijven bij de klant gaat via de GitHub App stagetwo-levering, die de klant op alleen
@@ -22,11 +22,6 @@
 name: Uitleveren
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - ".claude-plugin/plugin.json"
-      - "abonnees.json"
   workflow_dispatch:
 
 permissions:

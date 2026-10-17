@@ -199,7 +199,7 @@ export function droogloop({ checkout, opAfstand = null, env = process.env }) {
 
   const tmplRepo = templateRepo(env);
   const doel = versieOpAfstand(tmplRepo);
-  if (doel === null) return mislukt("de template is niet bereikbaar (geen netwerk, of nog geen versie-tag); probeer het later opnieuw");
+  if (doel === null) return mislukt(`de template is niet bereikbaar (${tmplRepo}): geen netwerk, nog geen versie-tag, of de repo bestaat niet of is niet openbaar; probeer het later opnieuw, en geef deze melding door aan Stage Two als het dan nog niet lukt`);
   if (opAfstand === null && leesVersie(checkout) >= doel) return alBij(leesVersie(checkout), doel);
 
   const branch = branchNaam(AFZENDER, doel);

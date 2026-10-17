@@ -6,12 +6,14 @@ draaien, met hun gegevens bij **Supabase**. Stage Two vertelt je bij de start we
 bij jouw bedrijf hoort.
 Deze plugin zorgt dat Claude Code daarbij de werkwijze van Stage Two kent en bewaakt.
 
-Wat je hebt, is van jou en blijft werken, ook zonder Stage Two. Zolang je bedrijf een
-abonnement bij Stage Two heeft, zet Stage Two nieuwe versies van deze plugin en van de
-template in de kopie in de GitHub van je eigen organisatie (`stagetwo-plugin-tier2` en
-`app-template-tier2`). Stage Two test elke versie eerst op zijn eigen apps. Stopt het
-abonnement, dan blijven die kopieën op de laatste versie staan; er komt alleen niets nieuws
-bij, en vragen en meedenken stoppen ook.
+Wat je bouwt en je gegevens zijn van jou. De plugin en de template mag je blijven gebruiken
+voor je eigen apps, en ze blijven werken, ook zonder Stage Two; de rechten op plugin en
+template zelf blijven bij Stage Two (zie `LICENSE`). Bij de start zet Stage Two in de GitHub
+van je eigen organisatie een kopie van deze plugin en van de template klaar
+(`stagetwo-plugin-tier2` en `app-template-tier2`). Zolang je bedrijf een abonnement bij
+Stage Two heeft, zet Stage Two daar nieuwe versies in. Stage Two test elke versie eerst op
+zijn eigen apps. Stopt het abonnement, dan blijven die kopieën op de laatste versie staan;
+er komt alleen niets nieuws bij, en vragen en meedenken stoppen ook.
 
 Een nieuwe versie raakt twee dingen, en die gaan elk op hun eigen manier:
 
@@ -101,6 +103,10 @@ Klik op **Ja** als Windows vraagt of dit programma wijzigingen mag aanbrengen. D
 vóór de Claude-app, dan hoeft die daarna niet opnieuw te starten. Op een Mac hoeft dit
 niet.
 
+Je installeert de plugin altijd uit de kopie in de GitHub van je eigen organisatie. Die
+kopie zet Stage Two bij de start voor je klaar; daarna geeft Stage Two je de precieze regel.
+Alleen via die kopie komen nieuwe versies bij jou binnen.
+
 Installeer daarna de Claude-app (claude.ai/download) en log in. Open in het tabblad
 **Code** een map (leeg mag, bijvoorbeeld `Documenten\Apps`) en typ in het chatvenster,
 met de naam van de GitHub-organisatie van je bedrijf in plaats van `<jouw-organisatie>`:
@@ -108,10 +114,6 @@ met de naam van de GitHub-organisatie van je bedrijf in plaats van `<jouw-organi
 ```text
 /plugin marketplace add <jouw-organisatie>/stagetwo-plugin-tier2
 ```
-
-Je installeert de plugin altijd uit de kopie in de GitHub van je eigen organisatie. Stage
-Two zet die kopie bij de start voor je klaar en geeft je de precieze regel. Alleen via die
-kopie komen nieuwe versies bij jou binnen.
 
 Er verschijnt een klein venster met de vraag of je deze bron vertrouwt. Bevestig dat.
 Daarna opent een scherm met plugins waarin `stagetwo-tier2` al klaarstaat: klik op het **plusje**
@@ -208,7 +210,8 @@ bij de tijd houden, typ dan in de map van je app:
 
 Dit is de weg waarlangs een nieuwe versie van de werkwijze in je apps komt. Stage Two zet na de
 overdracht zelf geen voorstellen in je apps klaar; Stage Two test elke versie eerst op zijn
-eigen apps en zet hem daarna in de kopie in je eigen organisatie. De plugin op je computer
+eigen apps en zet hem daarna in de kopie die het bij de start in je eigen organisatie heeft
+klaargezet. De plugin op je computer
 werkt zichzelf al bij; je apps veranderen pas als een bouwer het voorstel goedkeurt.
 
 Wat er dan gebeurt, in deze volgorde:
@@ -224,10 +227,12 @@ Wat er dan gebeurt, in deze volgorde:
    overnemen, of jouw versie houden. Twijfel je? Kies "houden"; dat verandert niets aan
    wat nu werkt, en Stage Two kan er later naar kijken.
 4. **De pakketten van je app** worden bijgewerkt, binnen de grenzen die in je app
-   staan, als een tweede, los voorstel. Grote sprongen naar een nieuwe hoofdversie
-   noemt hij alleen. Zolang het abonnement loopt, neemt Stage Two die mee in een nieuwe
-   versie van de werkwijze; zonder abonnement, of als je app er zelf werk voor nodig heeft,
-   kan Stage Two het op nacalculatie doen (€120 per uur exclusief btw).
+   staan, als een tweede, los voorstel. Kleine updates en veiligheidsupdates stelt
+   Dependabot daarnaast vanzelf voor. Een pakket met een nieuwe hoofdversie (een grote
+   sprong, zoals een nieuwe React) noemt je assistent alleen. Die zet je zelf door, met hulp
+   van je assistent, als een gewone wijziging aan je app; of Stage Two doet het op verzoek,
+   op nacalculatie (€120 per uur exclusief btw). Wijzigingen aan je apps vallen buiten het
+   abonnement.
 5. **Je andere apps.** Je assistent laat zien welke andere apps van je bedrijf nog op
    een oudere werkwijze staan, en vraagt welke je nu wilt bijwerken. Die hoeven niet op
    je computer te staan. Elke gekozen app krijgt zijn eigen voorstellen.
@@ -244,7 +249,7 @@ app gebeuren, dan doet Stage Two dat op nacalculatie (€120 per uur exclusief b
 | Je ziet | Wat er aan de hand is | Wat je doet |
 |---|---|---|
 | "log eerst in bij GitHub met `gh auth login`" | Je computer is niet ingelogd bij GitHub | Typ `gh auth login` in een terminal en volg de stappen |
-| "de template is niet bereikbaar" | Geen internet, of GitHub is even niet bereikbaar | Later opnieuw proberen |
+| "de template is niet bereikbaar" | Geen internet, GitHub is even niet bereikbaar, of de template staat niet (meer) waar de plugin hem zoekt | Later opnieuw proberen; lukt het dan nog niet, geef de melding door aan Stage Two |
 | "je hebt geen schrijfrecht" | Je account mag niet in deze app schrijven | Vraag de eigenaar van de app je toe te voegen |
 | "installeer pnpm" | `pnpm` ontbreekt op je computer | Vraag Stage Two, of installeer het zoals bij de start is uitgelegd |
 | "er staat al een pull request open" | Er ligt al een voorstel voor deze versie | Bekijk die pull request en merge hem, of vraag Stage Two |
@@ -304,7 +309,8 @@ skills/            de vier skills; met een script: updaten (bijwerken.mjs voor d
                    (nieuwe-app.mjs: aanmaken, en --inrichten start de workflow in de
                    beheer-repo van de klant; plus ruleset.json voor main)
 lib/               de kern: manifest lezen, toepassen, PR-tekst, git- en PR-stappen
-beheer/            de beheerde run over het register van Stage Two; geen skill, alleen voor Stage Two
+beheer/            alleen voor Stage Two, geen skill: de beheerde run over het register,
+                   Uitleveren en levering-omzetten.mjs (bestaande apps naar de kopie)
 test/              de geheimenscan over boom en geschiedenis
 ```
 
@@ -319,8 +325,9 @@ gestart vanuit `Stack/bin/stack-sync.mjs`, dat het register en de ruleset meegee
   en `.claude/`). Zonder manifest doet hij niets. `STACK_ALLOW_POLICY_EDIT=1` laat
   padbewerkingen door, voor onderhoud aan de template zelf.
 - De melding vergelijkt `.claude/stack-version` met de hoogste tag `stack-v<n>` op de
-  openbare template voor tier 2 (één anonieme `git ls-remote`, drie seconden), met een dagstempel
-  per repo in `${CLAUDE_PLUGIN_DATA}`.
+  template van de klant (zie "Levering per bedrijf"; zonder levering die van Stage Two), met
+  één `git ls-remote` zonder login (drie seconden) en een dagstempel per repo in
+  `${CLAUDE_PLUGIN_DATA}`. Weigert GitHub de repo, dan zegt hij dat; zonder netwerk niets.
 - Het templatedeel van `/stagetwo-tier2:updaten` (`bijwerken.mjs`) draait in twee stappen: `--droogloop` (voorcontrole, tijdelijke
   kloon, kern toepassen, resultaat als JSON) en `--werkmap <map>` (keuzes toepassen,
   committen met de identiteit van de gebruiker, pushen als de boom verschilt, PR openen
@@ -388,7 +395,9 @@ een nieuwer manifestformaat; een nieuwe plugin kan altijd met een oudere templat
 overweg.
 
 1. Plugin: versie in `.claude-plugin/plugin.json` ophogen, pull request, groene check,
-   merge naar `main`. Alleen een hoger versienummer laat een klant een update zien.
+   merge naar `main`. Alleen een hoger versienummer laat een computer een update zien. Na de
+   merge krijgen alleen de eigen apps en computers van Stage Two de nieuwe versie: die
+   installeren uit deze bronrepo. Klanten krijgen nog niets (stap 5).
 2. Template: wijzigingen als pull request op `app-template-tier2`, met
    `.claude/stack-version` en `stackVersion` in het manifest opgehoogd. Een bestand uit
    `vervangen` wijzigt alleen samen met zo'n versieverhoging.
@@ -398,11 +407,11 @@ overweg.
 4. Registerprojecten (de eigen apps van Stage Two): `node bin/stack-sync.mjs --status` in
    Stack, dan de droogloop, dan `--doe-het`. Zo test Stage Two elke versie eerst op de eigen
    apps, vóór een abonnee hem krijgt.
-5. Abonnees: de workflow **Uitleveren** zet een nieuwe pluginversie vanzelf door, meteen na
-   de merge. Test een nieuwe plugin daarom vóór de merge op een eigen app, met een kloon van
-   de branch (`claude --plugin-dir <map>`). Na alleen een nieuwe template-tag start je hem met
-   de hand, als de eigen apps groen zijn: `gh workflow run uitleveren.yml -R
-   Stage-Two-AI/stagetwo-plugin-tier2` (zie hieronder).
+5. Abonnees: pas als plugin en template op de eigen apps goed werken, start je de workflow
+   **Uitleveren** met de hand: `gh workflow run uitleveren.yml -R
+   Stage-Two-AI/stagetwo-plugin-tier2`, of op de pagina van de workflow **Run workflow**. Hij
+   start nooit vanzelf, ook niet bij een merge of een nieuwe abonnee. Elke run levert de
+   pluginversie op `main` en alle template-tags die een klant nog niet heeft (zie hieronder).
 
 ### Levering per bedrijf
 
@@ -420,9 +429,9 @@ bronrepo.
 - `abonnees.json` is de lijst met abonnees (GitHub-orgs). Erin = nieuwe versies; eruit =
   de leveringsrepo blijft op de laatste versie staan en er komt niets meer bij.
 - De workflow **Uitleveren** (`.github/workflows/uitleveren.yml`, script
-  `beheer/uitleveren.mjs`) draait na een merge die `plugin.json` of `abonnees.json` wijzigt,
-  en met de hand (na een nieuwe template-tag; een tag in een andere repo kan hem niet
-  starten). Elke run levert ook de template-tags die de klant nog niet heeft. Per
+  `beheer/uitleveren.mjs`) draait alleen met de hand, nadat Stage Two een versie op de eigen
+  apps heeft gecontroleerd; ook na een nieuwe abonnee in `abonnees.json`. Elke run levert de
+  pluginversie op `main` en de template-tags die de klant nog niet heeft. Per
   abonnee zet hij een nieuwe pluginversie neer als tag `v<versie>` en elke nieuwe
   template-tag `stack-v<n>`, elk als één commit van Stage Two bovenop de main van de klant.
   Onze geschiedenis, `abonnees.json` en het uitleveren zelf gaan niet mee.
@@ -431,6 +440,27 @@ bronrepo.
   bron in de app (`lib/plugin-bron.mjs`): een instelling in de app wint in Claude Code van de
   instelling op gebruikersniveau die `/installatie` zet. Een andere bron telt bij het
   bijwerken niet als lokale aanpassing.
+- Bestaande apps (van vóór template versie 22) wijzen nog naar deze bronrepo. Die
+  projectinstelling wint, dus de plugin draait voor zo'n app uit de bronrepo, zonder
+  `levering.json`. Twee dingen vangen dat op. De plugin leest dan de bron uit de
+  instellingen van de gebruiker (`~/.claude/settings.json`, gezet door `/installatie`): wijst
+  die naar `<klantorg>/stagetwo-plugin-tier2`, dan gelden die kopie en
+  `<klantorg>/app-template-tier2` (`lib/levering.mjs`), en zet de eerste `/updaten` de app om.
+  En Stage Two zet bestaande apps in de projectfase vooraf om, met één pull request per app:
+
+  ```sh
+  node beheer/levering-omzetten.mjs --org <klantorg> <app> [<app> ...]            # droogloop
+  node beheer/levering-omzetten.mjs --org <klantorg> <app> [<app> ...] --doe-het  # pull requests
+  ```
+
+  Het script verandert alleen de waarde van `repo` in `.claude/settings.json` (branch
+  `stagetwo-levering-omzetten`, met de regel `Bevestigd: templatebestanden gewijzigd` voor
+  guard:template) en stopt als de kopie nog geen `levering.json` heeft. Het draait met de
+  eigen gh-sessie van Stage Two en gaat niet mee naar een klant.
+- Kan de melding bij sessiestart de template niet lezen omdat GitHub de repo weigert of niet
+  kent (na het afschermen van de bronrepo: een app of computer die nog niet is omgezet), dan
+  zegt de assistent dat één keer per dag en vraagt hij de gebruiker het aan Stage Two door te
+  geven (`hooks/versie-op-afstand.mjs`). Zonder netwerk blijft hij stil.
 - `/nieuwe-app` zet een `LICENSE` op naam van de organisatie (`--organisatie`, anders de naam
   van de org op GitHub); het gebruiksrecht van Stage Two staat in `LICENSE-STAGE-TWO`, dat
   met elke template-versie meekomt (vanaf template versie 22).

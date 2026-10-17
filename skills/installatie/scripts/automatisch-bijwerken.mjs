@@ -32,10 +32,9 @@
  *   mislukt   `reden` in één zin
  */
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { LEVERING, STAGE_TWO } from "../../../lib/levering.mjs";
+import { LEVERING, STAGE_TWO, instellingenPad } from "../../../lib/levering.mjs";
 
 export const MARKETPLACE = "stagetwo-tier2";
 export const BRON = Object.freeze({ source: "github", repo: LEVERING.plugin });
@@ -43,12 +42,8 @@ export const BRON = Object.freeze({ source: "github", repo: LEVERING.plugin });
 export const OUDE_MARKETPLACES = ["stagetwo-cloudflare"];
 export const OUDE_PLUGINS = ["stack-cloudflare@stagetwo-cloudflare"];
 
-export function instellingenPad(env = process.env) {
-  // homedir() en niet $HOME: in Git Bash op Windows wijst $HOME soms ergens anders heen
-  // dan de map die Claude Code zelf gebruikt (die volgt de Windows-gebruikersmap).
-  const map = env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude");
-  return join(map, "settings.json");
-}
+/** Dezelfde plek die lib/levering.mjs leest als er geen levering.json is. */
+export { instellingenPad };
 
 /** Wijst deze bron naar de bronrepo van Stage Two (github- of git-vorm)? */
 export function isBronVanStageTwo(source) {

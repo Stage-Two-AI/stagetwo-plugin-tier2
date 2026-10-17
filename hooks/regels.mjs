@@ -238,10 +238,27 @@ function isKleinGetal(n) {
  * versie op afstand (wel een stempel, want de controle is gedaan) of binnen 24 uur na de
  * vorige controle (dan ook geen nieuwe stempel: er is niet gekeken). De melding is
  * context met een instructie aan de agent (KTD7).
+ *
+ * Uitzondering op "geen versie op afstand": met `bronFout` "geen-toegang" (GitHub weigert of
+ * kent de repo `bron` niet, zie versie-op-afstand.mjs) volgt wel een melding, met een stempel,
+ * dus hooguit één keer per dag. Dat gebeurt als een app na het afschermen van de bronrepo
+ * nog niet op de kopie van de klant staat; stil blijven zou betekenen dat er nooit meer een
+ * nieuwe versie gemeld wordt zonder dat iemand het merkt.
  */
-export function beoordeelStart({ versieLokaal, versieOpAfstand, stempel, nu }) {
+export function beoordeelStart({ versieLokaal, versieOpAfstand, stempel, nu, bronFout = null, bron = null }) {
   const niets = { melding: null, nieuweStempel: null };
-  if (!isKleinGetal(versieLokaal) || !isKleinGetal(versieOpAfstand)) return niets;
+  if (!isKleinGetal(versieLokaal)) return niets;
+  if (!isKleinGetal(versieOpAfstand)) {
+    if (bronFout !== "geen-toegang" || !moetControleren({ stempel, nu })) return niets;
+    const melding = [
+      `stack: de plugin kan de nieuwste versie van de Stage Two-template niet opvragen bij ${bron ?? "de template"}`,
+      "(GitHub kent die repo niet of geeft geen toegang). Daardoor komt een nieuwe versie hier niet als melding",
+      "binnen. Zeg dit één keer aan de gebruiker, in gewone taal, en vraag hem dit aan Stage Two door te geven:",
+      "meestal moet deze computer of deze app nog naar de kopie van de werkwijze in de eigen organisatie.",
+      "Voer zelf niets uit.",
+    ].join("\n");
+    return { melding, nieuweStempel: { versieOpAfstand: null, tijdstip: nu.toISOString() } };
+  }
   if (!moetControleren({ stempel, nu })) return niets;
   const nieuweStempel = { versieOpAfstand, tijdstip: nu.toISOString() };
   if (versieOpAfstand <= versieLokaal) return { melding: null, nieuweStempel };

@@ -126,9 +126,10 @@ Achtergrond, niet voor de gebruiker: de desktop-app start Claude Code met
 `DISABLE_AUTOUPDATER=1`, en dat zet ook het bijwerken van plugins uit. Het script zet in
 de instellingen van de gebruiker `FORCE_AUTOUPDATE_PLUGINS=1` en `autoUpdate` voor de
 marketplace `stagetwo-tier2`, en laat de rest van dat bestand staan. De bron van die
-marketplace is de kopie van de plugin in de GitHub-organisatie van de klant (uit
-`levering.json`), die Stage Two bij de start klaarzet; alleen daar komen nieuwe versies
-binnen.
+marketplace is de kopie van de plugin die Stage Two bij de start in de GitHub-organisatie
+van de klant klaarzet (uit `levering.json`); alleen daar komen nieuwe versies binnen. Heeft
+de klant die kopie nog niet, dan blijft het de bron die er al staat (of die van Stage Two);
+het omzetten regelt Stage Two.
 
 ## Stap 6: wat wil je doen?
 
