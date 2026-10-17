@@ -379,4 +379,6 @@ npm test
 claude plugin validate .
 ```
 
-Licentie: MIT (zie `LICENSE`). De naam Stage Two en de huisstijl vallen daar niet onder.
+Licentie: een eigen gebruiksrecht van Stage Two (zie `LICENSE`): klanten mogen de plugin gebruiken
+en aanpassen voor hun eigen apps, niet doorgeven of doorverkopen. Versies die eerder onder MIT
+zijn uitgebracht, blijven MIT. De naam Stage Two en de huisstijl vallen er niet onder.

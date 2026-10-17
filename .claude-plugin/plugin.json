@@ -6,7 +6,7 @@
     "name": "Stage Two",
     "email": "info@stagetwo.nl"
   },
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "homepage": "https://github.com/Stage-Two-AI/stagetwo-plugin-tier2",
   "repository": "https://github.com/Stage-Two-AI/stagetwo-plugin-tier2",
   "keywords": ["stage-two", "stack", "cloudflare", "supabase", "template", "werkwijze"]
