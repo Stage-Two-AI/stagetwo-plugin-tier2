@@ -126,7 +126,7 @@ test("voorcontrole: gh niet ingelogd, geen netwerk, geen manifest, geen schrijfr
     writeFileSync(pad, JSON.stringify(vercel));
     const r = v.draai(["--droogloop"]);
     assert.equal(r.status, "ander-spoor");
-    assert.match(r.reden, /Vercel/);
+    assert.match(r.reden, /oudere template/);
     assert.deepEqual(v.werkmappen(), []);
   } finally {
     v.opruimen();

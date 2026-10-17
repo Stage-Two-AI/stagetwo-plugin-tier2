@@ -6,17 +6,31 @@ draaien, met hun gegevens bij **Supabase**. Stage Two vertelt je bij de start we
 bij jouw bedrijf hoort.
 Deze plugin zorgt dat Claude Code daarbij de werkwijze van Stage Two kent en bewaakt.
 
-Wat je hebt, is van jou en blijft werken, ook zonder Stage Two. Zolang het abonnement bij
-Stage Two loopt, zet Stage Two nieuwe versies van deze plugin en van de template in de kopie
-in de GitHub van je eigen organisatie (`stagetwo-plugin-tier2` en `app-template-tier2`);
-stopt het abonnement, dan blijven die op de laatste versie staan. Het abonnement kost €150
-per maand per klant, ongeacht het aantal apps, exclusief btw en maandelijks opzegbaar.
-Daarin zitten nieuwe versies van plugin en template, de update-voorstellen die Stage Two
-klaarzet en nakijkt, tijdig ingrijpen als er van buitenaf iets verandert, en vragen en
-meedenken; niet daarin zitten systeembeheer, een uptimegarantie en meer werk aan je apps
-(dat doet Stage Two op nacalculatie, €120 per uur exclusief btw). Veiligheidsupdates van
-pakketten komen via Dependabot in je eigen repository's, ook zonder abonnement. Meer staat
-op [stagetwo.nl/aanbod](https://stagetwo.nl/aanbod).
+Wat je hebt, is van jou en blijft werken, ook zonder Stage Two. Zolang je bedrijf een
+abonnement bij Stage Two heeft, zet Stage Two nieuwe versies van deze plugin en van de
+template in de kopie in de GitHub van je eigen organisatie (`stagetwo-plugin-tier2` en
+`app-template-tier2`), en zet Stage Two voor elke app en voor de beheer-repo een
+update-voorstel klaar. Stopt het abonnement, dan blijven die kopieën op de laatste versie
+staan; er komt alleen niets nieuws bij.
+
+Het abonnement kost €150 per maand per bedrijf, ongeacht het aantal apps, exclusief btw. Het
+loopt vanaf de oplevering, het moment waarop Stage Two de omgeving aan je bedrijf overdraagt,
+en is per maand opzegbaar, met een opzegtermijn van één kalendermaand. Daarin zitten nieuwe
+versies van template, plugin en beheer-repo, de update-voorstellen die Stage Two klaarzet en
+nakijkt, een nieuwe versie als een leverancier iets verandert, en vragen en meedenken. Het
+abonnement houdt de omgeving niet bij: beheer en werking blijven na de overdracht bij je
+bedrijf. Niet in het abonnement zitten systeembeheer, een garantie op beschikbaarheid en meer
+werk aan je apps; dat laatste doet Stage Two op verzoek, op nacalculatie tegen €120 per uur
+exclusief btw. Veiligheidsupdates van pakketten van derden stelt Dependabot, een dienst van
+GitHub, als pull request voor in je eigen repository's, ook zonder abonnement; een bouwer keurt
+ze goed.
+
+Na de overdracht heeft Stage Two geen eigen account en geen beheerrechten meer in de
+GitHub-organisatie van je bedrijf. Met een abonnement komen nieuwe versies en
+update-voorstellen binnen via de GitHub App `stagetwo-levering`, die je bedrijf zelf
+installeert op alleen de repo's die daarvoor nodig zijn. Zeg je op, dan haalt Stage Two je
+bedrijf uit de lijst van abonnees; de app verwijderen kan je bedrijf ook zelf. Meer staat op
+[stagetwo.nl/aanbod](https://stagetwo.nl/aanbod).
 
 Je hoeft geen programmeur te zijn om dit te gebruiken. De eerste keer loopt Stage Two het
 met je door; daarna merk je er weinig van, behalve dat je assistent af en toe iets uitlegt
@@ -163,8 +177,9 @@ gebouwd: de toegang tot Cloudflare en Supabase hoort niet op een werkcomputer te
 GitHub is de enige plek waar de regels worden afgedwongen, en zo blijft dat. Heeft je
 bedrijf nog geen beheer-repo, dan richt Stage Two de hosting en de database in.
 
-Laat Stage Two weten dat de app bestaat. Dan komt hij in het overzicht, en zet Stage Two
-er zolang het abonnement loopt ook de update-voorstellen voor klaar.
+Laat Stage Two weten dat de app bestaat. Na de overdracht zet de owner van je organisatie de
+app ook bij de repo's waarop de GitHub App `stagetwo-levering` staat. Dan zet Stage Two er,
+zolang het abonnement loopt, ook de update-voorstellen voor klaar.
 
 ## Alles updaten
 
@@ -366,7 +381,7 @@ overweg.
    dan `--doe-het`.
 5. Abonnees: de workflow **Uitleveren** zet de nieuwe versie vanzelf door (zie hieronder).
 
-### Levering per klant
+### Levering per bedrijf
 
 Een abonnee krijgt plugin en template in zijn eigen GitHub-org, als openbare kopie
 (besluit 16-10-2026, `Stack/docs/besluiten/2026-10-16-levering-per-klant.md`):
@@ -378,7 +393,7 @@ bronrepo.
 - `levering.json` in de root van de plugin wijst naar die twee repo's. De plugin leest het
   (`lib/levering.mjs`) voor de template (melding, updaten, nieuwe-app) en voor de bron van
   de marketplace (`automatisch-bijwerken.mjs`). Zonder bestand geldt `Stage-Two-AI`. In
-  deze bronrepo staat het nooit; de workflow schrijft het per klant.
+  deze bronrepo staat het nooit; de workflow schrijft het per abonnee.
 - `abonnees.json` is de lijst met abonnees (GitHub-orgs). Erin = nieuwe versies; eruit =
   de leveringsrepo blijft op de laatste versie staan en er komt niets meer bij.
 - De workflow **Uitleveren** (`.github/workflows/uitleveren.yml`, script
@@ -388,6 +403,10 @@ bronrepo.
   Onze geschiedenis, `abonnees.json` en het uitleveren zelf gaan niet mee.
 - Schrijfrecht bij de klant gaat via de GitHub App `stagetwo-levering`; recept in
   `Stack/docs/recepten/github-app-levering.md`.
+- Na de overdracht (voorstel 17-10-2026): Stage Two houdt geen persoonlijk account en geen
+  beheerrechten in de org van de klant, en `.github/CODEOWNERS` gaat naar de klant. De klant
+  installeert `stagetwo-levering` zelf, op alleen de leveringsrepo's, de beheer-repo en de
+  apps. Opzeggen: de org uit `abonnees.json`; de klant kan de app ook zelf verwijderen.
 
 ### De repo beschermen
 

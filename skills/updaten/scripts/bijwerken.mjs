@@ -162,7 +162,7 @@ function isTemplateApp(map) {
 
 const ANDER_SPOOR = {
   status: "ander-spoor",
-  reden: "deze app komt uit de oude Vercel-template van Stage Two; die werk je bij met /stack:updaten van de andere Stage Two-plugin, niet met deze",
+  reden: "deze app komt uit een oudere template van Stage Two die deze plugin niet bijwerkt; vraag Stage Two hoe deze app bij te werken",
 };
 
 function isCloudflareApp(map) {
