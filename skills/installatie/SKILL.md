@@ -127,7 +127,9 @@ node "${CLAUDE_SKILL_DIR}/scripts/automatisch-bijwerken.mjs" --json
 Achtergrond, niet voor de gebruiker: de desktop-app start Claude Code met
 `DISABLE_AUTOUPDATER=1`, en dat zet ook het bijwerken van plugins uit. Het script zet in
 de instellingen van de gebruiker `FORCE_AUTOUPDATE_PLUGINS=1` en `autoUpdate` voor de
-marketplace `stagetwo-tier2`, en laat de rest van dat bestand staan. De bron van die
+marketplace `stagetwo-tier2`, en `autoUpdate` op die marketplace in
+`~/.claude/plugins/known_marketplaces.json` (dat geldt in een app, waar de regel van de app
+voorgaat en geen `autoUpdate` heeft). De rest van die bestanden blijft staan. De bron van die
 marketplace is de kopie van de plugin die Stage Two bij de start in de GitHub-organisatie
 van de klant klaarzet (uit `levering.json`); alleen daar komen nieuwe versies binnen. Heeft
 de klant die kopie nog niet, dan blijft het de bron die er al staat (of die van Stage Two);

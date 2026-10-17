@@ -39,7 +39,10 @@ node "${CLAUDE_SKILL_DIR}/../installatie/scripts/automatisch-bijwerken.mjs" --js
 
 Met `--aan` in plaats van `--uit` gaat het weer aan. Bij `uitgezet` of `uit`: zeg dat de
 plugin zich vanaf de volgende start niet meer vanzelf bijwerkt, en dat de gebruiker hem zelf
-bijwerkt met `/stagetwo-tier2:updaten` wanneer hij dat wil. Apps veranderen in beide gevallen
+bijwerkt met `/stagetwo-tier2:updaten` wanneer hij dat wil. Zeg er bij `uitgezet` ook bij dat
+in de Claude-app daarmee ook andere plugins op deze computer zich niet meer vanzelf bijwerken
+(het script haalt `FORCE_AUTOUPDATE_PLUGINS` weg, en de app regelt dat voor alle plugins
+samen); `--aan` zet ook dat terug. Apps veranderen in beide gevallen
 nooit vanzelf, alleen via een voorstel dat een bouwer goedkeurt.
 
 ## Deel 1: de plugin zelf

@@ -24,7 +24,9 @@
  * `enabledPlugins` gaat mee. Een app met de marketplace van tier 1 slaat dit script over.
  *
  * Per app één pull request op de branch `stagetwo-levering-omzetten` die alleen
- * `.claude/settings.json` verandert (bij een huidige naam alleen de waarde van `repo`), met
+ * `.claude/settings.json` verandert (bij een huidige naam alleen de waarde van `repo`, en een
+ * `autoUpdate` op de regel gaat eruit: die zou de keuze van de bouwer op zijn computer
+ * overschrijven, zie lib/plugin-bron.mjs), met
  * de bevestigingsregel die guard:template vraagt. Alles via de GitHub-API (gh), zonder kloon.
  * Met --doe-het stopt het script als de leveringsrepo nog geen levering.json heeft: dan
  * heeft Uitleveren daar nog niets neergezet, en wijst een app na de merge naar een lege repo.
@@ -45,7 +47,7 @@ import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { BEVESTIGING } from "../lib/pr-tekst.mjs";
-import { MARKETPLACE, SETTINGS_PAD, metPluginBron, pluginBron } from "../lib/plugin-bron.mjs";
+import { MARKETPLACE, SETTINGS_PAD, metPluginBron, pluginBron, zonderAutoUpdate } from "../lib/plugin-bron.mjs";
 import { OUDE_MARKETPLACES, OUDE_PLUGINS } from "../skills/installatie/scripts/automatisch-bijwerken.mjs";
 import { leveringVoor } from "./uitleveren.mjs";
 
@@ -101,12 +103,14 @@ export function prTekst({ van, naar, oud = null }) {
     : [];
   const wat = oud
     ? "Wat er verandert: alleen `.claude/settings.json`, de naam en de bron van de plugin."
-    : "Wat er verandert: alleen de regel `repo` in `.claude/settings.json`.";
+    : "Wat er verandert: alleen de bron van de plugin in `.claude/settings.json`.";
   return [
     `Deze pull request laat deze app de Stage Two-plugin halen uit de kopie van de werkwijze in de eigen organisatie, \`${naar}\`, in plaats van uit \`${van}\`.`,
     "",
     ...naam,
     "Een instelling in de app gaat in Claude Code voor op de instelling op de computer. Zolang hier de oude bron staat, komen nieuwe versies uit de eigen kopie niet in deze app aan.",
+    "",
+    "Of de plugin zichzelf bijwerkt, staat voortaan niet meer in de app maar alleen op de computer van elke bouwer; zo kan iemand die dat niet wil, het daar uitzetten.",
     "",
     `${wat} De schermen, de servercode en de gegevens blijven zoals ze zijn; de app werkt na de merge precies als nu.`,
     "",
@@ -160,16 +164,18 @@ export function leesInstellingen(tekst) {
  * De settings-tekst met de plugin uit `levering`. Een oude marketplace-regel wordt de regel
  * `stagetwo-tier2` (op dezelfde plek), en elke `<plugin>@<oude marketplace>` in enabledPlugins
  * wordt `stagetwo-tier2@stagetwo-tier2` met dezelfde waarde. Bij een huidige naam verandert
- * alleen de waarde van `repo` (metPluginBron). Wat niets met de plugin te maken heeft, blijft.
+ * alleen de waarde van `repo` (metPluginBron). In beide gevallen gaat `autoUpdate` van de regel
+ * af (zonderAutoUpdate). Wat niets met de plugin te maken heeft, blijft.
  */
 export function naarLevering(tekst, levering) {
   const gelezen = leesInstellingen(tekst);
-  if (gelezen.soort === "huidig") return metPluginBron(tekst, levering);
+  if (gelezen.soort === "huidig") return zonderAutoUpdate(metPluginBron(tekst, levering));
   if (gelezen.soort !== "oud") return tekst;
   const instellingen = JSON.parse(tekst);
   const markten = instellingen.extraKnownMarketplaces;
   const oude = Object.keys(markten).filter((naam) => isOudeRegel(naam, markten[naam]));
-  const nieuweRegel = { ...(markten[MARKETPLACE] ?? {}), source: { source: "github", repo: levering }, autoUpdate: true };
+  const { autoUpdate: _niet, ...huidigeRegel } = markten[MARKETPLACE] ?? {};
+  const nieuweRegel = { ...huidigeRegel, source: { source: "github", repo: levering } };
   const nieuweMarkten = {};
   for (const [naam, regel] of Object.entries(markten)) {
     if (oude.includes(naam) || naam === MARKETPLACE) {

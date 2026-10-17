@@ -1,48 +1,60 @@
 #!/usr/bin/env node
 /**
- * Zet automatisch bijwerken van de Stage Two-plugin aan, op gebruikersniveau
- * (~/.claude/settings.json), zodat de klant nooit zelf een commando hoeft te typen.
+ * Zet automatisch bijwerken van de Stage Two-plugin aan, op gebruikersniveau, zodat de klant
+ * nooit zelf een commando hoeft te typen. Of uit, als de klant dat wil.
  *
  *   node automatisch-bijwerken.mjs --json [--controle]
  *   node automatisch-bijwerken.mjs --json --uit     automatisch bijwerken uitzetten
  *   node automatisch-bijwerken.mjs --json --aan     weer aanzetten na --uit
  *
- * De plugin is software van Stage Two die met de rechten van de bouwer draait. Wil een klant
- * zelf bepalen wanneer er een nieuwe versie op zijn computer komt, dan zet --uit
- * `autoUpdate: false` op de marketplace. Een gewone run (ook die in /stagetwo-tier2:updaten)
- * respecteert dat en zet het niet stilletjes terug; alleen --aan doet dat. De plugin bijwerken
- * gaat dan met de hand, met /stagetwo-tier2:updaten (deel 1).
+ * Hoe Claude Code beslist of een marketplace zichzelf bijwerkt (documentatie, gecontroleerd
+ * 17-10-2026 op code.claude.com/docs/en/plugins/loading, "When auto-update runs", en
+ * settings-reference, "extraKnownMarketplaces"):
+ *   1. `autoUpdate` op de regel in extraKnownMarketplaces. Staat dezelfde marketplace in meer
+ *      instellingenbestanden, dan geldt de regel uit het bestand met de hoogste voorrang in
+ *      zijn geheel (projectinstellingen gaan voor gebruikersinstellingen); hij erft geen
+ *      velden van de andere. Een app met `autoUpdate` in zijn .claude/settings.json wint dus
+ *      altijd van de keuze van de gebruiker. Daarom staat `autoUpdate` sinds template v22
+ *      (tier 1: v25) niet meer in de app.
+ *   2. Staat het daar niet, dan `autoUpdate` in ~/.claude/plugins/known_marketplaces.json
+ *      (wat de schakelaar in /plugin, tabblad Marketplaces, schrijft). Dat is wat geldt in een
+ *      app, want de regel van de app heeft geen autoUpdate.
+ *   3. Anders de standaard: uit, voor elke marketplace die niet van Anthropic is.
+ *   Met DISABLE_AUTOUPDATER=1 (zo start de desktop-app Claude Code) slaat Claude Code het
+ *   bijwerken van alle plugins over, tenzij FORCE_AUTOUPDATE_PLUGINS=1 er ook staat.
  *
- * Waarom dit nodig is (vastgesteld 02-10-2026 op Windows, Claude desktop-app):
- *   - De desktop-app start Claude Code met DISABLE_AUTOUPDATER=1. Dat zet ook het
- *     bijwerken van plugins uit, tenzij FORCE_AUTOUPDATE_PLUGINS=1 er ook staat.
- *   - Een marketplace die de klant zelf toevoegt, krijgt geen autoUpdate; voor een
- *     marketplace die niet van Anthropic is, staat dat standaard uit.
- * `autoUpdate` in de .claude/settings.json van een app helpt daarom niet in de
- * desktop-app, en ook niet in een lege map. Op gebruikersniveau geldt het overal.
- *
- * Het script zet precies twee dingen en laat de rest van het bestand staan:
- *   env.FORCE_AUTOUPDATE_PLUGINS = "1"
+ * Aan (gewone run en --aan) zet daarom drie dingen en laat de rest staan:
+ *   env.FORCE_AUTOUPDATE_PLUGINS = "1"                          in ~/.claude/settings.json
  *   extraKnownMarketplaces.stagetwo-tier2 = { source: github <plugin uit levering.json>, autoUpdate: true }
+ *   autoUpdate: true op stagetwo-tier2 in known_marketplaces.json (alleen als Claude Code die
+ *     regel al heeft; het script maakt daar nooit zelf een regel aan)
+ * Uit (--uit) zet autoUpdate op beide plekken op false en haalt FORCE_AUTOUPDATE_PLUGINS weg.
+ * Dat laatste raakt alle plugins op deze computer: in de desktop-app werken dan ook andere
+ * plugins zich niet meer vanzelf bij. Het zorgt ook dat een oudere app die nog
+ * `autoUpdate: true` meebrengt, in de desktop-app niets meer bijwerkt. --aan zet alles terug.
+ * Een gewone run (ook die in /stagetwo-tier2:updaten) respecteert --uit en zet het niet
+ * stilletjes terug. De plugin bijwerken gaat dan met de hand, met /stagetwo-tier2:updaten
+ * (deel 1).
+ *
  * De bron is de leveringsrepo van de klant (levering.json, zie lib/levering.mjs), anders
  * Stage-Two-AI/stagetwo-plugin-tier2. Wijst een bestaande regel nog naar die van Stage Two
  * terwijl de klant een eigen leveringsrepo heeft, dan gaat de bron naar die leveringsrepo.
  * Een bestaande stagetwo-tier2-regel houdt zijn eigen velden; alleen autoUpdate (en een
  * ontbrekende source) wordt aangevuld. De regels van de plugin onder zijn oude naam
- * (marketplace stagetwo-cloudflare, plugin stack-cloudflare, tot 15-10-2026) haalt het weg,
- * zodat de oude plugin niet terugkomt; de rest van het bestand blijft staan. Is het bestand geen geldige JSON, dan raakt het
- * script het niet aan.
+ * (marketplace stagetwo-cloudflare, plugin stack-cloudflare, tot 15-10-2026) haalt het weg, zodat de
+ * oude plugin niet terugkomt. Andere marketplaces (zoals stagetwo-tier1) blijven onaangeroerd.
+ * Is een bestand geen geldige JSON, dan raakt het script het niet aan.
  *
  * Uitkomst: één JSON-object met `status`:
  *   al-goed   alles stond er al
- *   uit       automatisch bijwerken staat bewust uit (autoUpdate: false); er is niets geschreven
- *   uitgezet  (alleen met --uit) autoUpdate staat nu op false
- *   gezet     het bestand is aangevuld; `gewijzigd` zegt wat (werkt vanaf de volgende start)
+ *   uit       automatisch bijwerken staat bewust uit; er is niets geschreven
+ *   uitgezet  (alleen met --uit) het staat nu uit; `gewijzigd` zegt wat
+ *   gezet     het is aangevuld; `gewijzigd` zegt wat (werkt vanaf de volgende start)
  *   ontbreekt (alleen met --controle) wat er nog mist, in `ontbreekt`; er is niets geschreven
  *   mislukt   `reden` in één zin
  */
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { LEVERING, STAGE_TWO, instellingenPad } from "../../../lib/levering.mjs";
 
@@ -109,14 +121,51 @@ export function staatUit(instellingen) {
   return instellingen?.extraKnownMarketplaces?.[MARKETPLACE]?.autoUpdate === false;
 }
 
-/** De instellingen met automatisch bijwerken uit; de bron wordt zo nodig aangevuld zoals bij aanvullen. */
+/** Wat --uit nog moet doen in de gebruikersinstellingen; leeg = staat al uit. */
+export function watNogAanStaat(instellingen) {
+  const aan = [];
+  if (!staatUit(instellingen)) aan.push(`extraKnownMarketplaces.${MARKETPLACE}.autoUpdate = false`);
+  if (instellingen?.env && "FORCE_AUTOUPDATE_PLUGINS" in instellingen.env) aan.push("weg: env.FORCE_AUTOUPDATE_PLUGINS");
+  return aan;
+}
+
+/**
+ * De instellingen met automatisch bijwerken uit: autoUpdate false (de bron wordt zo nodig
+ * aangevuld zoals bij aanvullen) en FORCE_AUTOUPDATE_PLUGINS weg. Dat laatste geldt voor alle
+ * plugins op de computer; zie de uitleg bovenaan.
+ */
 export function uitzetten(instellingen, bron = BRON) {
   const markten = { ...(instellingen.extraKnownMarketplaces ?? {}) };
   const regel = { ...(markten[MARKETPLACE] ?? {}) };
   if (bronMoetWeg(regel, bron)) regel.source = { ...bron };
   regel.autoUpdate = false;
   markten[MARKETPLACE] = regel;
-  return { ...instellingen, extraKnownMarketplaces: markten };
+  const uit = { ...instellingen, extraKnownMarketplaces: markten };
+  if (instellingen.env && "FORCE_AUTOUPDATE_PLUGINS" in instellingen.env) {
+    const { FORCE_AUTOUPDATE_PLUGINS: _weg, ...rest } = instellingen.env;
+    if (Object.keys(rest).length === 0) delete uit.env;
+    else uit.env = rest;
+  }
+  return uit;
+}
+
+/** ~/.claude/plugins/known_marketplaces.json, of die in CLAUDE_CONFIG_DIR. */
+export function bekendePad(env = process.env) {
+  return join(dirname(instellingenPad(env)), "plugins", "known_marketplaces.json");
+}
+
+/**
+ * Moet autoUpdate in known_marketplaces.json naar `waarde`? Alleen als Claude Code daar al een
+ * regel voor de marketplace heeft; het script maakt er nooit een aan.
+ */
+export function bekendeMoetNaar(bekend, waarde) {
+  const regel = bekend?.[MARKETPLACE];
+  return regel !== null && typeof regel === "object" && !Array.isArray(regel) && regel.autoUpdate !== waarde;
+}
+
+/** known_marketplaces.json met autoUpdate op `waarde` voor de marketplace; de rest blijft staan. */
+export function bekendeMet(bekend, waarde) {
+  return { ...bekend, [MARKETPLACE]: { ...bekend[MARKETPLACE], autoUpdate: waarde } };
 }
 
 /** Schrijft eerst naar een tijdelijk bestand en vervangt dan in één keer: nooit een half bestand. */
@@ -127,43 +176,60 @@ function schrijf(pad, instellingen) {
   renameSync(tijdelijk, pad);
 }
 
+/** Leest een JSON-object; { data } of { fout }. Geen of een leeg bestand is {}. */
+function leesObject(pad) {
+  if (!existsSync(pad)) return { data: {} };
+  const tekst = readFileSync(pad, "utf8");
+  if (tekst.trim() === "") return { data: {} };
+  let data;
+  try {
+    data = JSON.parse(tekst);
+  } catch {
+    return { fout: `${pad} is geen geldige JSON; dat bestand raak ik niet aan. Vraag Stage Two ernaar.` };
+  }
+  if (data === null || typeof data !== "object" || Array.isArray(data)) {
+    return { fout: `${pad} bevat geen JSON-object; dat bestand raak ik niet aan. Vraag Stage Two ernaar.` };
+  }
+  return { data };
+}
+
+const BEKEND_VELD = `known_marketplaces.${MARKETPLACE}.autoUpdate`;
+
 export function automatischBijwerken({ controle = false, uit = false, aan = false, env = process.env } = {}) {
   const pad = instellingenPad(env);
-  let instellingen = {};
-  if (existsSync(pad)) {
-    const tekst = readFileSync(pad, "utf8");
-    if (tekst.trim() !== "") {
-      try {
-        instellingen = JSON.parse(tekst);
-      } catch {
-        return { status: "mislukt", pad, reden: `${pad} is geen geldige JSON; dat bestand raak ik niet aan. Vraag Stage Two ernaar.` };
-      }
-      if (instellingen === null || typeof instellingen !== "object" || Array.isArray(instellingen)) {
-        return { status: "mislukt", pad, reden: `${pad} bevat geen JSON-object; dat bestand raak ik niet aan. Vraag Stage Two ernaar.` };
-      }
-    }
-  }
-  if (uit) {
-    if (staatUit(instellingen)) return { status: "uit", pad };
-    if (controle) return { status: "ontbreekt", pad, ontbreekt: [`extraKnownMarketplaces.${MARKETPLACE}.autoUpdate = false`] };
+  const gelezen = leesObject(pad);
+  if (gelezen.fout) return { status: "mislukt", pad, reden: gelezen.fout };
+  const instellingen = gelezen.data;
+  // known_marketplaces.json is van Claude Code zelf: kapot of afwezig is geen fout, dan blijft het staan.
+  const bekendPad = bekendePad(env);
+  const bekend = existsSync(bekendPad) ? (leesObject(bekendPad).data ?? null) : null;
+
+  const schrijfAlles = (nieuweInstellingen, bekendWaarde) => {
     try {
-      schrijf(pad, uitzetten(instellingen));
+      if (nieuweInstellingen) schrijf(pad, nieuweInstellingen);
+      if (bekend && bekendeMoetNaar(bekend, bekendWaarde)) schrijf(bekendPad, bekendeMet(bekend, bekendWaarde));
+      return null;
     } catch (fout) {
-      return { status: "mislukt", pad, reden: `kon ${pad} niet schrijven: ${String(fout?.message ?? fout).split("\n")[0]}` };
+      return { status: "mislukt", pad, reden: `kon de instellingen niet schrijven: ${String(fout?.message ?? fout).split("\n")[0]}` };
     }
-    return { status: "uitgezet", pad };
+  };
+
+  if (uit) {
+    const nogAan = watNogAanStaat(instellingen);
+    if (bekendeMoetNaar(bekend, false)) nogAan.push(`${BEKEND_VELD} = false`);
+    if (nogAan.length === 0) return { status: "uit", pad };
+    if (controle) return { status: "ontbreekt", pad, ontbreekt: nogAan };
+    const mislukt = schrijfAlles(watNogAanStaat(instellingen).length ? uitzetten(instellingen) : null, false);
+    return mislukt ?? { status: "uitgezet", pad, gewijzigd: nogAan };
   }
   if (staatUit(instellingen) && !aan) return { status: "uit", pad };
   const ontbreekt = watOntbreekt(instellingen);
-  if (ontbreekt.length === 0) return { status: "al-goed", pad };
-  if (controle) return { status: "ontbreekt", pad, ontbreekt };
-
-  try {
-    schrijf(pad, aanvullen(instellingen));
-  } catch (fout) {
-    return { status: "mislukt", pad, reden: `kon ${pad} niet schrijven: ${String(fout?.message ?? fout).split("\n")[0]}` };
-  }
-  return { status: "gezet", pad, gewijzigd: ontbreekt };
+  const bekendOntbreekt = bekendeMoetNaar(bekend, true);
+  if (ontbreekt.length === 0 && !bekendOntbreekt) return { status: "al-goed", pad };
+  const gewijzigd = bekendOntbreekt ? [...ontbreekt, BEKEND_VELD] : ontbreekt;
+  if (controle) return { status: "ontbreekt", pad, ontbreekt: gewijzigd };
+  const mislukt = schrijfAlles(ontbreekt.length ? aanvullen(instellingen) : null, true);
+  return mislukt ?? { status: "gezet", pad, gewijzigd };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

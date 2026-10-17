@@ -11,7 +11,8 @@
  *       Op het Cloudflare-spoor heeft elke app een eigen database (Supabase): daar loopt het
  *       inloggen via de deur van Cloudflare doorheen. `--database eigen` mag, andere standen niet.
  *       voorcontrole: staat alles klaar, bestaat de repo nog niet, waar landt hij, wie
- *       wordt reviewer. Maakt niets aan.
+ *       wordt reviewer (de bouwer zelf; start Stage Two hem, dan het bedrijfsaccount uit
+ *       CODEOWNERS van de beheer-repo, nooit Stage Two). Maakt niets aan.
  *
  *   node nieuwe-app.mjs --json --doe-het ...dezelfde vlaggen...
  *       repo aanmaken uit de template, klonen, de paden uit `nietMeenemen` van het manifest
@@ -149,13 +150,70 @@ export function geldigeOrganisatie(naam) {
 
 // ---------------------------------------------------------------- zuivere stappen
 
+/** De org van Stage Two zelf: daar zijn de apps van Stage Two, en daar hoort StageTwoAI in CODEOWNERS. */
+export const STAGE_TWO_ORG = STAGE_TWO.plugin.split("/")[0];
+const isStageTwoLogin = (login) => String(login ?? "").toLowerCase() === STAGE_TWO_LOGIN.toLowerCase();
+
 /**
- * Wie wordt de reviewer in CODEOWNERS? Altijd de bouwer zelf: hij merget zijn eigen
- * pull requests op groene checks, en Stage Two wil geen melding bij elke PR van elke
- * klant-app. Toegang en sleutels bewaakt de eigenaar in stagetwo-beheer-tier2, niet hier.
+ * De logins in CODEOWNERS-teksten, in volgorde, zonder teams (`@org/team`), zonder Stage Two
+ * en zonder dubbele. Commentaarregels tellen niet mee.
  */
-export function kiesReviewer({ login }) {
-  return login;
+export function eigenarenUitCodeowners(teksten) {
+  const uit = [];
+  for (const tekst of teksten) {
+    for (const regel of String(tekst ?? "").split("\n")) {
+      if (regel.trim().startsWith("#")) continue;
+      for (const [, login] of regel.matchAll(/(?:^|\s)@([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))(?=\s|$)/g)) {
+        if (!isStageTwoLogin(login) && !uit.some((l) => l.toLowerCase() === login.toLowerCase())) uit.push(login);
+      }
+    }
+  }
+  return uit;
+}
+
+/**
+ * Wie wordt de reviewer in CODEOWNERS? De bouwer zelf: hij merget zijn eigen pull requests op
+ * groene checks, en Stage Two wil geen melding bij elke PR van elke klant-app. Toegang en
+ * sleutels bewaakt de eigenaar in stagetwo-beheer-tier2, niet hier.
+ *
+ * Stage Two (StageTwoAI) komt nooit in CODEOWNERS van een klant-app: na de overdracht houdt
+ * Stage Two geen toegang. Start Stage Two de app in de projectfase, dan wordt het
+ * bedrijfsaccount de reviewer: de eigenaar naast Stage Two in CODEOWNERS van de beheer-repo
+ * (`beheerCodeowners`, de teksten van die bestanden). toegang.json noemt alleen e-mailadressen,
+ * geen GitHub-logins, dus daar valt geen bouwer uit te halen. Alleen in de org van Stage Two
+ * zelf (of het eigen account StageTwoAI) blijft StageTwoAI de reviewer.
+ *
+ * Uitkomst: { reviewer } of { fout } (één zin, wat er moet gebeuren).
+ */
+export function kiesReviewer({ login, eigenaar = null, beheerCodeowners = [] }) {
+  if (!isStageTwoLogin(login)) return { reviewer: login };
+  const eigen = eigenaar === null || String(eigenaar).toLowerCase() === STAGE_TWO_ORG.toLowerCase() || isStageTwoLogin(eigenaar);
+  if (eigen) return { reviewer: login };
+  const [bedrijfsaccount] = eigenarenUitCodeowners(beheerCodeowners);
+  if (bedrijfsaccount) return { reviewer: bedrijfsaccount };
+  return {
+    fout:
+      `Stage Two (${STAGE_TWO_LOGIN}) komt niet in CODEOWNERS van een app van ${eigenaar}, en in CODEOWNERS van de beheer-repo staat geen ander account; ` +
+      `zet het bedrijfsaccount daar eerst in, of laat een bouwer van ${eigenaar} de app starten met zijn eigen account`,
+  };
+}
+
+/** De CODEOWNERS-teksten van de beheer-repo's van `eigenaar` (root, .github/ en docs/); wat ontbreekt telt niet. */
+function beheerCodeownersTeksten(eigenaar) {
+  const beheer = kiesBeheerRepo(eigenaar);
+  const repos = beheer ? [beheer] : [];
+  const teksten = [];
+  for (const repo of repos) {
+    for (const pad of ["CODEOWNERS", ".github/CODEOWNERS", "docs/CODEOWNERS"]) {
+      try {
+        const bestand = ghJson([`repos/${repo}/contents/${pad}`]);
+        teksten.push(Buffer.from(bestand.content, "base64").toString("utf8"));
+      } catch {
+        // dit pad bestaat niet in deze repo
+      }
+    }
+  }
+  return teksten;
 }
 
 /** De "Vervang dit"-aanwijzingen weg, de projectnaam en omschrijving erin. */
@@ -799,6 +857,12 @@ export function voorcontrole(arg, { cwd = process.cwd() } = {}) {
     mapIsKloon: mapEr && isKloonVan(doel, repo),
   });
   if (besluit.besluit === "weiger") return { status: "mislukt", reden: `${besluit.reden} (${repo}, ${doel})` };
+  const keuzeReviewer = kiesReviewer({
+    login: gebruiker,
+    eigenaar: arg.eigenaar,
+    beheerCodeowners: isStageTwoLogin(gebruiker) && org ? beheerCodeownersTeksten(arg.eigenaar) : [],
+  });
+  if (keuzeReviewer.fout) return { status: "mislukt", reden: keuzeReviewer.fout };
   if (arg.database === "gedeeld" && !repoBestaat(arg.gedeeldEigenaar)) {
     return { status: "mislukt", reden: `de app ${arg.gedeeldEigenaar} die de database bezit is niet gevonden op GitHub` };
   }
@@ -810,7 +874,7 @@ export function voorcontrole(arg, { cwd = process.cwd() } = {}) {
       url: `https://github.com/${repo}`,
       map: doel,
       database: arg.database,
-      reviewer: kiesReviewer({ login: gebruiker }),
+      reviewer: keuzeReviewer.reviewer,
       gebruiker,
       organisatie: org,
       githubPlan: plan(arg.eigenaar),

@@ -12,10 +12,11 @@ const ORG = "Richplant-BV";
 const LEVERING = `${ORG}/stagetwo-plugin-tier2`;
 const b64 = (tekst) => Buffer.from(tekst, "utf8").toString("base64");
 
-function settings(repo) {
+/** Zoals .claude/settings.json in een app van vóór template v22 staat: met autoUpdate. */
+function settings(repo, { autoUpdate = true } = {}) {
   return `${JSON.stringify(
     {
-      extraKnownMarketplaces: { [MARKETPLACE]: { source: { source: "github", repo }, autoUpdate: true } },
+      extraKnownMarketplaces: { [MARKETPLACE]: { source: { source: "github", repo }, ...(autoUpdate ? { autoUpdate } : {}) } },
       enabledPlugins: { [`${MARKETPLACE}@${MARKETPLACE}`]: true },
     },
     null,
@@ -118,7 +119,7 @@ test("doe-het: branch, één commit met alleen de bron, pull request met de beve
   assert.deepEqual(inhoud.author, { name: "Stage Two", email: "info@stagetwo.nl" });
   assert.deepEqual(inhoud.committer, inhoud.author);
   const na = Buffer.from(inhoud.content, "base64").toString("utf8");
-  assert.equal(na, voor.replace(`"repo": "${STAGE_TWO.plugin}"`, `"repo": "${LEVERING}"`), "alleen de waarde van repo verandert");
+  assert.equal(na, settings(LEVERING, { autoUpdate: false }), "de bron verandert en autoUpdate gaat eruit, de rest blijft");
   assert.equal(pluginBron(na), LEVERING);
 
   assert.deepEqual(pr.args.slice(0, 2), ["pr", "create"]);
@@ -211,7 +212,7 @@ test("oude naam, doe-het: marketplace en enabledPlugins naar stagetwo-tier2 met 
   assert.equal(uit.apps[0].status, "omgezet", uit.apps[0].reden);
   const put = w.schrijvend().find(({ args }) => args.includes("PUT") && args.some((x) => x.endsWith("settings.json")));
   const na = Buffer.from(JSON.parse(put.input).content, "base64").toString("utf8");
-  assert.equal(na, settings(LEVERING), "precies de vorm van de template, met de leveringsrepo");
+  assert.equal(na, settings(LEVERING, { autoUpdate: false }), "precies de vorm van de template (zonder autoUpdate), met de leveringsrepo");
   assert.match(JSON.parse(put.input).message, /stagetwo-tier2/);
   const pr = w.schrijvend().find(({ args }) => args[0] === "pr");
   const tekst = pr.args[pr.args.indexOf("--body") + 1];
@@ -232,7 +233,7 @@ test("naarLevering: andere marketplaces en plugins blijven staan, een oude bron 
   const na = JSON.parse(naarLevering(tekst, LEVERING));
   assert.deepEqual(na.permissions, { allow: ["Bash(ls)"] });
   assert.deepEqual(Object.keys(na.extraKnownMarketplaces), ["eigen", MARKETPLACE]);
-  assert.deepEqual(na.extraKnownMarketplaces[MARKETPLACE], { source: { source: "github", repo: LEVERING }, autoUpdate: true });
+  assert.deepEqual(na.extraKnownMarketplaces[MARKETPLACE], { source: { source: "github", repo: LEVERING } }, "geen autoUpdate in de app");
   assert.deepEqual(na.enabledPlugins, { "eigen@eigen": true, [`${MARKETPLACE}@${MARKETPLACE}`]: false }, "de waarde gaat mee");
 });
 

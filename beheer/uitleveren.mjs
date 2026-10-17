@@ -52,6 +52,9 @@ export const ALLEEN_IN_BRON = [
   "beheer/uitleveren.test.mjs",
   "beheer/levering-omzetten.mjs",
   "beheer/levering-omzetten.test.mjs",
+  ".github/workflows/levering-stoppen.yml",
+  "beheer/levering-stoppen.mjs",
+  "beheer/levering-stoppen.test.mjs",
 ];
 const ORG_VORM = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
 

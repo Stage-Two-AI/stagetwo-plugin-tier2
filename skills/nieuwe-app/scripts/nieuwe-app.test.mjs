@@ -7,6 +7,8 @@ import {
   STAGE_TWO_LOGIN,
   controleerArgumenten,
   geldigeNaam,
+  STAGE_TWO_ORG,
+  eigenarenUitCodeowners,
   kiesReviewer,
   leesArgumenten,
   leesInrichting,
@@ -80,7 +82,29 @@ test("controle: precies één modus; op het Cloudflare-spoor altijd een eigen da
 });
 
 test("reviewer: altijd de bouwer zelf, ook als Stage Two lid is", () => {
-  assert.equal(kiesReviewer({ login: "bart" }), "bart");
+  assert.deepEqual(kiesReviewer({ login: "bart", eigenaar: "Richplant-BV" }), { reviewer: "bart" });
+  assert.deepEqual(kiesReviewer({ login: "bart" }), { reviewer: "bart" });
+});
+
+test("reviewer: start Stage Two een klant-app, dan het bedrijfsaccount uit CODEOWNERS van de beheer-repo, nooit Stage Two", () => {
+  const codeowners = ["# eigenaren van de beheer-repo\n* @StageTwoAI @richplant-beheer\n"];
+  assert.deepEqual(kiesReviewer({ login: STAGE_TWO_LOGIN, eigenaar: "Richplant-BV", beheerCodeowners: codeowners }), { reviewer: "richplant-beheer" });
+  assert.deepEqual(kiesReviewer({ login: "stagetwoai", eigenaar: "Richplant-BV", beheerCodeowners: ["* @richplant-beheer @StageTwoAI"] }), { reviewer: "richplant-beheer" }, "hoofdletters tellen niet");
+  const fout = kiesReviewer({ login: STAGE_TWO_LOGIN, eigenaar: "Richplant-BV", beheerCodeowners: ["* @StageTwoAI @Richplant-BV/toegangsbeheer\n"] });
+  assert.equal(fout.reviewer, undefined);
+  assert.match(fout.fout, /bedrijfsaccount/);
+  assert.match(kiesReviewer({ login: STAGE_TWO_LOGIN, eigenaar: "Richplant-BV" }).fout, /Richplant-BV/, "geen beheer-repo of geen CODEOWNERS: duidelijke melding");
+});
+
+test("reviewer: in de eigen org van Stage Two blijft StageTwoAI", () => {
+  assert.equal(STAGE_TWO_ORG, "Stage-Two-AI");
+  assert.deepEqual(kiesReviewer({ login: STAGE_TWO_LOGIN, eigenaar: "Stage-Two-AI" }), { reviewer: STAGE_TWO_LOGIN });
+  assert.deepEqual(kiesReviewer({ login: STAGE_TWO_LOGIN, eigenaar: STAGE_TWO_LOGIN }), { reviewer: STAGE_TWO_LOGIN });
+});
+
+test("eigenarenUitCodeowners: logins in volgorde, zonder teams, Stage Two, commentaar of dubbele", () => {
+  assert.deepEqual(eigenarenUitCodeowners(["# @niet\n* @a @StageTwoAI @org/team\n/x/ @b @a\n", "* @c"]), ["a", "b", "c"]);
+  assert.deepEqual(eigenarenUitCodeowners([]), []);
 });
 
 test("invullen: projectnaam, omschrijving en reviewer erin, aanwijzingen eruit", () => {
@@ -336,8 +360,7 @@ const SETTINGS_TEMPLATE = `{
       "source": {
         "source": "github",
         "repo": "Stage-Two-AI/stagetwo-plugin-tier2"
-      },
-      "autoUpdate": true
+      }
     }
   },
   "enabledPlugins": {
@@ -352,6 +375,7 @@ test("zetPluginBron: bij een abonnee wijst de app naar zijn eigen kopie van de p
   assert.equal(zetPluginBron(map, "Richplant-BV/stagetwo-plugin-tier2"), "Richplant-BV/stagetwo-plugin-tier2");
   const na = readFileSync(join(map, ".claude/settings.json"), "utf8");
   assert.equal(na, SETTINGS_TEMPLATE.replace("Stage-Two-AI/stagetwo-plugin-tier2", "Richplant-BV/stagetwo-plugin-tier2"));
+  assert.doesNotMatch(na, /autoUpdate/, "nieuwe-app zet geen autoUpdate in de app; dat beslist de bouwer op zijn computer");
   assert.equal(zetPluginBron(map, "Richplant-BV/stagetwo-plugin-tier2"), "Richplant-BV/stagetwo-plugin-tier2", "tweede keer: niets te doen");
 });
 

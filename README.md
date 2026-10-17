@@ -41,9 +41,10 @@ tot je apps in de GitHub-organisatie van je bedrijf, en heeft die ook niet nodig
 veranderen nooit vanzelf. De plugin wel: dat is software van Stage Two die op de computers
 van je bouwers draait met hun rechten, en die zichzelf bijwerkt uit de kopie waar Stage Two
 met een abonnement nieuwe versies in zet. Wil je zelf bepalen wanneer dat gebeurt, vraag je
-assistent dan om het automatisch bijwerken van de plugin uit te zetten (dat doet hij met
-`automatisch-bijwerken.mjs --uit`), en werk de plugin daarna zelf bij met
-`/stagetwo-tier2:updaten` wanneer jij dat wilt. Met een
+assistent dan "zet het automatisch bijwerken van de plugin uit"; vanaf de volgende start werk
+je de plugin zelf bij met `/stagetwo-tier2:updaten`, en "zet het weer aan" draait het terug.
+In de Claude-app werken daarna ook je andere plugins zich op die computer niet meer vanzelf
+bij, omdat de app dat voor alle plugins tegelijk regelt. Met een
 abonnement komen nieuwe versies binnen via de GitHub App `stagetwo-levering`. Stage Two
 installeert hem bij de start namens je bedrijf, op alleen de twee kopieën (`stagetwo-plugin-tier2`
 en `app-template-tier2`, "Only select repositories"); je bedrijf kan hem altijd zelf
@@ -51,7 +52,7 @@ verwijderen. Die App kan alleen daar schrijven, niet in je apps. Heeft de
 beheer-repo een nieuwe versie nodig, dan vraagt Stage Two dat; de owner van je organisatie
 geeft Stage Two daarvoor tijdelijk toegang tot de beheer-repo en haalt die daarna weer weg.
 Dat valt binnen het abonnement. Zeg je op, dan haalt Stage Two je bedrijf uit de lijst van
-abonnees. Meer staat op
+abonnees en haalt het de App `stagetwo-levering` uit je organisatie. Meer staat op
 [stagetwo.nl/aanbod](https://stagetwo.nl/aanbod).
 
 Je hoeft geen programmeur te zijn om dit te gebruiken. De eerste keer loopt Stage Two het
@@ -388,18 +389,28 @@ mag starten; de sleutels staan in de omgeving `beheer` en zijn voor hem niet te 
 4. Open een app op versie 9 of nieuwer en controleer dat de bewaker vuurt: vraag de agent
    één regel te wijzigen in `.github/workflows/ci.yml`; dat moet geweigerd worden.
 5. Controleer dat de plugin zichzelf bijwerkt. `/stagetwo-tier2:installatie` (stap 5) zet dat op
-   gebruikersniveau aan, in `~/.claude/settings.json`: `env.FORCE_AUTOUPDATE_PLUGINS = "1"`
-   en `extraKnownMarketplaces.stagetwo-tier2.autoUpdate = true`. Beide zijn nodig. De desktop-app
-   start Claude Code met `DISABLE_AUTOUPDATER=1`, en dat zet ook het bijwerken van plugins
-   uit; een marketplace die de klant zelf toevoegt, krijgt bovendien geen `autoUpdate`
-   (standaard uit). De `autoUpdate` in `.claude/settings.json` van een app (template v11)
-   is daarom in de desktop-app niet genoeg. Vastgesteld en bewezen op 02-10-2026 op de
-   Windows-VM: na de instelling, één herstart en één bericht kwam 2.0.0 binnen, zonder
-   nog een herstart. Controle: vraag de assistent `~/.claude/plugins/installed_plugins.json`
-   te tonen.
-   Wil de klant dat niet, dan zet `automatisch-bijwerken.mjs --uit` op dezelfde plek
-   `autoUpdate = false`; een gewone run (ook vanuit `/stagetwo-tier2:updaten`) laat dat staan,
-   alleen `--aan` zet het terug. De plugin bijwerken gaat dan met `/stagetwo-tier2:updaten`.
+   gebruikersniveau aan: in `~/.claude/settings.json` `env.FORCE_AUTOUPDATE_PLUGINS = "1"` en
+   `extraKnownMarketplaces.stagetwo-tier2.autoUpdate = true`, en in
+   `~/.claude/plugins/known_marketplaces.json` `autoUpdate = true` op de regel van
+   `stagetwo-tier2`. Alle drie zijn nodig. De desktop-app start Claude Code met
+   `DISABLE_AUTOUPDATER=1`, en dat zet het bijwerken van alle plugins uit, tenzij
+   `FORCE_AUTOUPDATE_PLUGINS=1` er ook staat. Een marketplace die niet van Anthropic is, werkt
+   zich standaard niet bij. En staat dezelfde marketplace in de `.claude/settings.json` van een
+   app, dan geldt in die app alleen die regel, in zijn geheel; de regel op de computer telt
+   daar niet mee, en Claude Code valt dan terug op `known_marketplaces.json` (wat de
+   schakelaar in `/plugin`, tabblad Marketplaces, ook schrijft). Bron:
+   code.claude.com/docs/en/plugins/loading ("When auto-update runs") en
+   code.claude.com/docs/en/settings-reference ("extraKnownMarketplaces"), gelezen 17-10-2026.
+   Daarom staat `autoUpdate` sinds template v22 niet meer in de app: anders wint de app altijd
+   van de keuze van de bouwer. Vastgesteld en bewezen op 02-10-2026 op de Windows-VM: na de
+   instelling, één herstart en één bericht kwam 2.0.0 binnen, zonder nog een herstart. Controle: vraag de assistent
+   `~/.claude/plugins/installed_plugins.json` te tonen.
+   Wil de klant dat niet, dan zet `automatisch-bijwerken.mjs --uit` `autoUpdate = false` op
+   beide plekken en haalt het `FORCE_AUTOUPDATE_PLUGINS` weg. Dat laatste raakt in de
+   desktop-app alle plugins op die computer, en houdt ook een oudere app (met `autoUpdate` nog
+   in zijn instellingen) tegen. Een gewone run (ook vanuit `/stagetwo-tier2:updaten`) laat
+   dat staan, alleen `--aan` zet het terug. De plugin bijwerken gaat dan met
+   `/stagetwo-tier2:updaten`.
 6. Loop de melding en `/stagetwo-tier2:updaten` één keer samen door, en `/stagetwo-tier2:nieuwe-app` als
    de klant zelf apps gaat starten. Cloudflare en Supabase richt de workflow "App
    inrichten" in `<klantorg>/stagetwo-beheer-tier2` in (recept: Stage-Two-AI/beheer-template,
@@ -482,7 +493,8 @@ bronrepo.
 
   Het script verandert alleen `.claude/settings.json` (branch `stagetwo-levering-omzetten`,
   met de regel `Bevestigd: templatebestanden gewijzigd` voor guard:template): bij de huidige
-  naam alleen de waarde van `repo`. Een app van vóór 15-10-2026 met de plugin onder zijn oude
+  naam de waarde van `repo`, en een `autoUpdate` op die regel gaat eruit (die zou in de app
+  de keuze van de bouwer op zijn computer overschrijven). Een app van vóór 15-10-2026 met de plugin onder zijn oude
   naam (marketplace `stagetwo-cloudflare`, bron `Stage-Two-AI/stack-plugin-cloudflare`, plugin
   `stack-cloudflare@stagetwo-cloudflare`) gaat naar `stagetwo-tier2` met de kopie als bron, inclusief de
   sleutel in `enabledPlugins`. Daarnaast zet het per app de beveiligingsupdates van
@@ -503,14 +515,34 @@ bronrepo.
   `Stack/docs/recepten/github-app-levering.md`.
 - Na de overdracht (voorstel 17-10-2026, abonnement zonder toegang): Stage Two houdt geen
   persoonlijk account, geen beheerrechten en geen toegang tot apps in de org van de klant, en
-  `.github/CODEOWNERS` gaat naar de klant. Stage Two installeert `stagetwo-levering` bij de
+  `.github/CODEOWNERS` gaat naar de klant. Daarom zet `/stagetwo-tier2:nieuwe-app` nooit
+  `StageTwoAI` in CODEOWNERS van een klant-app: start Stage Two in de projectfase zelf een app,
+  dan wordt het bedrijfsaccount de reviewer (de andere eigenaar in CODEOWNERS van de
+  beheer-repo); staat daar geen ander account, dan stopt het script met een melding. Stage Two installeert `stagetwo-levering` bij de
   start namens de klant, op alleen de twee leveringsrepo's ("Only select repositories"); de
   klant kan hem altijd zelf verwijderen. Update-voorstellen in apps zet de bouwer zelf klaar met
   `/stagetwo-tier2:updaten`; Stage Two opent geen pull requests bij de klant. De beheerde
   run (`beheer/beheerd.mjs`) is alleen voor de eigen apps van Stage Two en voor een klant die
   nog in de projectfase zit. Een nieuwe versie van de beheer-repo alleen op verzoek: de owner
-  geeft Stage Two tijdelijk toegang en haalt die daarna weer weg. Opzeggen: de org uit
-  `abonnees.json`; de klant kan de App ook zelf verwijderen.
+  geeft Stage Two tijdelijk toegang en haalt die daarna weer weg. Opzeggen: zie hieronder.
+
+### Een abonnement stoppen
+
+Bij het einde van een abonnement haalt Stage Two zijn eigen toegang weg (voorwaarden 1.1,
+art. 18.6). Twee stappen, in deze volgorde:
+
+1. Haal de org van de klant uit `abonnees.json` (pull request, merge). Daarna krijgt hij
+   niets nieuws meer; zijn kopieën blijven op de laatste versie staan.
+2. Start de workflow **Levering stoppen** (Actions, Levering stoppen, Run workflow) met als
+   invoer `org` de GitHub-org van de klant. Die verwijdert de installatie van de App
+   `stagetwo-levering` in die org (`beheer/levering-stoppen.mjs`, met dezelfde variabele en
+   hetzelfde geheim als Uitleveren). Vink `droogloop` aan om eerst alleen te zien welke
+   installatie weg zou gaan.
+
+Staat de org nog in `abonnees.json`, of is het `Stage-Two-AI`, dan stopt de workflow voordat
+er iets gebeurt. Heeft de klant de App al zelf weggehaald, dan meldt hij
+`niet-geinstalleerd` en is er niets te doen. Let op: dezelfde App levert tier 1 en tier 2.
+Heeft een klant beide, haal hem dan eerst uit beide `abonnees.json`-bestanden.
 
 ### De repo beschermen
 
