@@ -32,19 +32,20 @@ versie als een leverancier iets verandert, een nieuwe versie van de beheer-repo 
 is, en vragen en meedenken. Het abonnement houdt de omgeving niet bij: beheer en werking
 blijven na de overdracht bij je bedrijf. Niet in het abonnement zitten systeembeheer, een garantie op beschikbaarheid en meer
 werk aan je apps; dat laatste doet Stage Two op verzoek, op nacalculatie tegen €120 per uur
-exclusief btw. Veiligheidsupdates van pakketten van derden stelt Dependabot, een dienst van
-GitHub, als pull request voor in je eigen repository's, ook zonder abonnement; een bouwer keurt
-ze goed.
+exclusief btw. Dependabot, een dienst van GitHub, stelt in elke app updates van de
+npm-pakketten voor, ook zonder abonnement, als pull request die een bouwer goedkeurt; de versies
+van de GitHub-workflows komen met een nieuwe templateversie.
 
 Na de overdracht heeft Stage Two geen eigen account, geen beheerrechten en geen toegang tot
 je apps in de GitHub-organisatie van je bedrijf, en heeft die ook niet nodig. Met een
-abonnement komen nieuwe versies binnen via de GitHub App `stagetwo-levering`, die je bedrijf
-zelf installeert op alleen de twee kopieën (`stagetwo-plugin-tier2` en
-`app-template-tier2`). Die App kan alleen daar schrijven, niet in je apps. Heeft de
+abonnement komen nieuwe versies binnen via de GitHub App `stagetwo-levering`. Stage Two
+installeert hem bij de start namens je bedrijf, op alleen de twee kopieën (`stagetwo-plugin-tier2`
+en `app-template-tier2`, "Only select repositories"); je bedrijf kan hem altijd zelf
+verwijderen. Die App kan alleen daar schrijven, niet in je apps. Heeft de
 beheer-repo een nieuwe versie nodig, dan vraagt Stage Two dat; de owner van je organisatie
 geeft Stage Two daarvoor tijdelijk toegang tot de beheer-repo en haalt die daarna weer weg.
 Dat valt binnen het abonnement. Zeg je op, dan haalt Stage Two je bedrijf uit de lijst van
-abonnees; de GitHub App verwijderen kan je bedrijf ook zelf. Meer staat op
+abonnees. Meer staat op
 [stagetwo.nl/aanbod](https://stagetwo.nl/aanbod).
 
 Je hoeft geen programmeur te zijn om dit te gebruiken. De eerste keer loopt Stage Two het
@@ -227,8 +228,9 @@ Wat er dan gebeurt, in deze volgorde:
    overnemen, of jouw versie houden. Twijfel je? Kies "houden"; dat verandert niets aan
    wat nu werkt, en Stage Two kan er later naar kijken.
 4. **De pakketten van je app** worden bijgewerkt, binnen de grenzen die in je app
-   staan, als een tweede, los voorstel. Kleine updates en veiligheidsupdates stelt
-   Dependabot daarnaast vanzelf voor. Een pakket met een nieuwe hoofdversie (een grote
+   staan, als een tweede, los voorstel. Daarnaast stelt Dependabot in elke app updates van
+   de npm-pakketten voor, ook zonder abonnement; de versies van de GitHub-workflows komen met
+   een nieuwe templateversie. Een pakket met een nieuwe hoofdversie (een grote
    sprong, zoals een nieuwe React) noemt je assistent alleen. Die zet je zelf door, met hulp
    van je assistent, als een gewone wijziging aan je app; of Stage Two doet het op verzoek,
    op nacalculatie (€120 per uur exclusief btw). Wijzigingen aan je apps vallen buiten het
@@ -409,8 +411,11 @@ overweg.
    apps, vóór een abonnee hem krijgt.
 5. Abonnees: pas als plugin en template op de eigen apps goed werken, start je de workflow
    **Uitleveren** met de hand: `gh workflow run uitleveren.yml -R
-   Stage-Two-AI/stagetwo-plugin-tier2`, of op de pagina van de workflow **Run workflow**. Hij
-   start nooit vanzelf, ook niet bij een merge of een nieuwe abonnee. Elke run levert de
+   Stage-Two-AI/stagetwo-plugin-tier2 -f getest_versie=<versie>`, of op de pagina van de
+   workflow **Run workflow**. De invoer `getest_versie` is verplicht: daarmee bevestig je dat
+   precies die pluginversie op de eigen apps draait. Is het niet de versie in
+   `.claude-plugin/plugin.json` op `main`, dan stopt de run met een melding, vóór er iets naar
+   een klant gaat. Hij start nooit vanzelf, ook niet bij een merge of een nieuwe abonnee. Elke run levert de
    pluginversie op `main` en alle template-tags die een klant nog niet heeft (zie hieronder).
 
 ### Levering per bedrijf
@@ -453,10 +458,16 @@ bronrepo.
   node beheer/levering-omzetten.mjs --org <klantorg> <app> [<app> ...] --doe-het  # pull requests
   ```
 
-  Het script verandert alleen de waarde van `repo` in `.claude/settings.json` (branch
-  `stagetwo-levering-omzetten`, met de regel `Bevestigd: templatebestanden gewijzigd` voor
-  guard:template) en stopt als de kopie nog geen `levering.json` heeft. Het draait met de
-  eigen gh-sessie van Stage Two en gaat niet mee naar een klant.
+  Het script verandert alleen `.claude/settings.json` (branch `stagetwo-levering-omzetten`,
+  met de regel `Bevestigd: templatebestanden gewijzigd` voor guard:template): bij de huidige
+  naam alleen de waarde van `repo`. Een app van vóór 15-10-2026 met de plugin onder zijn oude
+  naam (marketplace `stagetwo-cloudflare`, bron `Stage-Two-AI/stack-plugin-cloudflare`, plugin
+  `stack-cloudflare@stagetwo-cloudflare`) gaat naar `stagetwo-tier2` met de kopie als bron, inclusief de
+  sleutel in `enabledPlugins`. Daarnaast zet het per app de beveiligingsupdates van
+  Dependabot aan als die uit staan (`vulnerability-alerts` en `automated-security-fixes`;
+  vraagt beheerdersrechten op de app-repo, anders noemt het de handstap). Met `--doe-het`
+  stopt het als de kopie nog geen `levering.json` heeft; de droogloop kijkt dan toch en
+  waarschuwt. Het draait met de eigen gh-sessie van Stage Two en gaat niet mee naar een klant.
 - Kan de melding bij sessiestart de template niet lezen omdat GitHub de repo weigert of niet
   kent (na het afschermen van de bronrepo: een app of computer die nog niet is omgezet), dan
   zegt de assistent dat één keer per dag en vraagt hij de gebruiker het aan Stage Two door te
@@ -470,8 +481,9 @@ bronrepo.
   `Stack/docs/recepten/github-app-levering.md`.
 - Na de overdracht (voorstel 17-10-2026, abonnement zonder toegang): Stage Two houdt geen
   persoonlijk account, geen beheerrechten en geen toegang tot apps in de org van de klant, en
-  `.github/CODEOWNERS` gaat naar de klant. De klant installeert `stagetwo-levering` zelf, op
-  alleen de twee leveringsrepo's. Update-voorstellen in apps zet de bouwer zelf klaar met
+  `.github/CODEOWNERS` gaat naar de klant. Stage Two installeert `stagetwo-levering` bij de
+  start namens de klant, op alleen de twee leveringsrepo's ("Only select repositories"); de
+  klant kan hem altijd zelf verwijderen. Update-voorstellen in apps zet de bouwer zelf klaar met
   `/stagetwo-tier2:updaten`; Stage Two opent geen pull requests bij de klant. De beheerde
   run (`beheer/beheerd.mjs`) is alleen voor de eigen apps van Stage Two en voor een klant die
   nog in de projectfase zit. Een nieuwe versie van de beheer-repo alleen op verzoek: de owner

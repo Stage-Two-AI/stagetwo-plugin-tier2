@@ -10,19 +10,28 @@
 # installeren de plugin uit deze bronrepo). Ook een nieuwe abonnee in abonnees.json krijgt
 # pas iets na een run met de hand. Elke run levert de nieuwste pluginversie op main en alle
 # template-tags die de klant nog niet heeft.
+# Bij het starten vraagt hij getest_versie: de pluginversie die Stage Two op de eigen apps
+# heeft gedraaid. Is dat niet de versie in plugin.json op main, dan stopt de run vóór er
+# iets naar een klant gaat (node beheer/uitleveren.mjs --getest).
 # Tot 17-10-2026 draaide hij ook elk uur (ongeveer 1.400 Actions-minuten per maand) en daarna
 # vanzelf bij een merge die plugin.json of abonnees.json wijzigde; dat laatste is eraf, zodat
 # geen versie bij een klant komt die Stage Two nog niet zelf heeft gebruikt.
 # Een versie die de klant al heeft, slaat hij over; een run zonder iets nieuws doet niets.
 #
-# Schrijven bij de klant gaat via de GitHub App stagetwo-levering, die de klant op alleen
-# zijn twee leveringsrepo's installeert. Nodig in deze repo: de variabele LEVERING_APP_ID
+# Schrijven bij de klant gaat via de GitHub App stagetwo-levering, die Stage Two bij de start
+# namens de klant installeert op alleen zijn twee leveringsrepo's ("Only select
+# repositories"); de klant kan hem altijd zelf verwijderen. Nodig in deze repo: de variabele LEVERING_APP_ID
 # en het geheim LEVERING_APP_PRIVATE_KEY (recept: Stack/docs/recepten/github-app-levering.md).
 # Deze workflow, het script en abonnees.json gaan zelf nooit mee naar een klant.
 name: Uitleveren
 
 on:
   workflow_dispatch:
+    inputs:
+      getest_versie:
+        description: Pluginversie die op de eigen apps van Stage Two draait (gelijk aan plugin.json op main, bijvoorbeeld 2.3.0)
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -42,6 +51,16 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+      # Eerst de bevestiging: zonder die gaat er niets naar een klant. De invoer via env,
+      # nooit rechtstreeks in het script.
+      - name: Versie getest op de eigen apps
+        env:
+          GETEST: ${{ inputs.getest_versie }}
+        run: |
+          if ! uit=$(node beheer/uitleveren.mjs --getest "$GETEST" 2>&1); then
+            echo "::error::$uit"; exit 1
+          fi
+          echo "$uit"
       - id: lijst
         run: echo "orgs=$(node beheer/uitleveren.mjs --lijst)" >> "$GITHUB_OUTPUT"
 

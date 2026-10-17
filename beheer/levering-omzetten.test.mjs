@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { STAGE_TWO } from "../lib/levering.mjs";
 import { MARKETPLACE, pluginBron } from "../lib/plugin-bron.mjs";
-import { BRANCH, TITEL, hoofd, leesArgumenten, omzetten, prTekst } from "./levering-omzetten.mjs";
+import { BRANCH, TITEL, hoofd, leesArgumenten, leesInstellingen, naarLevering, omzetten, prTekst } from "./levering-omzetten.mjs";
 import { ALLEEN_IN_BRON } from "./uitleveren.mjs";
 
 const ORG = "Richplant-BV";
@@ -23,15 +23,34 @@ function settings(repo) {
   )}\n`;
 }
 
+/** Zoals .claude/settings.json in apps van vóór 15-10-2026 (Richplant teeltplanning, v19). */
+const OUD = `${JSON.stringify(
+  {
+    extraKnownMarketplaces: {
+      "stagetwo-cloudflare": { source: { source: "github", repo: "Stage-Two-AI/stack-plugin-cloudflare" }, autoUpdate: true },
+    },
+    enabledPlugins: { "stack-cloudflare@stagetwo-cloudflare": true },
+  },
+  null,
+  2,
+)}\n`;
+
 /**
- * Een nep-gh over een kleine wereld: per app de settings-tekst (of null) en open PR's.
+ * Een nep-gh over een kleine wereld: per app de settings-tekst (of null), open PR's en of de
+ * beveiligingsupdates van Dependabot aanstaan (`beveiliging`, standaard aan; null = 404).
  * Elke aanroep komt in `aanroepen`; schrijvende aanroepen herken je aan -X of `pr create`.
  */
-function nepGh({ apps = {}, levering = { plugin: LEVERING }, open = {} } = {}) {
+function nepGh({ apps = {}, levering = { plugin: LEVERING }, open = {}, beveiliging = {} } = {}) {
   const aanroepen = [];
   const gh = (args, { input } = {}) => {
     aanroepen.push({ args, input });
     const [a, b] = args;
+    const dep = /^repos\/([^/]+\/[^/]+)\/automated-security-fixes$/.exec(b ?? "");
+    if (a === "api" && dep) {
+      const stand = dep[1] in beveiliging ? beveiliging[dep[1]] : true;
+      if (stand === null) throw Object.assign(new Error("gh: Not Found (HTTP 404)"), { stderr: "gh: Not Found (HTTP 404)" });
+      return JSON.stringify({ enabled: stand, paused: false });
+    }
     if (a === "api" && b === `repos/${LEVERING}/contents/levering.json`) {
       if (!levering) throw Object.assign(new Error("gh: Not Found (HTTP 404)"), { stderr: "gh: Not Found (HTTP 404)" });
       return JSON.stringify({ content: b64(JSON.stringify(levering)) });
@@ -127,7 +146,7 @@ test("doe-het: een bestaande branch zonder open pull request wordt op de basis g
 test("een open pull request op de branch: niets nieuws", () => {
   const w = nepGh({ apps: { [`${ORG}/plantas`]: settings(STAGE_TWO.plugin) }, open: { [`${ORG}/plantas`]: [{ url: "https://x/pull/3" }] } });
   const uit = omzetten({ org: ORG, apps: [`${ORG}/plantas`], doeHet: true, gh: w.gh });
-  assert.deepEqual(uit.apps[0], { app: `${ORG}/plantas`, status: "staat-open", pr: "https://x/pull/3" });
+  assert.deepEqual(uit.apps[0], { app: `${ORG}/plantas`, status: "staat-open", pr: "https://x/pull/3", dependabot: "aan" });
   assert.deepEqual(w.schrijvend(), []);
 });
 
@@ -174,4 +193,112 @@ test("dit script gaat niet mee naar een klant", () => {
   assert.ok(ALLEEN_IN_BRON.includes("beheer/levering-omzetten.test.mjs"));
   const hier = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "levering-omzetten.mjs"), "utf8");
   assert.match(hier, /ALLEEN_IN_BRON/);
+});
+
+test("oude naam (stagetwo-cloudflare, zoals Richplant teeltplanning): droogloop zegt zou-omzetten, niet overgeslagen", () => {
+  const w = nepGh({ apps: { [`${ORG}/teeltplanning`]: OUD } });
+  const uit = omzetten({ org: ORG, apps: [`${ORG}/teeltplanning`], gh: w.gh });
+  assert.deepEqual(
+    { status: uit.apps[0].status, van: uit.apps[0].van, oud: uit.apps[0].oud, naar: uit.apps[0].naar },
+    { status: "zou-omzetten", van: "Stage-Two-AI/stack-plugin-cloudflare", oud: "stagetwo-cloudflare", naar: LEVERING },
+  );
+  assert.deepEqual(w.schrijvend(), []);
+});
+
+test("oude naam, doe-het: marketplace en enabledPlugins naar stagetwo-tier2 met de leveringsrepo, gelijk aan de template", () => {
+  const w = nepGh({ apps: { [`${ORG}/teeltplanning`]: OUD } });
+  const uit = omzetten({ org: ORG, apps: [`${ORG}/teeltplanning`], doeHet: true, gh: w.gh });
+  assert.equal(uit.apps[0].status, "omgezet", uit.apps[0].reden);
+  const put = w.schrijvend().find(({ args }) => args.includes("PUT") && args.some((x) => x.endsWith("settings.json")));
+  const na = Buffer.from(JSON.parse(put.input).content, "base64").toString("utf8");
+  assert.equal(na, settings(LEVERING), "precies de vorm van de template, met de leveringsrepo");
+  assert.match(JSON.parse(put.input).message, /stagetwo-tier2/);
+  const pr = w.schrijvend().find(({ args }) => args[0] === "pr");
+  const tekst = pr.args[pr.args.indexOf("--body") + 1];
+  assert.match(tekst, /oude naam \(marketplace `stagetwo-cloudflare`/);
+  assert.match(tekst, /^\s*Bevestigd:\s*templatebestanden gewijzigd\s*$/im);
+});
+
+test("naarLevering: andere marketplaces en plugins blijven staan, een oude bron onder een andere naam telt ook", () => {
+  const tekst = JSON.stringify({
+    permissions: { allow: ["Bash(ls)"] },
+    extraKnownMarketplaces: {
+      eigen: { source: { source: "github", repo: "Klant/eigen" } },
+      stagetwo: { source: { source: "github", repo: "Stage-Two-AI/stack-plugin-cloudflare" }, autoUpdate: false },
+    },
+    enabledPlugins: { "eigen@eigen": true, "stack-cloudflare@stagetwo": false },
+  });
+  assert.equal(leesInstellingen(tekst).soort, "oud");
+  const na = JSON.parse(naarLevering(tekst, LEVERING));
+  assert.deepEqual(na.permissions, { allow: ["Bash(ls)"] });
+  assert.deepEqual(Object.keys(na.extraKnownMarketplaces), ["eigen", MARKETPLACE]);
+  assert.deepEqual(na.extraKnownMarketplaces[MARKETPLACE], { source: { source: "github", repo: LEVERING }, autoUpdate: true });
+  assert.deepEqual(na.enabledPlugins, { "eigen@eigen": true, [`${MARKETPLACE}@${MARKETPLACE}`]: false }, "de waarde gaat mee");
+});
+
+test("naarLevering: oude en nieuwe naam allebei aanwezig: één regel stagetwo-tier2 blijft over", () => {
+  const tekst = JSON.stringify({
+    extraKnownMarketplaces: {
+      "stagetwo-cloudflare": { source: { source: "github", repo: "Stage-Two-AI/stack-plugin-cloudflare" } },
+      [MARKETPLACE]: { source: { source: "github", repo: STAGE_TWO.plugin }, autoUpdate: true },
+    },
+    enabledPlugins: { "stack-cloudflare@stagetwo-cloudflare": true, [`${MARKETPLACE}@${MARKETPLACE}`]: true },
+  });
+  const na = JSON.parse(naarLevering(tekst, LEVERING));
+  assert.deepEqual(Object.keys(na.extraKnownMarketplaces), [MARKETPLACE]);
+  assert.equal(pluginBron(JSON.stringify(na)), LEVERING);
+  assert.deepEqual(na.enabledPlugins, { [`${MARKETPLACE}@${MARKETPLACE}`]: true });
+});
+
+test("een app met de marketplace van de andere variant: overgeslagen, met de verwijzing naar het andere script", () => {
+  const tier1 = JSON.stringify({ extraKnownMarketplaces: { "stagetwo-light": { source: { source: "github", repo: "Stage-Two-AI/stack-plugin-light" } } } });
+  const w = nepGh({ apps: { [`${ORG}/site`]: tier1 } });
+  const uit = omzetten({ org: ORG, apps: [`${ORG}/site`], doeHet: true, gh: w.gh });
+  assert.equal(uit.apps[0].status, "overgeslagen");
+  assert.match(uit.apps[0].reden, /stagetwo-plugin-tier1/);
+  assert.equal(w.schrijvend().length, 0);
+});
+
+test("Dependabot-beveiligingsupdates: droogloop meldt, doe-het zet eerst de waarschuwingen en dan de updates aan", () => {
+  for (const stand of [false, null]) {
+    const droog = nepGh({ apps: { [`${ORG}/plantas`]: settings(LEVERING) }, beveiliging: { [`${ORG}/plantas`]: stand } });
+    const r = omzetten({ org: ORG, apps: [`${ORG}/plantas`], gh: droog.gh }).apps[0];
+    assert.deepEqual([r.status, r.dependabot], ["al-goed", "zou-aanzetten"]);
+    assert.deepEqual(droog.schrijvend(), []);
+
+    const echt = nepGh({ apps: { [`${ORG}/plantas`]: settings(LEVERING) }, beveiliging: { [`${ORG}/plantas`]: stand } });
+    assert.equal(omzetten({ org: ORG, apps: [`${ORG}/plantas`], doeHet: true, gh: echt.gh }).apps[0].dependabot, "aangezet");
+    assert.deepEqual(
+      echt.schrijvend().map(({ args }) => args.slice(0, 4).join(" ")),
+      [`api -X PUT repos/${ORG}/plantas/vulnerability-alerts`, `api -X PUT repos/${ORG}/plantas/automated-security-fixes`],
+    );
+  }
+  const aan = nepGh({ apps: { [`${ORG}/plantas`]: settings(LEVERING) } });
+  assert.equal(omzetten({ org: ORG, apps: [`${ORG}/plantas`], doeHet: true, gh: aan.gh }).apps[0].dependabot, "aan");
+  assert.deepEqual(aan.schrijvend(), []);
+});
+
+test("Dependabot aanzetten lukt niet (geen beheerdersrechten): handstap genoemd, hoofd geeft 1", () => {
+  const w = nepGh({ apps: { [`${ORG}/plantas`]: settings(LEVERING) }, beveiliging: { [`${ORG}/plantas`]: false } });
+  const gh = (args, opties) => {
+    if (args.includes("PUT") && args.some((x) => x.endsWith("vulnerability-alerts"))) {
+      throw Object.assign(new Error("gh: Must have admin rights to Repository. (HTTP 403)"), { stderr: "gh: Must have admin rights to Repository. (HTTP 403)" });
+    }
+    return w.gh(args, opties);
+  };
+  const regels = [];
+  assert.equal(hoofd(["--org", ORG, "plantas", "--doe-het"], { env: {}, log: (r) => regels.push(r), gh }), 1);
+  assert.match(regels.join("\n"), /niet gelukt: gh: Must have admin rights[^\n]*Settings, Code security/);
+});
+
+test("droogloop zonder levering.json: waarschuwt, kijkt toch per app, schrijft niets", () => {
+  const w = nepGh({ apps: { [`${ORG}/teeltplanning`]: OUD }, levering: null, beveiliging: { [`${ORG}/teeltplanning`]: false } });
+  const regels = [];
+  assert.equal(hoofd(["--org", ORG, "teeltplanning"], { env: {}, log: (r) => regels.push(r), gh: w.gh }), 0);
+  const tekst = regels.join("\n");
+  assert.match(tekst, /let op: .*levering\.json.*--doe-het stopt/);
+  assert.match(tekst, /teeltplanning: zou-omzetten \(nu Stage-Two-AI\/stack-plugin-cloudflare, oude naam stagetwo-cloudflare\)/);
+  assert.match(tekst, /Dependabot: zou-aanzetten/);
+  assert.doesNotMatch(tekst, /overgeslagen/);
+  assert.deepEqual(w.schrijvend(), []);
 });

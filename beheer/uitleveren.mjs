@@ -6,6 +6,11 @@
  *   node beheer/uitleveren.mjs --lijst
  *       de orgs uit abonnees.json als JSON-lijst (voor de matrix van de workflow)
  *
+ *   node beheer/uitleveren.mjs --getest <versie>
+ *       stopt met een melding als <versie> niet de versie in plugin.json op HEAD is. De
+ *       workflow vraagt die versie als invoer (getest_versie): zo bevestigt Stage Two bij elke
+ *       run dat precies deze versie op de eigen apps draait, voordat een klant hem krijgt.
+ *
  *   node beheer/uitleveren.mjs --org <klantorg> [--template <pad of url>] [--droog]
  *       plugin:   deze checkout (HEAD) naar <klantorg>/stagetwo-plugin-tier2, getagd
  *                 v<versie uit plugin.json>, zonder abonnees.json en het uitleveren zelf, met
@@ -168,6 +173,24 @@ export function pluginVersies(bronMap) {
   return [{ ref: "HEAD", tag: `v${versie}`, bericht: `Plugin ${versie}\n\nBron: ${STAGE_TWO.plugin}@${sha}` }];
 }
 
+/**
+ * De bevestiging van de workflow (invoer getest_versie): de versie die Stage Two op de eigen
+ * apps heeft gedraaid, moet de versie in plugin.json op HEAD zijn. Een `v` ervoor mag.
+ * Geeft de versie terug, of gooit een fout met wat er moet gebeuren.
+ */
+export function controleerGetest(getest, bronMap = WORTEL) {
+  const versie = JSON.parse(gitIn(bronMap, ["show", "HEAD:.claude-plugin/plugin.json"])).version;
+  const opgegeven = String(getest ?? "").trim().replace(/^v/i, "");
+  if (opgegeven === "" || opgegeven !== versie) {
+    throw new Error(
+      `getest_versie is "${String(getest ?? "").trim()}", maar plugin.json op main heeft versie ${versie}. ` +
+        `Uitleveren levert alleen een versie die Stage Two eerst op de eigen apps heeft gedraaid: zet ${versie} ` +
+        `op de eigen apps (README, "Een nieuwe versie uitbrengen", stap 4) en start de workflow opnieuw met getest_versie ${versie}.`,
+    );
+  }
+  return versie;
+}
+
 /** Wat er per versie in de template van de klant anders is dan bij Stage Two: de bron van de plugin. */
 export function templateBewerkingen(org) {
   const plugin = leveringVoor(org).plugin;
@@ -236,6 +259,9 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   try {
     if (argv.includes("--lijst")) {
       process.stdout.write(`${JSON.stringify(leesAbonnees())}\n`);
+    } else if (argv.includes("--getest")) {
+      const versie = controleerGetest(argv[argv.indexOf("--getest") + 1]);
+      process.stdout.write(`versie ${versie} bevestigd: draait op de eigen apps van Stage Two\n`);
     } else {
       const uitkomst = uitleverenAanKlant(leesOpties(argv));
       process.stdout.write(`${JSON.stringify(uitkomst, null, 2)}\n`);

@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { STAGE_TWO } from "../lib/levering.mjs";
 import { pluginBron } from "../lib/plugin-bron.mjs";
-import { leesAbonnees, leesOpties, leveringVoor, leverUit, templateVersies, uitleverenAanKlant } from "./uitleveren.mjs";
+import { controleerGetest, leesAbonnees, leesOpties, leveringVoor, leverUit, templateVersies, uitleverenAanKlant } from "./uitleveren.mjs";
 
 const git = (map, ...args) => execFileSync("git", ["-C", map, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 
@@ -215,4 +215,27 @@ test("template uit een eigen checkout (zoals de workflow die meegeeft) levert de
     assert.deepEqual(r.template.tags, ["stack-v1"]);
     assert.equal(toon(doelTemplate, "stack-v1", "README.md"), "v1");
   });
+});
+
+test("controleerGetest: alleen de versie in plugin.json op HEAD (met of zonder v), anders een duidelijke melding", () => {
+  metMap((map) => {
+    const bron = repo(join(map, "bron"), { ".claude-plugin/plugin.json": JSON.stringify({ version: "2.4.0" }) });
+    assert.equal(controleerGetest("2.4.0", bron), "2.4.0");
+    assert.equal(controleerGetest(" v2.4.0 ", bron), "2.4.0");
+    for (const fout of ["2.3.0", "", undefined, "2.4"]) {
+      assert.throws(() => controleerGetest(fout, bron), /plugin\.json op main heeft versie 2\.4\.0.*eigen apps.*getest_versie 2\.4\.0/);
+    }
+  });
+});
+
+test("workflow Uitleveren: verplichte invoer getest_versie, gecontroleerd vóór de lijst en vóór elke klant", () => {
+  const yml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", ".github", "workflows", "uitleveren.yml"), "utf8");
+  const aan = yml.slice(yml.indexOf("\non:"), yml.indexOf("\npermissions:"));
+  assert.match(aan, /inputs:\n\s+getest_versie:\n\s+description: [^\n]+\n\s+required: true\n\s+type: string/);
+  const stap = yml.indexOf("--getest");
+  assert.ok(stap > 0 && stap < yml.indexOf("--lijst"), "eerst de bevestiging, dan de abonnees");
+  assert.ok(stap < yml.indexOf("klant:"), "vóór de job die naar klanten schrijft (die hangt aan abonnees)");
+  assert.match(yml, /GETEST: \$\{\{ inputs\.getest_versie \}\}/);
+  assert.doesNotMatch(yml.replace(/GETEST: \$\{\{ inputs\.getest_versie \}\}/, ""), /inputs\.getest_versie/, "invoer alleen via env");
+  assert.match(yml, /echo "::error::\$uit"; exit 1/);
 });
