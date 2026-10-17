@@ -6,7 +6,7 @@
  *   node beheer/uitleveren.mjs --lijst
  *       de orgs uit abonnees.json als JSON-lijst (voor de matrix van de workflow)
  *
- *   node beheer/uitleveren.mjs --org <klantorg> [--droog]
+ *   node beheer/uitleveren.mjs --org <klantorg> [--template <pad of url>] [--droog]
  *       plugin:   deze checkout (HEAD) naar <klantorg>/stagetwo-plugin-tier2, getagd
  *                 v<versie uit plugin.json>, zonder abonnees.json en het uitleveren zelf, met
  *                 een levering.json die naar de leveringsrepo's van de klant wijst;
@@ -21,6 +21,9 @@
  * met abonnees, eerdere commits), en is een versie die er al staat meteen klaar: een
  * tweede run doet niets. Er wordt nooit geforceerd: heeft iemand anders op de main van de
  * leveringsrepo gezet, dan weigert de push en kijkt Stage Two ernaar.
+ *
+ * --template: waar de template van Stage Two vandaan komt (standaard de openbare https-url).
+ * De workflow geeft een eigen checkout mee, zodat het ook werkt als de bronrepo is afgeschermd.
  *
  * Inloggen doet de workflow (gh auth setup-git met het token van de GitHub App
  * stagetwo-levering); dit script praat gewoon https tegen github.com.
@@ -211,14 +214,28 @@ export function uitleverenAanKlant({ org, pluginMap = WORTEL, templateUrl = `htt
   }
 }
 
+/** De opties van de opdrachtregel voor uitleverenAanKlant. */
+export function leesOpties(argv) {
+  const waarde = (vlag) => {
+    const i = argv.indexOf(vlag);
+    if (i < 0) return undefined;
+    const w = argv[i + 1];
+    if (w === undefined || w.startsWith("--")) throw new Error(`${vlag} vraagt een waarde`);
+    return w;
+  };
+  const opties = { org: waarde("--org") ?? null, droog: argv.includes("--droog") };
+  const template = waarde("--template");
+  if (template !== undefined) opties.templateUrl = template;
+  return opties;
+}
+
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const argv = process.argv.slice(2);
   try {
     if (argv.includes("--lijst")) {
       process.stdout.write(`${JSON.stringify(leesAbonnees())}\n`);
     } else {
-      const i = argv.indexOf("--org");
-      const uitkomst = uitleverenAanKlant({ org: i >= 0 ? argv[i + 1] : null, droog: argv.includes("--droog") });
+      const uitkomst = uitleverenAanKlant(leesOpties(argv));
       process.stdout.write(`${JSON.stringify(uitkomst, null, 2)}\n`);
     }
   } catch (fout) {

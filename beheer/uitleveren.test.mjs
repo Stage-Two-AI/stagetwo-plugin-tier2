@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { STAGE_TWO } from "../lib/levering.mjs";
 import { pluginBron } from "../lib/plugin-bron.mjs";
-import { leesAbonnees, leveringVoor, leverUit, templateVersies, uitleverenAanKlant } from "./uitleveren.mjs";
+import { leesAbonnees, leesOpties, leveringVoor, leverUit, templateVersies, uitleverenAanKlant } from "./uitleveren.mjs";
 
 const git = (map, ...args) => execFileSync("git", ["-C", map, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 
@@ -194,4 +194,27 @@ test("workflow Uitleveren: alleen bij een nieuwe versie, een nieuwe abonnee of m
   assert.match(aan, /push:\s+branches: \[main\]\s+paths:/);
   assert.match(aan, /- "\.claude-plugin\/plugin\.json"/);
   assert.match(aan, /- "abonnees\.json"/);
+});
+
+test("opdrachtregel: --template geeft een eigen bron voor de template (afgeschermde bronrepo)", () => {
+  assert.deepEqual(leesOpties(["--org", "Klant-BV"]), { org: "Klant-BV", droog: false });
+  assert.deepEqual(leesOpties(["--org", "Klant-BV", "--template", "/w/.bron-template", "--droog"]), {
+    org: "Klant-BV",
+    droog: true,
+    templateUrl: "/w/.bron-template",
+  });
+  assert.throws(() => leesOpties(["--org", "Klant-BV", "--template"]), /vraagt een waarde/);
+});
+
+test("template uit een eigen checkout (zoals de workflow die meegeeft) levert dezelfde tags", () => {
+  metMap((map) => {
+    const bron = repo(join(map, "bron"), { ".claude-plugin/plugin.json": JSON.stringify({ version: "2.4.0" }) });
+    const checkout = repo(join(map, ".bron-template"), { "README.md": "v1\n" });
+    git(checkout, "tag", "stack-v1");
+    kaal(join(map, "Klant-BV", "stagetwo-plugin-tier2"));
+    const doelTemplate = kaal(join(map, "Klant-BV", "app-template-tier2"));
+    const r = uitleverenAanKlant({ ...leesOpties(["--org", "Klant-BV", "--template", checkout]), pluginMap: bron, url: (r) => join(map, r) });
+    assert.deepEqual(r.template.tags, ["stack-v1"]);
+    assert.equal(toon(doelTemplate, "stack-v1", "README.md"), "v1");
+  });
 });

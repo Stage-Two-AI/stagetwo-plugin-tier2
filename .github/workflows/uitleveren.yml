@@ -76,10 +76,27 @@ jobs:
           private-key: ${{ secrets.LEVERING_APP_PRIVATE_KEY }}
           owner: ${{ matrix.org }}
           repositories: stagetwo-plugin-tier2,app-template-tier2
+      # De template van Stage Two, met alle tags. Met een token van dezelfde App, zodat dit
+      # blijft werken als de bronrepo is afgeschermd. Vraagt dat de App in Stage-Two-AI op
+      # app-template-tier2 staat (Contents: read; recept github-app-levering, deel A).
+      - id: bron
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.LEVERING_APP_ID }}
+          private-key: ${{ secrets.LEVERING_APP_PRIVATE_KEY }}
+          owner: Stage-Two-AI
+          repositories: app-template-tier2
+      - uses: actions/checkout@v5
+        with:
+          repository: Stage-Two-AI/app-template-tier2
+          token: ${{ steps.bron.outputs.token }}
+          path: .bron-template
+          fetch-depth: 0
+          persist-credentials: false
       - name: Uitleveren
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
           ORG: ${{ matrix.org }}
         run: |
           gh auth setup-git
-          node beheer/uitleveren.mjs --org "$ORG"
+          node beheer/uitleveren.mjs --org "$ORG" --template "$GITHUB_WORKSPACE/.bron-template"
