@@ -7,23 +7,27 @@
  * gesprek ervoor (wat moet de app doen, welke databasestand) staat in SKILL.md.
  *
  *   node nieuwe-app.mjs --json --droogloop --naam <naam> --eigenaar <org> \
- *        [--omschrijving "..."] [--map <map>]
+ *        [--omschrijving "..."] [--organisatie "<bedrijfsnaam>"] [--map <map>]
  *       Op het Cloudflare-spoor heeft elke app een eigen database (Supabase): daar loopt het
  *       inloggen via de deur van Cloudflare doorheen. `--database eigen` mag, andere standen niet.
  *       voorcontrole: staat alles klaar, bestaat de repo nog niet, waar landt hij, wie
- *       wordt reviewer. Maakt niets aan.
+ *       wordt reviewer (de bouwer zelf; start Stage Two hem, dan het bedrijfsaccount uit
+ *       CODEOWNERS van de beheer-repo, nooit Stage Two). Maakt niets aan.
  *
  *   node nieuwe-app.mjs --json --doe-het ...dezelfde vlaggen...
  *       repo aanmaken uit de template, klonen, de paden uit `nietMeenemen` van het manifest
  *       weghalen, invullen, de Worker-naam in wrangler.jsonc op de appnaam zetten,
  *       databasestand zetten, pakketten installeren, committen met de identiteit van de gebruiker, pushen, main
- *       beschermen. Hosting en database koppelt Stage Two: daar komt bewust geen
+ *       beschermen. Daarbij wijst .claude/settings.json naar de plugin uit levering.json (de
+ *       kopie in de org van de klant, zie lib/plugin-bron.mjs), en krijgt de app een LICENSE op
+ *       naam van de organisatie (--organisatie, anders de naam van de org op GitHub); het
+ *       gebruiksrecht van Stage Two blijft in LICENSE-STAGE-TWO staan. Hosting en database koppelt Stage Two: daar komt bewust geen
  *       toegang voor op de computer van de gebruiker (GitHub blijft de enige poort).
  *
  *   node nieuwe-app.mjs --json --inrichten --naam <naam> --eigenaar <org> [--groepen a,b]
  *       kijkt eerst of de app in toegang.json van <org>/stagetwo-beheer-tier2 staat. Zo niet, dan
  *       opent het een pull request op stagetwo-beheer-tier2 die hem toevoegt met de gekozen groepen
- *       (status `wacht-op-toegang`; de eigenaar keurt goed, daarna opnieuw draaien). Staat
+ *       (status `wacht-op-toegang`; wie in team toegangsbeheer zit merget, daarna opnieuw draaien). Staat
  *       hij erin, dan start het de workflow "App inrichten" in <org>/stagetwo-beheer-tier2, wacht tot
  *       hij klaar is en leest het resultaat uit het logboek. Zo komen Cloudflare en Supabase
  *       erbij zonder dat er een Cloudflare- of Supabase-sleutel op deze computer staat.
@@ -51,6 +55,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { LEVERING, STAGE_TWO } from "../../../lib/levering.mjs";
+import { SETTINGS_PAD, kiesPluginBron, metPluginBron } from "../../../lib/plugin-bron.mjs";
 import { ghAanwezig, ghIngelogd, git, sh } from "../../../lib/repo.mjs";
 
 /** De template uit levering.json (een abonnee), anders die van Stage Two; zie lib/levering.mjs. */
@@ -73,6 +78,7 @@ export function leesArgumenten(argv) {
     naam: null,
     eigenaar: null,
     omschrijving: null,
+    organisatie: null,
     database: null,
     gedeeldEigenaar: null,
     gedeeldRef: null,
@@ -83,6 +89,7 @@ export function leesArgumenten(argv) {
     "--naam": "naam",
     "--eigenaar": "eigenaar",
     "--omschrijving": "omschrijving",
+    "--organisatie": "organisatie",
     "--database": "database",
     "--gedeeld-eigenaar": "gedeeldEigenaar",
     "--gedeeld-ref": "gedeeldRef",
@@ -121,7 +128,7 @@ export function controleerArgumenten(arg) {
   }
   if (!arg.eigenaar) return "geef met --eigenaar het GitHub-account of de organisatie mee waar de app komt";
   if (!DATABASESTANDEN.includes(arg.database)) {
-    return "op het Cloudflare-spoor heeft elke app een eigen database; laat --database weg of geef eigen mee";
+    return "bij tier 2 heeft elke app een eigen database; laat --database weg of geef eigen mee";
   }
   // De beheer-workflow accepteert hooguit 41 tekens (Access- en Supabase-namen krijgen er
   // nog een voorvoegsel en een achtervoegsel bij).
@@ -129,18 +136,84 @@ export function controleerArgumenten(arg) {
   if (arg.groepen && !arg.groepen.every((g) => /^[a-z0-9][a-z0-9-]{0,40}$/.test(g))) {
     return "--groepen: namen van groepen uit toegang.json, met komma's (kleine letters, cijfers, streepjes)";
   }
+  if (arg.organisatie !== null && arg.organisatie !== undefined && !geldigeOrganisatie(arg.organisatie)) {
+    return "--organisatie: de naam van het bedrijf, op één regel en hooguit 100 tekens (bijvoorbeeld \"Richplant B.V.\")";
+  }
   return null;
+}
+
+/** Een bedrijfsnaam voor de LICENSE: één regel, 2 tot 100 tekens, geen markeringen. */
+export function geldigeOrganisatie(naam) {
+  const n = String(naam ?? "").trim();
+  return n.length >= 2 && n.length <= 100 && !/[\r\n<>]/.test(n);
 }
 
 // ---------------------------------------------------------------- zuivere stappen
 
+/** De org van Stage Two zelf: daar zijn de apps van Stage Two, en daar hoort StageTwoAI in CODEOWNERS. */
+export const STAGE_TWO_ORG = STAGE_TWO.plugin.split("/")[0];
+const isStageTwoLogin = (login) => String(login ?? "").toLowerCase() === STAGE_TWO_LOGIN.toLowerCase();
+
 /**
- * Wie wordt de reviewer in CODEOWNERS? Altijd de bouwer zelf: hij merget zijn eigen
- * pull requests op groene checks, en Stage Two wil geen melding bij elke PR van elke
- * klant-app. Toegang en sleutels bewaakt de eigenaar in stagetwo-beheer-tier2, niet hier.
+ * De logins in CODEOWNERS-teksten, in volgorde, zonder teams (`@org/team`), zonder Stage Two
+ * en zonder dubbele. Commentaarregels tellen niet mee.
  */
-export function kiesReviewer({ login }) {
-  return login;
+export function eigenarenUitCodeowners(teksten) {
+  const uit = [];
+  for (const tekst of teksten) {
+    for (const regel of String(tekst ?? "").split("\n")) {
+      if (regel.trim().startsWith("#")) continue;
+      for (const [, login] of regel.matchAll(/(?:^|\s)@([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))(?=\s|$)/g)) {
+        if (!isStageTwoLogin(login) && !uit.some((l) => l.toLowerCase() === login.toLowerCase())) uit.push(login);
+      }
+    }
+  }
+  return uit;
+}
+
+/**
+ * Wie wordt de reviewer in CODEOWNERS? De bouwer zelf: hij merget zijn eigen pull requests op
+ * groene checks, en Stage Two wil geen melding bij elke PR van elke klant-app. Toegang en
+ * sleutels bewaakt de eigenaar in stagetwo-beheer-tier2, niet hier.
+ *
+ * Stage Two (StageTwoAI) komt nooit in CODEOWNERS van een klant-app: na de overdracht houdt
+ * Stage Two geen toegang. Start Stage Two de app in de projectfase, dan wordt het
+ * bedrijfsaccount de reviewer: de eigenaar naast Stage Two in CODEOWNERS van de beheer-repo
+ * (`beheerCodeowners`, de teksten van die bestanden). toegang.json noemt alleen e-mailadressen,
+ * geen GitHub-logins, dus daar valt geen bouwer uit te halen. Alleen in de org van Stage Two
+ * zelf (of het eigen account StageTwoAI) blijft StageTwoAI de reviewer.
+ *
+ * Uitkomst: { reviewer } of { fout } (één zin, wat er moet gebeuren).
+ */
+export function kiesReviewer({ login, eigenaar = null, beheerCodeowners = [] }) {
+  if (!isStageTwoLogin(login)) return { reviewer: login };
+  const eigen = eigenaar === null || String(eigenaar).toLowerCase() === STAGE_TWO_ORG.toLowerCase() || isStageTwoLogin(eigenaar);
+  if (eigen) return { reviewer: login };
+  const [bedrijfsaccount] = eigenarenUitCodeowners(beheerCodeowners);
+  if (bedrijfsaccount) return { reviewer: bedrijfsaccount };
+  return {
+    fout:
+      `Stage Two (${STAGE_TWO_LOGIN}) komt niet in CODEOWNERS van een app van ${eigenaar}, en in CODEOWNERS van de beheer-repo staat geen ander account; ` +
+      `zet het bedrijfsaccount daar eerst in, of laat een bouwer van ${eigenaar} de app starten met zijn eigen account`,
+  };
+}
+
+/** De CODEOWNERS-teksten van de beheer-repo's van `eigenaar` (root, .github/ en docs/); wat ontbreekt telt niet. */
+function beheerCodeownersTeksten(eigenaar) {
+  const beheer = kiesBeheerRepo(eigenaar);
+  const repos = beheer ? [beheer] : [];
+  const teksten = [];
+  for (const repo of repos) {
+    for (const pad of ["CODEOWNERS", ".github/CODEOWNERS", "docs/CODEOWNERS"]) {
+      try {
+        const bestand = ghJson([`repos/${repo}/contents/${pad}`]);
+        teksten.push(Buffer.from(bestand.content, "base64").toString("utf8"));
+      } catch {
+        // dit pad bestaat niet in deze repo
+      }
+    }
+  }
+  return teksten;
 }
 
 /** De "Vervang dit"-aanwijzingen weg, de projectnaam en omschrijving erin. */
@@ -246,6 +319,60 @@ export function zetDatabaseStand(map, { database, gedeeldEigenaar, gedeeldRef })
   if (database !== "eigen" && existsSync(migraties)) rmSync(migraties, { recursive: true, force: true });
 }
 
+/**
+ * Zet in .claude/settings.json de bron van de plugin op de leveringsrepo uit levering.json
+ * (zie lib/plugin-bron.mjs). De template draagt de bronrepo van Stage Two; een abonnee haalt
+ * de plugin uit zijn eigen kopie. Geeft de bron die er nu staat, of null zonder settings.
+ */
+export function zetPluginBron(map, levering = LEVERING.plugin) {
+  const pad = join(map, SETTINGS_PAD);
+  if (!existsSync(pad)) return null;
+  const tekst = readFileSync(pad, "utf8");
+  const bron = kiesPluginBron(tekst, levering);
+  const nieuw = metPluginBron(tekst, bron);
+  if (nieuw !== tekst) writeFileSync(pad, nieuw);
+  return bron;
+}
+
+/** De LICENSE van een nieuwe app: de eigen code is van de organisatie; Stage Two staat in LICENSE-STAGE-TWO. */
+export function licentieTekst(organisatie, jaar = new Date().getFullYear()) {
+  const naam = String(organisatie).trim();
+  const punt = naam.endsWith(".") ? "" : ".";
+  return `Licentie van deze app
+
+Copyright (c) ${jaar} ${naam}
+
+De code die specifiek voor deze app is gemaakt, zoals schermen, functies, servercode,
+databaseopzet en teksten, is van ${naam}${punt} Alle rechten voorbehouden.
+
+Een deel van de bestanden komt uit de template en de plugin van Stage Two; welke dat zijn,
+staat in .claude/stack-manifest.json onder "vanDeTemplate". Voor die onderdelen geldt het
+gebruiksrecht van Stage Two in LICENSE-STAGE-TWO. Onderdelen van derden, zoals
+open-sourcebibliotheken, vallen onder hun eigen licenties.
+
+Dit bestand is van ${naam}: het mag worden aangepast of vervangen, bijvoorbeeld door een
+open-sourcelicentie voor de eigen code. Een update van Stage Two raakt het niet aan.
+`;
+}
+
+/**
+ * Zet een LICENSE op naam van de organisatie. Alleen als de template het gebruiksrecht van
+ * Stage Two apart levert (LICENSE-STAGE-TWO, vanaf template versie 22) en de LICENSE nog die
+ * van de template is (met <organisatie>) of ontbreekt; een eigen LICENSE blijft staan, en bij
+ * een oudere template blijft alles zoals het was. Geeft { gezet, reden }.
+ */
+export function zetLicentie(map, organisatie) {
+  if (!existsSync(join(map, "LICENSE-STAGE-TWO"))) {
+    return { gezet: false, reden: "deze versie van de template heeft nog geen LICENSE-STAGE-TWO" };
+  }
+  const pad = join(map, "LICENSE");
+  if (existsSync(pad) && !readFileSync(pad, "utf8").includes("<organisatie>")) {
+    return { gezet: false, reden: "de app heeft al een eigen LICENSE" };
+  }
+  writeFileSync(pad, licentieTekst(organisatie));
+  return { gezet: true, organisatie: String(organisatie).trim() };
+}
+
 /** Wat er na het script nog te doen is, per databasestand en per uitkomst. */
 export function nogTeDoen({ database, ruleset }) {
   const lijst = [];
@@ -255,7 +382,7 @@ export function nogTeDoen({ database, ruleset }) {
     );
   }
   lijst.push(
-    "Hosting, deur en database (Cloudflare en Supabase): Stage Two of de beheer-repo van de organisatie richt die in. Daar komt bewust geen toegang voor op deze computer. Tot die tijd kun je gewoon bouwen; de kwaliteitspoort draait tegen een eigen testdatabase.",
+    "Hosting, deur en database (Cloudflare en Supabase): de beheer-repo van de organisatie richt die in (tijdens het project doet Stage Two dat). Daar komt bewust geen toegang voor op deze computer. Tot die tijd kun je gewoon bouwen; de kwaliteitspoort draait tegen een eigen testdatabase.",
   );
   lijst.push("Foutbewaking (Sentry): Stage Two maakt een project aan en zet de DSN als omgevingsvariabele. Mag later.");
   return lijst;
@@ -297,6 +424,28 @@ function magInOrganisatie(eigenaar, gebruiker) {
   }
 }
 
+
+/**
+ * De naam voor de LICENSE: wat de gebruiker meegaf (--organisatie), anders de naam van de
+ * organisatie of het account op GitHub, anders de inlognaam.
+ */
+export function organisatieNaam(eigenaar, gegeven = null, naamOpGitHub = ghNaam) {
+  if (gegeven && geldigeOrganisatie(gegeven)) return String(gegeven).trim();
+  const opGitHub = naamOpGitHub(eigenaar);
+  return opGitHub && geldigeOrganisatie(opGitHub) ? opGitHub.trim() : eigenaar;
+}
+
+function ghNaam(eigenaar) {
+  for (const pad of [`orgs/${eigenaar}`, `users/${eigenaar}`]) {
+    try {
+      const naam = sh("gh", ["api", pad, "-q", ".name // empty"]);
+      if (naam) return naam;
+    } catch {
+      // geen organisatie, of geen naam ingevuld: volgende
+    }
+  }
+  return null;
+}
 
 function plan(eigenaar) {
   try {
@@ -530,8 +679,9 @@ function leesToegang(beheer) {
 }
 
 /**
- * Opent een pull request op de beheer-repo die de app aan toegang.json toevoegt. De
- * eigenaar van de beheer-repo keurt hem goed; zo beslist een mens wie bij een app mag.
+ * Opent een pull request op de beheer-repo die de app aan toegang.json toevoegt. Omdat hij
+ * alleen toegang.json wijzigt, is de controle Toegang of review groen en merget een lid van
+ * team toegangsbeheer (of de owner) hem zelf; zo beslist een mens wie bij een app mag.
  */
 function vraagToegangAan(beheer, arg, toegang, sha) {
   const branch = `toegang/${arg.naam}`;
@@ -560,7 +710,7 @@ function vraagToegangAan(beheer, arg, toegang, sha) {
   return sh("gh", [
     "pr", "create", "--repo", beheer, "--base", "main", "--head", branch,
     "--title", `Toegang: ${arg.naam}`,
-    "--body", `De nieuwe app **${arg.naam}** komt in toegang.json, voor de groep(en) ${arg.groepen.map((g) => `\`${g}\``).join(", ")}.\n\nAangevraagd met /stagetwo-tier2:nieuwe-app. Na goedkeuring en merge kan de app worden ingericht.`,
+    "--body", `De nieuwe app **${arg.naam}** komt in toegang.json, voor de groep(en) ${arg.groepen.map((g) => `\`${g}\``).join(", ")}.\n\nAangevraagd met /stagetwo-tier2:nieuwe-app. Deze pull request wijzigt alleen toegang.json; na de merge kan de app worden ingericht.`,
   ]);
 }
 
@@ -601,7 +751,7 @@ export function richtIn(arg, { cwd = process.cwd(), wachtMs = 5000, maxWachtMinu
         groepen,
         reden: groepen.length
           ? `${arg.naam} staat nog niet in toegang.json; kies wie erbij mag uit de groepen ${groepen.join(", ")} en geef die mee met --groepen`
-          : `er staan nog geen groepen in toegang.json van ${beheer}; vraag Stage Two die aan te maken`,
+          : `er staan nog geen groepen in toegang.json van ${beheer}; vraag de owner van de organisatie (tijdens het project Stage Two) die aan te maken`,
       };
     }
     const onbekend = arg.groepen.filter((g) => !groepen.includes(g));
@@ -612,7 +762,7 @@ export function richtIn(arg, { cwd = process.cwd(), wachtMs = 5000, maxWachtMinu
         status: "wacht-op-toegang",
         repo,
         pr,
-        reden: `de app moet eerst in toegang.json; de eigenaar van ${beheer} keurt deze pull request goed, daarna draai je --inrichten opnieuw`,
+        reden: `de app moet eerst in toegang.json; deze pull request wijzigt alleen toegang.json, dus wie in team toegangsbeheer van de organisatie zit (of de owner) merget hem zelf; daarna draai je --inrichten opnieuw`,
       };
     } catch (f) {
       return { status: "mislukt", reden: `de pull request op ${beheer} openen mislukte: ${foutTekst(f)} (heb je Write op ${beheer}?)` };
@@ -707,6 +857,12 @@ export function voorcontrole(arg, { cwd = process.cwd() } = {}) {
     mapIsKloon: mapEr && isKloonVan(doel, repo),
   });
   if (besluit.besluit === "weiger") return { status: "mislukt", reden: `${besluit.reden} (${repo}, ${doel})` };
+  const keuzeReviewer = kiesReviewer({
+    login: gebruiker,
+    eigenaar: arg.eigenaar,
+    beheerCodeowners: isStageTwoLogin(gebruiker) && org ? beheerCodeownersTeksten(arg.eigenaar) : [],
+  });
+  if (keuzeReviewer.fout) return { status: "mislukt", reden: keuzeReviewer.fout };
   if (arg.database === "gedeeld" && !repoBestaat(arg.gedeeldEigenaar)) {
     return { status: "mislukt", reden: `de app ${arg.gedeeldEigenaar} die de database bezit is niet gevonden op GitHub` };
   }
@@ -718,11 +874,13 @@ export function voorcontrole(arg, { cwd = process.cwd() } = {}) {
       url: `https://github.com/${repo}`,
       map: doel,
       database: arg.database,
-      reviewer: kiesReviewer({ login: gebruiker }),
+      reviewer: keuzeReviewer.reviewer,
       gebruiker,
       organisatie: org,
       githubPlan: plan(arg.eigenaar),
       template: TEMPLATE,
+      pluginBron: kiesPluginBron(null),
+      bedrijfsnaam: organisatieNaam(arg.eigenaar, arg.organisatie),
       hervatten: besluit.besluit === "hervat",
     },
   };
@@ -731,7 +889,7 @@ export function voorcontrole(arg, { cwd = process.cwd() } = {}) {
 export function doeHet(arg, { cwd = process.cwd() } = {}) {
   const controle = voorcontrole(arg, { cwd });
   if (controle.status !== "klaar") return controle;
-  const { repo, map, reviewer, gebruiker, hervatten } = controle.plan;
+  const { repo, map, reviewer, gebruiker, hervatten, bedrijfsnaam } = controle.plan;
   const uitkomst = { status: "mislukt", repo, url: controle.plan.url, hervat: hervatten };
   const opnieuw = " Draai hetzelfde commando nog een keer; het gaat verder waar het stopte. Zet niets met de hand.";
 
@@ -764,6 +922,8 @@ export function doeHet(arg, { cwd = process.cwd() } = {}) {
   }
 
   let stap = "klonen";
+  let pluginBron = null;
+  let licentie = null;
   try {
     if (!existsSync(map)) {
       mkdirSync(dirname(map), { recursive: true });
@@ -774,6 +934,8 @@ export function doeHet(arg, { cwd = process.cwd() } = {}) {
     vulIn(map, { naam: arg.naam, omschrijving: arg.omschrijving, reviewer });
     zetWorkerNaam(map, arg.naam);
     zetDatabaseStand(map, arg);
+    pluginBron = zetPluginBron(map);
+    licentie = zetLicentie(map, bedrijfsnaam);
     stap = "pakketten installeren (pnpm install)";
     installeer(map);
 
@@ -788,7 +950,7 @@ export function doeHet(arg, { cwd = process.cwd() } = {}) {
     email ||= `${gebruiker}@users.noreply.github.com`;
     git(map, "add", "-A");
     if (git(map, "status", "--porcelain")) {
-      git(map, "-c", `user.name=${naam}`, "-c", `user.email=${email}`, "commit", "-q", "-m", "chore: projectnaam, reviewer, Worker-naam en databasestand invullen");
+      git(map, "-c", `user.name=${naam}`, "-c", `user.email=${email}`, "commit", "-q", "-m", "chore: projectnaam, reviewer, licentie, bron van de plugin, Worker-naam en databasestand invullen");
     }
     git(map, "fetch", "-q", "origin");
     const tak = git(map, "rev-parse", "--abbrev-ref", "HEAD");
@@ -821,6 +983,8 @@ export function doeHet(arg, { cwd = process.cwd() } = {}) {
     hervat: hervatten,
     ruleset,
     omgevingen,
+    pluginBron,
+    licentie,
     nogTeDoen: nogTeDoen({ database: arg.database, ruleset }),
   };
 }

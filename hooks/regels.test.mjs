@@ -25,7 +25,7 @@ import {
   normaliseerPad,
   stempelNaam,
 } from "./regels.mjs";
-import { hoogsteStackVersie, versieOpAfstand } from "./versie-op-afstand.mjs";
+import { bronOpAfstand, hoogsteStackVersie, soortFout, versieOpAfstand } from "./versie-op-afstand.mjs";
 
 const HIER = dirname(fileURLToPath(import.meta.url));
 const HOOK = join(HIER, "stack-hook.mjs");
@@ -364,7 +364,7 @@ test("afstand: versieOpAfstand vraagt git ls-remote --tags zonder login en parse
   assert.deepEqual(aanroepen[0].args, ["ls-remote", "--tags", "https://github.com/Proef/template"]);
   assert.equal(aanroepen[0].opties.timeout, 3000);
   assert.equal(aanroepen[0].opties.env.GIT_TERMINAL_PROMPT, "0");
-  assert.deepEqual(aanroepen[0].opties.stdio, ["ignore", "pipe", "ignore"]);
+  assert.deepEqual(aanroepen[0].opties.stdio, ["ignore", "pipe", "pipe"], "stderr apart, om de soort fout te kunnen zien");
 });
 
 test("afstand: een exec die gooit (geen netwerk, time-out) geeft null; een rare reponaam ook", () => {
@@ -373,6 +373,70 @@ test("afstand: een exec die gooit (geen netwerk, time-out) geeft null; een rare 
   };
   assert.equal(versieOpAfstand({ repo: "Proef/template", exec: gooit }), null);
   assert.equal(versieOpAfstand({ repo: "../../evil", exec: () => "x\trefs/tags/stack-v1\n" }), null);
+});
+
+/** Een fout zoals execFileSync hem gooit, met stderr van git. */
+function gitFout(stderr, extra = {}) {
+  return Object.assign(new Error("Command failed: git ls-remote"), { status: 128, stderr, ...extra });
+}
+
+test("afstand: GitHub weigert of kent de repo niet = geen-toegang; netwerk en time-out = geen-verbinding", () => {
+  assert.equal(soortFout(gitFout("fatal: could not read Username for 'https://github.com': terminal prompts disabled\n")), "geen-toegang", "privé of weg");
+  assert.equal(soortFout(gitFout("remote: Repository not found.\nfatal: repository 'https://github.com/x/y/' not found\n")), "geen-toegang");
+  assert.equal(soortFout(gitFout("fatal: unable to access 'https://github.com/x/y/': The requested URL returned error: 403\n")), "geen-toegang");
+  assert.equal(soortFout(gitFout("fatal: unable to access 'https://github.com/x/y/': Could not resolve host: github.com\n")), "geen-verbinding");
+  assert.equal(soortFout(gitFout("", { code: "ETIMEDOUT", signal: "SIGTERM" })), "geen-verbinding");
+  assert.equal(soortFout(new Error("iets onbekends")), "geen-verbinding", "onbekend blijft stil");
+});
+
+test("afstand: bronOpAfstand geeft versie, repo en de soort fout", () => {
+  assert.deepEqual(bronOpAfstand({ repo: "Klant/app-template-tier2", exec: () => "a\trefs/tags/stack-v25\n" }), {
+    repo: "Klant/app-template-tier2",
+    versie: 25,
+    fout: null,
+  });
+  const weg = () => {
+    throw gitFout("fatal: could not read Username for 'https://github.com': terminal prompts disabled\n");
+  };
+  assert.deepEqual(bronOpAfstand({ repo: "Stage-Two-AI/app-template-tier2", exec: weg }), {
+    repo: "Stage-Two-AI/app-template-tier2",
+    versie: null,
+    fout: "geen-toegang",
+  });
+  assert.equal(versieOpAfstand({ repo: "Stage-Two-AI/app-template-tier2", exec: weg }), null);
+});
+
+test("start: geen toegang tot de template geeft één melding per dag, met de naam van de repo", () => {
+  const { melding, nieuweStempel } = beoordeelStart({
+    versieLokaal: 24,
+    versieOpAfstand: null,
+    bronFout: "geen-toegang",
+    bron: "Stage-Two-AI/app-template-tier2",
+    stempel: null,
+    nu: NU,
+  });
+  assert.match(melding, /Stage-Two-AI\/app-template-tier2/);
+  assert.match(melding, /Stage Two door te geven/);
+  assert.deepEqual(nieuweStempel, { versieOpAfstand: null, tijdstip: NU.toISOString() });
+  const zelfdeDag = { versieOpAfstand: null, tijdstip: NU.toISOString() };
+  assert.deepEqual(beoordeelStart({ versieLokaal: 24, versieOpAfstand: null, bronFout: "geen-toegang", stempel: zelfdeDag, nu: NU }), {
+    melding: null,
+    nieuweStempel: null,
+  });
+  assert.deepEqual(beoordeelStart({ versieLokaal: 24, versieOpAfstand: null, bronFout: "geen-verbinding", stempel: null, nu: NU }), {
+    melding: null,
+    nieuweStempel: null,
+  }, "zonder netwerk blijft het stil");
+});
+
+test("hook: SessionStart met een template die GitHub weigert: melding en stempel", () => {
+  const map = maakProject();
+  const data = mkdtempSync(join(tmpdir(), "stack-hook-data-"));
+  const uit = draaiHook(start(map), { projectmap: map, data, opAfstand: "geen-toegang" });
+  assert.equal(uit.status, 0, uit.stderr);
+  assert.match(uit.stdout, /niet opvragen/);
+  assert.equal(readdirSync(data).length, 1);
+  assert.deepEqual(draaiHook(start(map), { projectmap: map, data, opAfstand: "geen-toegang" }), { status: 0, stdout: "", stderr: "" }, "zelfde dag niet nog eens");
 });
 
 // ---------------------------------------------------------------- de hook als proces

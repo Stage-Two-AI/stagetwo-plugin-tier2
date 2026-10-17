@@ -1,25 +1,47 @@
 # Uitleveren (besluit 16-10-2026, levering per klant): zet nieuwe versies van plugin en
 # template door naar de leveringsrepo's van elke klant in abonnees.json.
 #
-#   plugin    een nieuwe versie in plugin.json op main (een release), als tag v<versie>
-#   template  elke nieuwe tag stack-v<n> van Stage-Two-AI/app-template-tier2
+#   plugin    de versie uit getest_versie, vanaf de tag v<versie> in deze bronrepo (niet
+#             vanaf HEAD van main), bij de klant ook als tag v<versie>
+#   template  elke nieuwe tag stack-v<n> van Stage-Two-AI/app-template-tier2, tot en met
+#             de tag uit getest_template
 #
-# Wanneer: na elke merge naar main (de plugin), elk uur (een nieuwe template-tag is er dan
-# binnen het uur) en met de hand via "Run workflow" (bijvoorbeeld na een nieuwe abonnee).
+# Wanneer: alleen met de hand ("Run workflow", of gh workflow run uitleveren.yml), nadat Stage
+# Two een nieuwe versie op de eigen apps heeft gecontroleerd. Een merge naar main levert dus
+# niets aan klanten: dan krijgen alleen de eigen apps van Stage Two de nieuwe versie (zij
+# installeren de plugin uit deze bronrepo). Ook een nieuwe abonnee in abonnees.json krijgt
+# pas iets na een run met de hand. Elke run levert de pluginversie getest_versie (vanaf de
+# tag v<versie>) en de template-tags tot en met getest_template die de klant nog niet heeft.
+# Bij het starten vraagt hij getest_versie (de pluginversie) en getest_template (de nieuwste
+# templatetag, zoals stack-v25) die Stage Two op de eigen apps heeft gedraaid. Bestaat de tag
+# v<versie> niet in deze bronrepo, heeft plugin.json op die tag een ander versienummer, of is
+# de templatetag geen stack-v<n>, dan stopt de run vóór er iets naar een klant gaat (node
+# beheer/uitleveren.mjs --getest). Een commit na de tag gaat zo nooit mee. Bestaat de tag niet in de
+# template, dan stopt de job van elke klant voordat er iets naar die klant gaat. Een nieuwere
+# tag dan getest_template gaat nooit mee.
+# Tot 17-10-2026 draaide hij ook elk uur (ongeveer 1.400 Actions-minuten per maand) en daarna
+# vanzelf bij een merge die plugin.json of abonnees.json wijzigde; dat laatste is eraf, zodat
+# geen versie bij een klant komt die Stage Two nog niet zelf heeft gebruikt.
 # Een versie die de klant al heeft, slaat hij over; een run zonder iets nieuws doet niets.
 #
-# Schrijven bij de klant gaat via de GitHub App stagetwo-levering, die de klant op alleen
-# zijn twee leveringsrepo's installeert. Nodig in deze repo: de variabele LEVERING_APP_ID
+# Schrijven bij de klant gaat via de GitHub App stagetwo-levering, die Stage Two bij de start
+# namens de klant installeert op alleen zijn twee leveringsrepo's ("Only select
+# repositories"); de klant kan hem altijd zelf verwijderen. Nodig in deze repo: de variabele LEVERING_APP_ID
 # en het geheim LEVERING_APP_PRIVATE_KEY (recept: Stack/docs/recepten/github-app-levering.md).
 # Deze workflow, het script en abonnees.json gaan zelf nooit mee naar een klant.
 name: Uitleveren
 
 on:
-  push:
-    branches: [main]
-  schedule:
-    - cron: "17 * * * *"
   workflow_dispatch:
+    inputs:
+      getest_versie:
+        description: Pluginversie die op de eigen apps van Stage Two draait (bijvoorbeeld 2.3.0); de tag v<versie> moet in deze repo staan
+        required: true
+        type: string
+      getest_template:
+        description: Nieuwste templatetag die op de eigen apps van Stage Two draait (bijvoorbeeld stack-v25); nieuwere tags gaan niet mee
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -35,10 +57,24 @@ jobs:
     outputs:
       orgs: ${{ steps.lijst.outputs.orgs }}
     steps:
+      # Met alle tags: de controle leest plugin.json op de tag v<versie>.
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+      # Eerst de bevestiging: zonder die gaat er niets naar een klant. De invoer via env,
+      # nooit rechtstreeks in het script.
+      - name: Versie getest op de eigen apps
+        env:
+          GETEST: ${{ inputs.getest_versie }}
+          GETEST_TEMPLATE: ${{ inputs.getest_template }}
+        run: |
+          if ! uit=$(node beheer/uitleveren.mjs --getest "$GETEST" --getest-template "$GETEST_TEMPLATE" 2>&1); then
+            echo "::error::$uit"; exit 1
+          fi
+          echo "$uit"
       - id: lijst
         run: echo "orgs=$(node beheer/uitleveren.mjs --lijst)" >> "$GITHUB_OUTPUT"
 
@@ -68,10 +104,29 @@ jobs:
           private-key: ${{ secrets.LEVERING_APP_PRIVATE_KEY }}
           owner: ${{ matrix.org }}
           repositories: stagetwo-plugin-tier2,app-template-tier2
+      # De template van Stage Two, met alle tags. Met een token van dezelfde App, zodat dit
+      # blijft werken als de bronrepo is afgeschermd. Vraagt dat de App in Stage-Two-AI op
+      # app-template-tier2 staat (Contents: read; recept github-app-levering, deel A).
+      - id: bron
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.LEVERING_APP_ID }}
+          private-key: ${{ secrets.LEVERING_APP_PRIVATE_KEY }}
+          owner: Stage-Two-AI
+          repositories: app-template-tier2
+      - uses: actions/checkout@v5
+        with:
+          repository: Stage-Two-AI/app-template-tier2
+          token: ${{ steps.bron.outputs.token }}
+          path: .bron-template
+          fetch-depth: 0
+          persist-credentials: false
       - name: Uitleveren
         env:
           GH_TOKEN: ${{ steps.token.outputs.token }}
           ORG: ${{ matrix.org }}
+          GETEST: ${{ inputs.getest_versie }}
+          GETEST_TEMPLATE: ${{ inputs.getest_template }}
         run: |
           gh auth setup-git
-          node beheer/uitleveren.mjs --org "$ORG"
+          node beheer/uitleveren.mjs --org "$ORG" --getest "$GETEST" --getest-template "$GETEST_TEMPLATE" --template "$GITHUB_WORKSPACE/.bron-template"

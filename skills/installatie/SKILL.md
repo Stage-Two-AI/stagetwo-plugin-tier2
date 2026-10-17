@@ -50,7 +50,8 @@ brew install git node gh pnpm
 ```
 
 Ontbreekt winget of brew, dan stop je: vraag de gebruiker contact op te nemen met Stage
-Two, en zeg welk onderdeel ontbreekt. Verzin geen andere installatieweg.
+Two, en zeg welk onderdeel ontbreekt. Verzin geen andere installatieweg. Staat Node er
+wel, draai dan vóór je stopt nog stap 5, zodat de plugin zich in elk geval vanzelf bijwerkt.
 
 Draai daarna stap 1 opnieuw. Meldt de controle iets nog steeds als `ontbreekt` terwijl
 de installatie is gelukt, dan kent deze sessie het nieuwe programma nog niet. Zeg dan
@@ -105,6 +106,12 @@ dan aan met `git config --global user.name "<naam>"` en zeg dat je dat hebt geda
 
 ## Stap 5: automatisch bijwerken aanzetten
 
+Sla deze stap nooit over, ook niet als alles al klaarstaat of de plugin al werkt. De plugin
+toevoegen (`/plugin marketplace add`, of ja zeggen als Claude Code bij het openen van een app
+vraagt de plugin te installeren) zet automatisch bijwerken niet aan: voor een marketplace die
+niet van Anthropic is, staat dat in Claude Code standaard uit, en de app zelf zet het sinds
+template versie 22 ook niet meer aan. Alleen dit script doet het, per computer.
+
 Zeg in één regel dat je zorgt dat de Stage Two-plugin zichzelf voortaan bijwerkt, zodat
 de gebruiker daar nooit meer naar hoeft te kijken. Draai:
 
@@ -113,19 +120,28 @@ node "${CLAUDE_SKILL_DIR}/scripts/automatisch-bijwerken.mjs" --json
 ```
 
 - `gezet` of `al-goed`: klaar. Zeg niets over de details; het werkt vanaf de volgende
-  keer dat de app start. Haal daarna stil de plugin onder zijn oude naam weg (staat die er
+  keer dat de app start. Een nieuwe versie komt daarna op de achtergrond binnen; een gesprek
+  dat al open is, gebruikt hem na `/reload-plugins` of bij de volgende start. Haal daarna stil de plugin onder zijn oude naam weg (staat die er
   niet, dan doet dit niets):
 
   ```sh
   claude plugin uninstall stack-cloudflare@stagetwo-cloudflare 2>/dev/null; claude plugin marketplace remove stagetwo-cloudflare 2>/dev/null; true
   ```
+- `uit`: de gebruiker heeft het automatisch bijwerken eerder bewust uitgezet. Laat dat zo
+  en zeg in één regel dat hij de plugin bijwerkt met `/stagetwo-tier2:updaten`.
 - `mislukt`: geef `reden` door en ga door met stap 6. De plugin werkt gewoon; alleen het
   vanzelf bijwerken ontbreekt, en `/stagetwo-tier2:updaten` doet het dan met de hand.
 
 Achtergrond, niet voor de gebruiker: de desktop-app start Claude Code met
 `DISABLE_AUTOUPDATER=1`, en dat zet ook het bijwerken van plugins uit. Het script zet in
 de instellingen van de gebruiker `FORCE_AUTOUPDATE_PLUGINS=1` en `autoUpdate` voor de
-marketplace `stagetwo-tier2`, en laat de rest van dat bestand staan.
+marketplace `stagetwo-tier2`, en `autoUpdate` op die marketplace in
+`~/.claude/plugins/known_marketplaces.json` (dat geldt in een app, waar de regel van de app
+voorgaat en geen `autoUpdate` heeft). De rest van die bestanden blijft staan. De bron van die
+marketplace is de kopie van de plugin die Stage Two bij de start in de GitHub-organisatie
+van de klant klaarzet (uit `levering.json`); alleen daar komen nieuwe versies binnen. Heeft
+de klant die kopie nog niet, dan blijft het de bron die er al staat (of die van Stage Two);
+het omzetten regelt Stage Two.
 
 ## Stap 6: wat wil je doen?
 

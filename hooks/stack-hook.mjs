@@ -19,10 +19,12 @@
  * als de regels zeggen dat er gekeken moet worden (geen stempel of ouder dan 24 uur)
  * volgt de netwerkvraag, met een tijdslimiet van drie seconden. De melding gaat als
  * gewone tekst naar stdout en wordt zo context voor de agent; de stempel wordt alleen
- * geschreven als er een antwoord van afstand was.
+ * geschreven als er een antwoord van afstand was, of als GitHub de repo weigert (dan
+ * volgt een melding daarover, hooguit één keer per dag).
  *
  * Testhaak: is STACK_VERSIE_OP_AFSTAND_TEST gezet, dan vervangt die waarde de
- * netwerkvraag ("10" telt als versie 10, elke andere waarde als null). Alleen voor de
+ * netwerkvraag ("10" telt als versie 10, "geen-toegang" als een repo die GitHub weigert,
+ * elke andere waarde als null). Alleen voor de
  * tests van deze plugin; het enige wat een verkeerd gebruik oplevert is een onjuiste
  * melding in de eigen sessie.
  */
@@ -32,7 +34,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { isCloudflareManifest } from "../lib/manifest.mjs";
 import { beoordeelStart, beoordeelTool, moetControleren, stempelNaam } from "./regels.mjs";
-import { versieOpAfstand } from "./versie-op-afstand.mjs";
+import { bronOpAfstand } from "./versie-op-afstand.mjs";
 
 const GIT_TIMEOUT_MS = 2000;
 
@@ -80,10 +82,13 @@ function stempelMap() {
   return process.env.CLAUDE_PLUGIN_DATA || join(process.env.HOME || homedir(), ".cache", "stagetwo-tier2");
 }
 
-function versieOpAfstandOfTesthaak() {
+function bronOpAfstandOfTesthaak() {
   const test = process.env.STACK_VERSIE_OP_AFSTAND_TEST;
-  if (test !== undefined) return /^\d{1,6}$/.test(test) ? Number(test) : null;
-  return versieOpAfstand();
+  if (test !== undefined) {
+    if (test === "geen-toegang") return { repo: "Test/template", versie: null, fout: "geen-toegang" };
+    return { repo: "Test/template", versie: /^\d{1,6}$/.test(test) ? Number(test) : null, fout: null };
+  }
+  return bronOpAfstand();
 }
 
 function sessieStart(projectmap) {
@@ -96,9 +101,12 @@ function sessieStart(projectmap) {
   const nu = new Date();
   if (!moetControleren({ stempel, nu })) return;
 
+  const opAfstand = bronOpAfstandOfTesthaak();
   const { melding, nieuweStempel } = beoordeelStart({
     versieLokaal,
-    versieOpAfstand: versieOpAfstandOfTesthaak(),
+    versieOpAfstand: opAfstand.versie,
+    bronFout: opAfstand.fout,
+    bron: opAfstand.repo,
     stempel,
     nu,
   });

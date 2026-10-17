@@ -48,7 +48,7 @@ export function leesArgumenten(argv) {
   return uit;
 }
 
-/** De templateversie van een repo op GitHub, of null als hij niet uit de Cloudflare-template komt. */
+/** De templateversie van een repo op GitHub, of null als hij niet uit de template voor tier 2 komt. */
 export function versieVanRepo(repo) {
   try {
     const manifest = JSON.parse(sh("gh", ["api", `repos/${repo}/contents/.claude/stack-manifest.json`, "-H", "Accept: application/vnd.github.raw"]));
@@ -82,7 +82,7 @@ export function overzicht({ cwd = process.cwd(), eigenaren = [], env = process.e
   if (!ghIngelogd()) return { status: "mislukt", reden: "log eerst in bij GitHub met `gh auth login` (zie /stagetwo-tier2:installatie)" };
 
   const doel = versieOpAfstand(templateRepo(env));
-  if (doel === null) return { status: "mislukt", reden: "de template is niet bereikbaar (geen netwerk, of nog geen versie-tag); probeer het later opnieuw" };
+  if (doel === null) return { status: "mislukt", reden: `de template is niet bereikbaar (${templateRepo(env)}): geen netwerk, nog geen versie-tag, of de repo bestaat niet of is niet openbaar; probeer het later opnieuw, en geef deze melding door aan Stage Two als het dan nog niet lukt` };
 
   const huidige = repoUitUrl(originUrl(cwd));
   let welke = eigenaren;
