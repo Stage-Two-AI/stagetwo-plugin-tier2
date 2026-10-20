@@ -30,6 +30,7 @@ import {
   organisatieNaam,
   zetLicentie,
   zetPluginBron,
+  SENTRY_REGEL,
 } from "./nieuwe-app.mjs";
 import { STAGE_TWO } from "../../../lib/levering.mjs";
 
@@ -430,4 +431,18 @@ test("argumenten: --organisatie wordt gelezen en gecontroleerd", () => {
   assert.equal(a.organisatie, "Org B.V.");
   assert.equal(controleerArgumenten(a), null);
   assert.match(controleerArgumenten({ ...a, organisatie: "a\nb" }), /--organisatie/);
+});
+
+test("Sentry: per app op de app-repo met VITE_SENTRY_DSN, niet meer via de beheer-repo; in beide lijsten dezelfde regel", () => {
+  assert.match(SENTRY_REGEL, /app-repo/);
+  assert.match(SENTRY_REGEL, /VITE_SENTRY_DSN/);
+  assert.match(SENTRY_REGEL, /production/);
+  assert.match(SENTRY_REGEL, /App inrichten waarschuwt/);
+  assert.doesNotMatch(SENTRY_REGEL, /beheer-repo/);
+  assert.doesNotMatch(SENTRY_REGEL, /—/);
+  assert.match(SENTRY_REGEL, /PREVIEW_VITE_SENTRY_DSN/, "tier 2: de previews lezen een repo-variabele");
+  const voor = nogTeDoen({ database: "eigen", ruleset: { gelukt: true } });
+  const na = nogTeDoenNaInrichting({ resultaat: { status: "gelukt", waarschuwingen: [] } });
+  assert.equal(voor.at(-1), SENTRY_REGEL);
+  assert.equal(na.at(-1), SENTRY_REGEL);
 });
