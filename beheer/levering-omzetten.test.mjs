@@ -12,7 +12,7 @@ const ORG = "Richplant-BV";
 const LEVERING = `${ORG}/stagetwo-plugin-tier2`;
 const b64 = (tekst) => Buffer.from(tekst, "utf8").toString("base64");
 
-/** Zoals .claude/settings.json in een app van vóór template v22 staat: met autoUpdate. */
+/** Zoals .claude/settings.json in een app van vóór template v26 staat: met autoUpdate. */
 function settings(repo, { autoUpdate = true } = {}) {
   return `${JSON.stringify(
     {

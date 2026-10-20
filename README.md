@@ -11,7 +11,7 @@ voor je eigen apps, en ze blijven werken, ook zonder Stage Two; de rechten op pl
 template zelf blijven bij Stage Two (zie `LICENSE`). Bij de start zet Stage Two in de GitHub
 van je eigen organisatie een kopie van deze plugin en van de template klaar
 (`stagetwo-plugin-tier2` en `app-template-tier2`). Zolang je bedrijf een abonnement bij
-Stage Two heeft, zet Stage Two daar nieuwe versies in. Stage Two test elke versie eerst op
+Stage Two heeft, zet Stage Two daar nieuwe versies in. Stage Two past elke versie eerst toe op
 zijn eigen apps. Stopt het abonnement, dan blijven die kopieën op de laatste versie staan;
 er komt alleen niets nieuws bij, en vragen en meedenken stoppen ook.
 
@@ -27,7 +27,7 @@ Een nieuwe versie raakt twee dingen, en die gaan elk op hun eigen manier:
 Het abonnement kost €150 per maand per bedrijf, ongeacht het aantal apps, exclusief btw. Het
 loopt vanaf de oplevering, het moment waarop Stage Two de omgeving aan je bedrijf overdraagt,
 en is per maand opzegbaar, met een opzegtermijn van één kalendermaand. Daarin zitten nieuwe
-versies van template en plugin, die Stage Two eerst op zijn eigen apps test, een nieuwe
+versies van template en plugin, die Stage Two eerst op zijn eigen apps toepast, een nieuwe
 versie als een leverancier iets verandert, een nieuwe versie van de beheer-repo als dat nodig
 is, en vragen en meedenken. Het abonnement houdt de omgeving niet bij: beheer en werking
 blijven na de overdracht bij je bedrijf. Niet in het abonnement zitten systeembeheer, een garantie op beschikbaarheid en meer
@@ -229,7 +229,7 @@ bij de tijd houden, typ dan in de map van je app:
 ```
 
 Dit is de weg waarlangs een nieuwe versie van de werkwijze in je apps komt. Stage Two zet na de
-overdracht zelf geen voorstellen in je apps klaar; Stage Two test elke versie eerst op zijn
+overdracht zelf geen voorstellen in je apps klaar; Stage Two past elke versie eerst toe op zijn
 eigen apps en zet hem daarna in de kopie die het bij de start in je eigen organisatie heeft
 klaargezet. De plugin op je computer
 werkt zichzelf al bij; je apps veranderen pas als een bouwer het voorstel goedkeurt.
@@ -411,7 +411,7 @@ mag starten; de sleutels staan in de omgeving `beheer` en zijn voor hem niet te 
    schakelaar in `/plugin`, tabblad Marketplaces, ook schrijft). Bron:
    code.claude.com/docs/en/plugins/loading ("When auto-update runs") en
    code.claude.com/docs/en/settings-reference ("extraKnownMarketplaces"), gelezen 17-10-2026.
-   Daarom staat `autoUpdate` sinds template v22 niet meer in de app: anders wint de app altijd
+   Daarom staat `autoUpdate` sinds template v26 niet meer in de app: anders wint de app altijd
    van de keuze van de bouwer. Gevolg: de plugin toevoegen met `/plugin marketplace add`, of
    ja zeggen als Claude Code in een app vraagt de plugin te installeren, zet automatisch
    bijwerken niet aan. Pas `/stagetwo-tier2:installatie` (stap 5) of deel 1 van
@@ -443,8 +443,13 @@ overweg.
 
 1. Plugin: versie in `.claude-plugin/plugin.json` ophogen, pull request, groene check,
    merge naar `main`. Alleen een hoger versienummer laat een computer een update zien.
+   Plugin, template en beheer-repo dragen vanaf versie 26 hetzelfde nummer: plugin `<n>.0.0`
+   hoort bij template `stack-v<n>`, zodat een klant ziet dat ze bij elkaar horen. Loopt een
+   reeks achter, dan slaat die nummers over (zo ging de template van 21 naar 26). Dat
+   is veilig: de updaters vergelijken getallen en hebben alleen de tag nodig van de versie
+   waar een app op staat, niet die van het nummer ervoor.
 2. Na die merge de bronrepo taggen, zoals bij de template: op de merge-commit
-   `git tag v<versie> && git push origin v<versie>` (bijvoorbeeld `v2.3.0`). Die tag is de
+   `git tag v<versie> && git push origin v<versie>` (bijvoorbeeld `v26.0.0`). Die tag is de
    versie die klanten later krijgen; een commit die daarna op `main` komt, gaat pas mee met
    een volgende versie en een volgende tag. Een tag wordt nooit verplaatst. Na de merge
    krijgen alleen de eigen apps en computers van Stage Two de nieuwe versie: die installeren
@@ -456,22 +461,22 @@ overweg.
    dan bestaat de versie voor de melding en de skill. Een tag wordt nooit verplaatst;
    de ruleset op de template weigert dat.
 5. Eerst de eigen apps bijwerken. Registerprojecten (de eigen apps van Stage Two):
-   `node bin/stack-sync.mjs --status` in Stack, dan de droogloop, dan `--doe-het`. Zo test
-   Stage Two elke versie eerst op de eigen apps, vóór een abonnee hem krijgt.
+   `node bin/stack-sync.mjs --status` in Stack, dan de droogloop, dan `--doe-het`. Zo past
+   Stage Two elke versie eerst toe op de eigen apps, vóór een abonnee hem krijgt.
 6. Dan Uitleveren aan abonnees: pas als plugin en template op de eigen apps goed werken,
    start je de workflow **Uitleveren** met de hand: `gh workflow run uitleveren.yml -R
-   Stage-Two-AI/stagetwo-plugin-tier2 -f getest_versie=<versie> -f getest_template=stack-v<n>`,
+   Stage-Two-AI/stagetwo-plugin-tier2 -f toegepast_versie=<versie> -f toegepast_template=stack-v<n>`,
    of op de pagina van de workflow **Run workflow**. Beide invoeren zijn verplicht: daarmee
-   bevestig je welke pluginversie en welke templatetag op de eigen apps draaien. De plugin
+   bevestig je welke pluginversie en welke templatetag op de eigen apps zijn toegepast. De plugin
    gaat naar de klant vanaf de tag `v<versie>` uit stap 2, niet vanaf `main`, en heet bij de
    klant ook `v<versie>`. Bestaat die tag niet, heeft `.claude-plugin/plugin.json` op die tag
-   een ander versienummer, of is `getest_template` geen tag `stack-v<n>`, dan stopt de run met
+   een ander versienummer, of is `toegepast_template` geen tag `stack-v<n>`, dan stopt de run met
    een melding, vóór er iets naar een klant gaat; bestaat de templatetag niet in de template,
    of heeft een klant al een nieuwere pluginversie, dan stopt de job van die klant voordat er
    iets naar die klant gaat. Hij start nooit vanzelf, ook niet bij een merge of een nieuwe
    abonnee. Elke run levert de getagde pluginversie en de template-tags tot en met
-   `getest_template` die een klant nog niet heeft (zie hieronder); een nieuwere tag die nog niet
-   op de eigen apps draait, gaat niet mee.
+   `toegepast_template` die een klant nog niet heeft (zie hieronder); een nieuwere tag die nog niet
+   op de eigen apps is toegepast, gaat niet mee.
 
 ### Levering per bedrijf
 
@@ -490,9 +495,9 @@ bronrepo.
   de leveringsrepo blijft op de laatste versie staan en er komt niets meer bij.
 - De workflow **Uitleveren** (`.github/workflows/uitleveren.yml`, script
   `beheer/uitleveren.mjs`) draait alleen met de hand, nadat Stage Two een versie op de eigen
-  apps heeft gecontroleerd; ook na een nieuwe abonnee in `abonnees.json`. Elke run levert de
-  pluginversie `getest_versie` vanaf de tag `v<versie>` in deze bronrepo en de template-tags
-  tot en met `getest_template` die de klant nog niet heeft. Per abonnee zet hij een nieuwe
+  apps heeft toegepast; ook na een nieuwe abonnee in `abonnees.json`. Elke run levert de
+  pluginversie `toegepast_versie` vanaf de tag `v<versie>` in deze bronrepo en de template-tags
+  tot en met `toegepast_template` die de klant nog niet heeft. Per abonnee zet hij een nieuwe
   pluginversie neer als dezelfde tag `v<versie>` en elke
   nieuwe template-tag `stack-v<n>` tot en met die tag, elk als één commit van Stage Two bovenop de main van de klant.
   Onze geschiedenis, `abonnees.json` en het uitleveren zelf gaan niet mee.
@@ -501,7 +506,7 @@ bronrepo.
   bron in de app (`lib/plugin-bron.mjs`): een instelling in de app wint in Claude Code van de
   instelling op gebruikersniveau die `/installatie` zet. Een andere bron telt bij het
   bijwerken niet als lokale aanpassing.
-- Bestaande apps (van vóór template versie 22) wijzen nog naar deze bronrepo. Die
+- Bestaande apps (van vóór template versie 26) wijzen nog naar deze bronrepo. Die
   projectinstelling wint, dus de plugin draait voor zo'n app uit de bronrepo, zonder
   `levering.json`. Twee dingen vangen dat op. De plugin leest dan de bron uit de
   instellingen van de gebruiker (`~/.claude/settings.json`, gezet door `/installatie`): wijst
@@ -531,7 +536,7 @@ bronrepo.
   geven (`hooks/versie-op-afstand.mjs`). Zonder netwerk blijft hij stil.
 - `/nieuwe-app` zet een `LICENSE` op naam van de organisatie (`--organisatie`, anders de naam
   van de org op GitHub); het gebruiksrecht van Stage Two staat in `LICENSE-STAGE-TWO`, dat
-  met elke template-versie meekomt (vanaf template versie 22).
+  met elke template-versie meekomt (vanaf template versie 26).
 - Schrijfrecht bij de klant gaat via de GitHub App `stagetwo-levering`, alleen op de twee
   leveringsrepo's. Rechten: Contents en Workflows `Read and write`, Metadata `Read-only`,
   verder niets (geen Pull requests, geen apps, geen beheer-repo). Recept in
@@ -583,7 +588,7 @@ npm test
 claude plugin validate .
 ```
 
-Licentie: vanaf versie 2.3.0 een eigen gebruiksrecht van Stage Two (zie `LICENSE`): klanten
+Licentie: vanaf versie 26 een eigen gebruiksrecht van Stage Two (zie `LICENSE`): klanten
 mogen de plugin gebruiken en aanpassen voor hun eigen apps, maar niet los doorgeven of doorverkopen.
 Versies tot en met 2.2.0 zijn onder MIT uitgebracht en blijven MIT. De naam Stage Two en de
 huisstijl vallen er niet onder.

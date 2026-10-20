@@ -110,7 +110,7 @@ Sla deze stap nooit over, ook niet als alles al klaarstaat of de plugin al werkt
 toevoegen (`/plugin marketplace add`, of ja zeggen als Claude Code bij het openen van een app
 vraagt de plugin te installeren) zet automatisch bijwerken niet aan: voor een marketplace die
 niet van Anthropic is, staat dat in Claude Code standaard uit, en de app zelf zet het sinds
-template versie 22 ook niet meer aan. Alleen dit script doet het, per computer.
+template versie 26 ook niet meer aan. Alleen dit script doet het, per computer.
 
 Zeg in één regel dat je zorgt dat de Stage Two-plugin zichzelf voortaan bijwerkt, zodat
 de gebruiker daar nooit meer naar hoeft te kijken. Draai:

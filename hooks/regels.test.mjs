@@ -390,9 +390,9 @@ test("afstand: GitHub weigert of kent de repo niet = geen-toegang; netwerk en ti
 });
 
 test("afstand: bronOpAfstand geeft versie, repo en de soort fout", () => {
-  assert.deepEqual(bronOpAfstand({ repo: "Klant/app-template-tier2", exec: () => "a\trefs/tags/stack-v25\n" }), {
+  assert.deepEqual(bronOpAfstand({ repo: "Klant/app-template-tier2", exec: () => "a\trefs/tags/stack-v26\n" }), {
     repo: "Klant/app-template-tier2",
-    versie: 25,
+    versie: 26,
     fout: null,
   });
   const weg = () => {
@@ -604,3 +604,14 @@ test(
     assert.deepEqual(readdirSync(data), ["Klantorg_mooie-app.json"]);
   },
 );
+
+test("versie 26: overgeslagen nummers; lokaal 21 of 24 ziet 26 als nieuwer, 26 is bij", () => {
+  const uit = ["a\trefs/tags/stack-v9", "b\trefs/tags/stack-v21", "c\trefs/tags/stack-v24", "d\trefs/tags/stack-v26"].join("\n");
+  assert.equal(hoogsteStackVersie(uit), 26, "getallen, geen tekstvolgorde; 22 tot en met 25 ontbreken");
+  for (const lokaal of [21, 24]) {
+    const { melding } = beoordeelStart({ versieLokaal: lokaal, versieOpAfstand: 26, stempel: null, nu: NU });
+    assert.match(melding, new RegExp(`versie ${lokaal}`));
+    assert.match(melding, /versie 26/);
+  }
+  assert.equal(beoordeelStart({ versieLokaal: 26, versieOpAfstand: 26, stempel: null, nu: NU }).melding, null);
+});

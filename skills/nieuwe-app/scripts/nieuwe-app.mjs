@@ -357,7 +357,7 @@ open-sourcelicentie voor de eigen code. Een update van Stage Two raakt het niet 
 
 /**
  * Zet een LICENSE op naam van de organisatie. Alleen als de template het gebruiksrecht van
- * Stage Two apart levert (LICENSE-STAGE-TWO, vanaf template versie 22) en de LICENSE nog die
+ * Stage Two apart levert (LICENSE-STAGE-TWO, vanaf template versie 26) en de LICENSE nog die
  * van de template is (met <organisatie>) of ontbreekt; een eigen LICENSE blijft staan, en bij
  * een oudere template blijft alles zoals het was. Geeft { gezet, reden }.
  */

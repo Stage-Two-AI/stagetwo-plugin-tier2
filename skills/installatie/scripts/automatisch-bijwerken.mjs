@@ -14,8 +14,8 @@
  *      instellingenbestanden, dan geldt de regel uit het bestand met de hoogste voorrang in
  *      zijn geheel (projectinstellingen gaan voor gebruikersinstellingen); hij erft geen
  *      velden van de andere. Een app met `autoUpdate` in zijn .claude/settings.json wint dus
- *      altijd van de keuze van de gebruiker. Daarom staat `autoUpdate` sinds template v22
- *      (tier 1: v25) niet meer in de app.
+ *      altijd van de keuze van de gebruiker. Daarom staat `autoUpdate` sinds template v26
+ *      niet meer in de app.
  *   2. Staat het daar niet, dan `autoUpdate` in ~/.claude/plugins/known_marketplaces.json
  *      (wat de schakelaar in /plugin, tabblad Marketplaces, schrijft). Dat is wat geldt in een
  *      app, want de regel van de app heeft geen autoUpdate.

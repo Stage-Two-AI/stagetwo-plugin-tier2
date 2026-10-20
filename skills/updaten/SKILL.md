@@ -15,7 +15,7 @@ gebruiker. Mergen doet de gebruiker zelf.
 
 De gebruiker bouwt zelf; Stage Two richt in en begeleidt. Nieuwe versies komen uit de kopie
 van plugin en template die Stage Two bij de start in de GitHub-organisatie van de klant
-klaarzet (`levering.json`); Stage Two zet daar nieuwe versies in zolang het abonnement loopt, en test elke versie eerst op zijn
+klaarzet (`levering.json`); Stage Two zet daar nieuwe versies in zolang het abonnement loopt, en past elke versie eerst toe op zijn
 eigen apps. Na de overdracht heeft Stage Two zelf geen toegang tot de apps en zet het daar
 geen voorstellen klaar; een app verandert nooit vanzelf: dit commando is de weg waarlangs een nieuwe versie in een app komt.
 Houd twee dingen apart als je het uitlegt: de plugin op deze computer werkt zichzelf bij uit

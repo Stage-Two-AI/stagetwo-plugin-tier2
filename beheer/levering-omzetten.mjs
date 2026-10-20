@@ -8,7 +8,7 @@
  *
  * <app> is `naam` (in <klantorg>) of `eigenaar/naam`.
  *
- * Waarom: een app van vóór template versie 22 (tier 1: 25) wijst in `.claude/settings.json`
+ * Waarom: een app van vóór template versie 26 wijst in `.claude/settings.json`
  * nog naar Stage-Two-AI/stagetwo-plugin-tier2. Die projectinstelling wint in Claude Code van
  * de instelling op de computer, dus de plugin draait voor die app uit de bronrepo. Na het
  * afschermen van de bronrepo komt daar niets meer binnen. De plugin zet de bron zelf om bij
