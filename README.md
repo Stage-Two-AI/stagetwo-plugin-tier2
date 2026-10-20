@@ -34,7 +34,8 @@ blijven na de overdracht bij je bedrijf. Niet in het abonnement zitten systeembe
 werk aan je apps; dat laatste doet Stage Two op verzoek, op nacalculatie tegen €120 per uur
 exclusief btw. Dependabot, een dienst van GitHub, stelt in elke app updates van de
 npm-pakketten voor, ook zonder abonnement, als pull request die een bouwer goedkeurt; de versies
-van de GitHub-workflows komen met een nieuwe templateversie.
+van de GitHub-workflows komen met een nieuwe versie van de template; alleen een
+beveiligingsupdate kan Dependabot tussendoor voorstellen.
 
 Na de overdracht heeft Stage Two geen eigen account, geen beheerrechten en zelf geen toegang
 tot je apps in de GitHub-organisatie van je bedrijf, en heeft die ook niet nodig. Je apps
@@ -49,11 +50,11 @@ abonnement komen nieuwe versies binnen via de GitHub App `stagetwo-levering`. St
 installeert hem bij de start namens je bedrijf, op alleen de twee kopieën (`stagetwo-plugin-tier2`
 en `app-template-tier2`, "Only select repositories"); je bedrijf kan hem altijd zelf
 verwijderen. Die App kan alleen daar schrijven, niet in je apps. Heeft de
-beheer-repo een nieuwe versie nodig, dan vraagt Stage Two dat; de owner van je organisatie
-geeft Stage Two daarvoor tijdelijk toegang tot de beheer-repo en haalt die daarna weer weg.
+beheer-repo een nieuwe versie nodig, dan vraag je Stage Two erom; de owner geeft Stage Two
+daarvoor tijdelijk toegang tot de beheer-repo en haalt die daarna weer weg.
 Dat valt binnen het abonnement. Zeg je op, dan haalt Stage Two je bedrijf uit de lijst van
 abonnees en haalt het de App `stagetwo-levering` uit je organisatie. Meer staat op
-[stagetwo.nl/aanbod](https://stagetwo.nl/aanbod).
+[stagetwo.nl/#aanbod](https://stagetwo.nl/#aanbod).
 
 Je hoeft geen programmeur te zijn om dit te gebruiken. De eerste keer loopt Stage Two het
 met je door; daarna merk je er weinig van, behalve dat je assistent af en toe iets uitlegt
@@ -252,8 +253,9 @@ Wat er dan gebeurt, in deze volgorde:
    je privé-repo's dan niet openen).
 4. **De pakketten van je app** worden bijgewerkt, binnen de grenzen die in je app
    staan, als een tweede, los voorstel. Daarnaast stelt Dependabot in elke app updates van
-   de npm-pakketten voor, ook zonder abonnement; de versies van de GitHub-workflows komen met
-   een nieuwe templateversie. Een pakket met een nieuwe hoofdversie (een grote
+   de npm-pakketten voor, ook zonder abonnement; de versies van de
+   GitHub-workflows komen met een nieuwe versie van de template; alleen een beveiligingsupdate
+   kan Dependabot tussendoor voorstellen. Een pakket met een nieuwe hoofdversie (een grote
    sprong, zoals een nieuwe React) noemt je assistent alleen. Die zet je zelf door, met hulp
    van je assistent, als een gewone wijziging aan je app; of Stage Two doet het op verzoek,
    op nacalculatie (€120 per uur exclusief btw). Wijzigingen aan je apps vallen buiten het

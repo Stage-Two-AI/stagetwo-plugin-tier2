@@ -54,7 +54,7 @@ deur: alleen de mensen uit de toegangslijst van het bedrijf komen erin, en ze lo
 met hun werkaccount (of met een code per mail). En elke app krijgt een eigen database bij
 Supabase, want het inloggen loopt daar doorheen. Supabase kost het bedrijf ongeveer €22 per
 maand, plus ongeveer €9 per maand per database; een app heeft er twee (echt en test). Die
-bedragen staan ook op stagetwo.nl/aanbod.
+bedragen staan ook op https://stagetwo.nl/#aanbod.
 
 ## Stap 4: naam en plek
 

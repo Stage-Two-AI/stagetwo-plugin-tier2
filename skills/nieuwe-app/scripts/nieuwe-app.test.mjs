@@ -437,7 +437,8 @@ test("Sentry: per app op de app-repo met VITE_SENTRY_DSN, niet meer via de behee
   assert.match(SENTRY_REGEL, /app-repo/);
   assert.match(SENTRY_REGEL, /VITE_SENTRY_DSN/);
   assert.match(SENTRY_REGEL, /production/);
-  assert.match(SENTRY_REGEL, /App inrichten waarschuwt/);
+  assert.match(SENTRY_REGEL, /de overdracht controleert het per app/);
+  assert.doesNotMatch(SENTRY_REGEL, /waarschuwt zolang/, "App inrichten kijkt in dezelfde run waarin de omgevingen ontstaan");
   assert.doesNotMatch(SENTRY_REGEL, /beheer-repo/);
   assert.doesNotMatch(SENTRY_REGEL, /—/);
   assert.match(SENTRY_REGEL, /PREVIEW_VITE_SENTRY_DSN/, "tier 2: de previews lezen een repo-variabele");

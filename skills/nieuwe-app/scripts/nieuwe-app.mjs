@@ -375,7 +375,7 @@ export function zetLicentie(map, organisatie) {
 
 /** Foutbewaking staat per app aan, op de app-repo zelf; de beheer-repo geeft geen gedeelde DSN door. */
 export const SENTRY_REGEL =
-  "Foutbewaking (Sentry): zet de variabele VITE_SENTRY_DSN op de omgeving production en PREVIEW_VITE_SENTRY_DSN op deze app-repo; App inrichten waarschuwt zolang die ontbreekt. Mag later.";
+  "Foutbewaking (Sentry): zet de variabele VITE_SENTRY_DSN op de omgeving production en PREVIEW_VITE_SENTRY_DSN op deze app-repo (voor de preview); de overdracht controleert het per app. Mag later.";
 
 /** Wat er na het script nog te doen is, per databasestand en per uitkomst. */
 export function nogTeDoen({ database, ruleset }) {
