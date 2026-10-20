@@ -650,7 +650,7 @@ export function nogTeDoenNaInrichting({ resultaat }) {
   if (resultaat?.waarschuwingen?.length) {
     for (const w of resultaat.waarschuwingen) lijst.push(`Waarschuwing van de inrichting, geef door aan Stage Two: ${w}`);
   }
-  lijst.push("Foutbewaking (Sentry): Stage Two zet die aan in de beheer-repo. Mag later.");
+  lijst.push("Foutbewaking (Sentry): zet de variabele VITE_SENTRY_DSN op de omgeving production en PREVIEW_VITE_SENTRY_DSN op deze app-repo; App inrichten waarschuwt zolang die ontbreekt. Mag later.");
   return lijst;
 }
 
