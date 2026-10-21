@@ -1,0 +1,60 @@
+# Levering stoppen: bij het einde van een abonnement haalt Stage Two de GitHub App
+# stagetwo-levering weg uit de org van de klant (voorwaarden 1.1, art. 18.6). Daarna heeft
+# Stage Two daar geen schrijfrecht meer; de leveringsrepo's blijven op de laatste versie staan.
+#
+# Volgorde: eerst de klant uit abonnees.json (pull request, merge), dan deze workflow met de
+# hand ("Run workflow", invoer org). Staat de org nog in abonnees.json, of is het de org van
+# Stage Two zelf, dan stopt hij vóór er iets gebeurt. Met droogloop aangevinkt zegt hij alleen
+# welke installatie weg zou gaan.
+#
+# Zelfde variabele en geheim als Uitleveren: LEVERING_APP_ID en LEVERING_APP_PRIVATE_KEY.
+# Het script (beheer/levering-stoppen.mjs) maakt zelf een JWT van de App, omdat het verwijderen
+# van een installatie de App zelf vraagt, geen token van een installatie.
+# Deze workflow en het script gaan nooit mee naar een klant.
+name: Levering stoppen
+
+on:
+  workflow_dispatch:
+    inputs:
+      org:
+        description: GitHub-org van de klant die is opgezegd (bijvoorbeeld Richplant-BV); staat niet meer in abonnees.json
+        required: true
+        type: string
+      droogloop:
+        description: Alleen kijken welke installatie weg zou gaan, niets verwijderen
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: uitleveren
+  cancel-in-progress: false
+
+jobs:
+  stoppen:
+    name: Levering stoppen
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      # De invoer via env, nooit rechtstreeks in het script.
+      - name: Installatie verwijderen
+        env:
+          ORG: ${{ inputs.org }}
+          DROOG: ${{ inputs.droogloop }}
+          LEVERING_APP_ID: ${{ vars.LEVERING_APP_ID }}
+          LEVERING_APP_PRIVATE_KEY: ${{ secrets.LEVERING_APP_PRIVATE_KEY }}
+        run: |
+          extra=()
+          if [ "$DROOG" = "true" ]; then extra+=(--droog); fi
+          if ! uit=$(node beheer/levering-stoppen.mjs --org "$ORG" "${extra[@]}"); then
+            echo "::error::$uit"; exit 1
+          fi
+          echo "$uit"

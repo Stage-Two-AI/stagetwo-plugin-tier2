@@ -1,6 +1,6 @@
 ---
 name: nieuwe-app
-description: Een nieuwe app starten op de manier van Stage Two, op Cloudflare en Supabase - eerst meedenken over wat de app moet doen, dan de app aanmaken uit de nieuwste Cloudflare-template van Stage Two onder de organisatie van de gebruiker, en hosting, deur en database laten inrichten door de beheer-repo. Gebruik dit als de gebruiker /stagetwo-tier2:nieuwe-app typt of een nieuwe app wil beginnen. Gaat eerst na of het idee als nieuw onderdeel in een bestaande superapp van het bedrijf past; alleen bij een andere gebruikersgroep, een los geheel of een verzamelplek voor gegevens van buiten wordt het een nieuwe superapp.
+description: Een nieuwe app starten op tier 2 van Stage Two, op Cloudflare en Supabase - eerst meedenken over wat de app moet doen, dan de app aanmaken uit de nieuwste template voor tier 2 van Stage Two onder de organisatie van de gebruiker, en hosting, deur en database laten inrichten door de beheer-repo. Gebruik dit als de gebruiker /stagetwo-tier2:nieuwe-app typt of een nieuwe app wil beginnen. Gaat eerst na of het idee als nieuw onderdeel in een bestaande superapp van het bedrijf past; alleen bij een andere gebruikersgroep, een los geheel of een verzamelplek voor gegevens van buiten wordt het een nieuwe superapp.
 ---
 
 Je helpt iemand die niet technisch is om een nieuwe app goed te beginnen. Het gesprek
@@ -77,12 +77,12 @@ het duurste antwoord.
 
 ## Stap 3: wat de app meekrijgt
 
-Hier is niets te kiezen; zeg het in twee zinnen. Elke app op dit spoor staat achter een
+Hier is niets te kiezen; zeg het in twee zinnen. Elke app van tier 2 staat achter een
 deur: alleen de mensen uit de toegangslijst van het bedrijf komen erin, en ze loggen in
 met hun werkaccount (of met een code per mail). En elke app krijgt een eigen database bij
-Supabase, want het inloggen loopt daar doorheen. Een database is gratis zolang het om een
-paar apps gaat; daarna kost hij enkele tientallen euro's per maand, Stage Two weet het
-precieze bedrag.
+Supabase, want het inloggen loopt daar doorheen. Supabase kost het bedrijf ongeveer €22 per
+maand, plus ongeveer €9 per maand per database; een app heeft er twee (echt en test). Die
+bedragen staan ook op https://stagetwo.nl/#aanbod.
 
 ## Stap 4: naam en plek
 
@@ -98,7 +98,8 @@ precieze bedrag.
   (bestaat die niet, dan heet de beheer-repo nog `stagetwo-beheer` of `stack-beheer`: gebruik dan die naam).
   Staat de naam van de app al onder `apps`, dan is dit al geregeld; zeg dat. Zo niet, toon
   dan de groepen (met wie erin zit, in gewone woorden) en laat de gebruiker kiezen. Zijn
-  er geen groepen, dan maakt Stage Two die aan; ga gewoon door, stap 5b meldt het.
+  er geen groepen, dan maakt de owner van de organisatie die aan (tijdens het project
+  Stage Two); ga gewoon door, stap 5b meldt het.
 - **Map.** De app komt als nieuwe submap met de naam van de app onder de map die nu open
   staat. Zeg dat.
 
@@ -107,8 +108,12 @@ precieze bedrag.
 Draai eerst de droogloop, met Bash, precies zo:
 
 ```sh
-node "${CLAUDE_SKILL_DIR}/scripts/nieuwe-app.mjs" --json --droogloop --naam "<naam>" --eigenaar "<eigenaar>" --omschrijving "<omschrijving>"
+node "${CLAUDE_SKILL_DIR}/scripts/nieuwe-app.mjs" --json --droogloop --naam "<naam>" --eigenaar "<eigenaar>" --omschrijving "<omschrijving>" --organisatie "<bedrijfsnaam>"
 ```
+
+`<bedrijfsnaam>` is de naam van het bedrijf waarvoor de app is, zoals je die uit het gesprek of
+de map kent (bijvoorbeeld "Richplant B.V."); die komt in de `LICENSE` van de app. Weet je hem
+niet, laat `--organisatie` dan weg: het script neemt de naam van de organisatie op GitHub.
 
 Het antwoord is één JSON-object met een `status`.
 
@@ -122,6 +127,10 @@ Het antwoord is één JSON-object met een `status`.
 Zeg dan: "Ik maak hem nu aan; dat duurt een paar minuten." Draai hetzelfde commando met
 `--doe-het` in plaats van `--droogloop`. Vraag geen toestemming meer; het typen van
 `/stagetwo-tier2:nieuwe-app` en de bevestiging van het plan waren de opdracht.
+
+Het script zet zelf de `LICENSE` op naam van het bedrijf (het gebruiksrecht van Stage Two
+blijft in `LICENSE-STAGE-TWO`) en laat `.claude/settings.json` naar de kopie van de plugin in
+de eigen organisatie wijzen. Pas die bestanden niet zelf aan.
 
 - `mislukt`: geef `reden` door (dat is de volledige foutmelding). Staat er een `repo` in
   het antwoord, dan is de repo al aangemaakt: **draai precies hetzelfde `--doe-het`-commando
@@ -156,11 +165,13 @@ dit tot een kwartier kan duren: een nieuwe database moet opstarten. Het antwoord
 
 - `kies-groepen`: de app staat nog niet in de toegangslijst en er zijn geen groepen
   meegegeven. Toon `groepen`, laat kiezen, en draai opnieuw met `--groepen`. Is de lijst
-  leeg, geef dan `reden` door: Stage Two maakt de groepen aan.
+  leeg, geef dan `reden` door: de owner maakt de groepen aan (tijdens het project Stage Two).
 - `wacht-op-toegang`: er staat nu een pull request op de beheer-repo (`pr`) die de app
-  aan de toegangslijst toevoegt. Zeg dat de eigenaar van de beheer-repo die moet
-  goedkeuren en mergen (zo beslist een mens wie bij een app mag), en dat je daarna
-  hetzelfde commando nog een keer draait, zonder `--groepen`. Je kunt intussen al bouwen.
+  aan de toegangslijst toevoegt. Die wijzigt alleen `toegang.json`, dus de controle
+  Toegang of review wordt vanzelf groen. Zeg dat de gebruiker hem zelf merget als hij in het
+  team `toegangsbeheer` zit (anders de owner van de organisatie); zo beslist een mens wie
+  bij een app mag. Zeg ook dat je daarna hetzelfde commando nog een keer draait, zonder
+  `--groepen`. Je kunt intussen al bouwen.
 - `geen-beheer`: deze organisatie heeft (nog) geen beheer-repo. Zeg dat Stage Two de
   hosting en de database inricht, en loop de `nogTeDoen` van stap 5 langs.
 - `mislukt`: geef `reden` door, met de `url` van de run als die er is. De app zelf is
@@ -179,5 +190,8 @@ Zeg tot slot, in deze volgorde:
    Komen er gegevens in, dan begint dat werk met de eerste tabellen; die route zit in
    `/stagetwo-tier2:verder-werken` (met `docs/routes/databasewijziging.md`). De eerste
    merge zet de app echt neer.
-3. Laat Stage Two weten dat deze app bestaat (naam en link), zodat hij in het overzicht
-   komt en meedoet met updates van de werkwijze.
+3. Laat Stage Two weten dat deze app bestaat (de naam en waarvoor hij is), zodat Stage Two
+   bij vragen weet over welke app het gaat. Een link naar de repo helpt alleen tijdens het
+   project; na de overdracht kan Stage Two een privé-repo standaard niet openen. Toegang tot de app
+   heeft Stage Two niet nodig: nieuwe versies van de werkwijze haalt de gebruiker zelf in de app
+   binnen met `/stagetwo-tier2:updaten`.

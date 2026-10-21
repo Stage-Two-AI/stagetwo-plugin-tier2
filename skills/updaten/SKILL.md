@@ -1,6 +1,6 @@
 ---
 name: updaten
-description: Werkt alles bij zoals een update van een besturingssysteem - de Stage Two-plugin zelf, de programma's op deze computer (Git, Node, pnpm, gh), deze app naar de nieuwste Stage Two-template en haar afhankelijkheden (elk als eigen pull request), en daarna desgewenst de andere apps van de klant. Gebruik dit als de gebruiker vraagt om bij te werken, te updaten, de nieuwste versie op te halen, of als de melding bij sessiestart zei dat er een nieuwere template is en de gebruiker daarop ingaat.
+description: Werkt alles bij zoals een update van een besturingssysteem - de Stage Two-plugin zelf, de programma's op deze computer (Git, Node, pnpm, gh), deze app naar de nieuwste Stage Two-template en haar afhankelijkheden (elk als eigen pull request), en daarna desgewenst de andere apps van de klant. Gebruik dit als de gebruiker vraagt om bij te werken, te updaten, de nieuwste versie op te halen, of als de melding bij sessiestart zei dat er een nieuwere template is en de gebruiker daarop ingaat. Ook als de gebruiker het automatisch bijwerken van de plugin uit of weer aan wil zetten.
 ---
 
 Je werkt alles bij, zoals een update van een besturingssysteem: eerst wat op deze
@@ -13,20 +13,54 @@ Jij wijzigt zelf niets in de bestanden van een app. Alles wat een app verandert,
 via de scripts hieronder, in een tijdelijke kopie, en komt als pull request bij de
 gebruiker. Mergen doet de gebruiker zelf.
 
+De gebruiker bouwt zelf; Stage Two richt in en begeleidt. Nieuwe versies komen uit de kopie
+van plugin en template die Stage Two bij de start in de GitHub-organisatie van de klant
+klaarzet (`levering.json`); Stage Two zet daar nieuwe versies in zolang het abonnement loopt, en past elke versie eerst toe op zijn
+eigen apps. Na de overdracht heeft Stage Two standaard zelf geen toegang tot de apps en zet het daar
+geen voorstellen klaar; een app verandert nooit vanzelf: dit commando is de weg waarlangs een nieuwe versie in een app komt.
+Houd twee dingen apart als je het uitlegt: de plugin op deze computer werkt zichzelf bij uit
+de kopie (deel 1), en een app verandert alleen via een voorstel dat een bouwer goedkeurt
+(deel 3 tot en met 5). Stopt het abonnement, dan blijft die kopie op de laatste versie staan
+en meldt dit commando dat alles bij is. Wat de klant bouwt en zijn gegevens zijn van hem;
+plugin en template mag hij blijven gebruiken, en ze blijven werken, ook zonder Stage Two.
+
 Staat er geen app open (geen `.claude/stack-manifest.json` in deze map), sla dan deel 3
 en 4 over en ga na deel 2 naar deel 5.
 
+## Alleen automatisch bijwerken uit- of aanzetten
+
+De plugin is software van Stage Two die op deze computer draait met de rechten van de
+gebruiker, en zichzelf bijwerkt uit de kopie in de eigen organisatie. Vraagt de gebruiker om
+dat automatisch bijwerken uit te zetten (of weer aan), doe dan alleen dit en stop daarna:
+
+```sh
+node "${CLAUDE_SKILL_DIR}/../installatie/scripts/automatisch-bijwerken.mjs" --json --uit
+```
+
+Met `--aan` in plaats van `--uit` gaat het weer aan. Bij `uitgezet` of `uit`: zeg dat de
+plugin zich vanaf de volgende start niet meer vanzelf bijwerkt, en dat de gebruiker hem zelf
+bijwerkt met `/stagetwo-tier2:updaten` wanneer hij dat wil. Zeg er bij `uitgezet` ook bij dat
+in de Claude-app daarmee ook andere plugins op deze computer zich niet meer vanzelf bijwerken
+(het script haalt `FORCE_AUTOUPDATE_PLUGINS` weg, en de app regelt dat voor alle plugins
+samen); `--aan` zet ook dat terug. Apps veranderen in beide gevallen
+nooit vanzelf, alleen via een voorstel dat een bouwer goedkeurt.
+
 ## Deel 1: de plugin zelf
 
-Eerst zorgen dat de plugin zichzelf voortaan bijwerkt (dit staat bij klanten van vóór
-plugin 2.1.0 nog niet aan, en de desktop-app zet het standaard uit):
+Eerst zorgen dat de plugin zichzelf voortaan bijwerkt. Dat staat pas aan als dit script op
+deze computer heeft gedraaid (hier of in `/stagetwo-tier2:installatie`): de plugin toevoegen,
+of ja zeggen als Claude Code in een app vraagt de plugin te installeren, zet het niet aan, want
+voor een marketplace die niet van Anthropic is staat het standaard uit, en de desktop-app zet
+het bijwerken van plugins helemaal uit zolang het script het niet terugzet:
 
 ```sh
 node "${CLAUDE_SKILL_DIR}/../installatie/scripts/automatisch-bijwerken.mjs" --json
 ```
 
-`gezet` of `al-goed` is goed; bij `mislukt` geef je `reden` door en ga je door. Werk de
-plugin daarna nu meteen bij:
+`gezet` of `al-goed` is goed. `uit` betekent dat de gebruiker het automatisch bijwerken
+bewust heeft uitgezet: laat dat zo en zeg het in één regel; de stap hieronder is dan de
+manier waarop de plugin bijgewerkt wordt. Bij `mislukt` geef je `reden` door en ga je door.
+Werk de plugin daarna nu meteen bij:
 
 ```sh
 claude plugin marketplace update stagetwo-tier2 && claude plugin update stagetwo-tier2@stagetwo-tier2
@@ -40,7 +74,8 @@ claude plugin uninstall stack-cloudflare@stagetwo-cloudflare 2>/dev/null; claude
 ```
 
 Lukt dat (ook "already up to date" is goed), onthoud dan of er een nieuwe versie is
-binnengekomen: die werkt pas na het opnieuw openen van de app (zie deel 6). Bestaat het
+binnengekomen: die werkt pas na het opnieuw openen van de app of na `/reload-plugins` (zie
+deel 6). Bestaat het
 commando `claude` hier niet, sla dit dan over: met de instelling hierboven werkt de
 plugin zichzelf bij, kort nadat de app de volgende keer gestart is.
 
@@ -117,7 +152,9 @@ Vraag daarna per bestand één keuze:
   komt zo in de pull request te staan.
 
 Weet de gebruiker het niet, dan is **eigen** de veilige keuze: dat verandert niets aan
-wat er nu werkt, en Stage Two kan er later naar kijken.
+wat er nu werkt. Wil de gebruiker dat Stage Two ernaar kijkt: tijdens het project volstaat
+de link naar de pull request; na de overdracht kan Stage Two een privé-repo standaard niet openen, dus
+dan een beschrijving of schermafbeelding.
 
 Let op bij een bestand met een projectdeel, zoals `AGENTS.md`. Zegt de `reden` dat de
 markeringen (`stack:begin` en `stack:end`) ontbreken, dan is **template** geen geldige
@@ -153,7 +190,11 @@ Onthoud voor de samenvatting aan het eind (deel 6), in gewone taal:
 2. waar de pull request staat (`pr.url`, of anders `vergelijkUrl` om hem zelf te openen);
 3. wat hij nu doet: de pull request bekijken, wachten tot de checks groen zijn en op
    Merge drukken. Zijn de checks rood, dan voldoet de app niet aan een nieuwe regel;
-   dan neemt hij contact op met Stage Two en zet hij de check niet uit.
+   dan neemt hij contact op met Stage Two en zet hij de check niet uit (tijdens het project
+   met de link; na de overdracht met een beschrijving of schermafbeelding, want dan kan Stage
+   Two de privé-repo standaard niet openen).
+   Meekijken en meedenken vallen binnen het abonnement, tot ongeveer een uur per maand; meer werk aan de app doet Stage Two
+   op nacalculatie.
 
 ## Deel 4: de afhankelijkheden van deze app
 
@@ -173,8 +214,13 @@ Het script werkt de pakketten bij binnen de versiegrenzen uit `package.json`; al
 - `mislukt`: geef `reden` door en ga door met deel 5.
 
 Bij `gepusht` en `bij` staan er twee lijsten bij. `hoofdversies`: pakketten met een
-nieuwe hoofdversie, die bewust niet zijn meegenomen; noem ze en zeg dat Stage Two die
-oppakt. `dependabot`: voorstellen van Dependabot die nog openstaan; noem ze en zeg dat de
+nieuwe hoofdversie, die bewust niet zijn meegenomen; noem ze. Zeg erbij: Dependabot stelt
+in elke app updates van de npm-pakketten voor, ook zonder abonnement (de versies van de
+GitHub-workflows komen met een nieuwe templateversie); een grote versie van een pakket van de app zet de bouwer zelf
+door, met jouw hulp, als een gewone wijziging via `/stagetwo-tier2:verder-werken`, of
+Stage Two doet het op verzoek tegen nacalculatie (€120 per uur exclusief btw). Wijzigingen
+aan apps vallen buiten het abonnement. Begin er niet zelf aan zonder dat de gebruiker
+erom vraagt. `dependabot`: voorstellen van Dependabot die nog openstaan; noem ze en zeg dat de
 gebruiker ze kan mergen als de checks groen zijn.
 
 ## Deel 5: de andere apps (vraag het eerst)
@@ -212,11 +258,16 @@ Sluit af met één overzicht, in gewone taal:
    de template is bijgewerkt en wat niet (de bestanden waarvoor **eigen** is gekozen).
 2. Wat de gebruiker nu doet: per pull request wachten tot de checks groen zijn en op
    Merge drukken. Zijn de checks rood, dan voldoet de app niet aan een nieuwe regel; dan
-   neemt hij contact op met Stage Two en zet hij de check niet uit.
+   neemt hij contact op met Stage Two en zet hij de check niet uit (tijdens het project
+   met de link; na de overdracht met een beschrijving of schermafbeelding, want dan kan Stage
+   Two de privé-repo standaard niet openen).
+   Meekijken en meedenken vallen binnen het abonnement, tot ongeveer een uur per maand; meer werk aan de app doet Stage Two
+   op nacalculatie.
 3. Is in deel 1 of 2 iets bijgewerkt, zeg dan dat de app opnieuw moet starten, met deze
    uitleg: sluit de Claude-app helemaal af (Windows: rechtsonder in het systeemvak op het
    pijltje **^**, rechtermuisknop op het Claude-icoon, **Afsluiten**; macOS: cmd+Q), open
-   hem opnieuw, klik dit gesprek aan in de linkerzijbalk en typ **ga verder**.
+   hem opnieuw, klik dit gesprek aan in de linkerzijbalk en typ **ga verder**. Is alleen de
+   plugin bijgewerkt (deel 2 niet), dan is `/reload-plugins` in dit gesprek ook genoeg.
 
 ## Wat je niet doet
 

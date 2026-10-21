@@ -13,8 +13,9 @@
  *   2. Is het lockfile veranderd: commit met de git-naam van de gebruiker, push naar de
  *      branch stack-afhankelijkheden en open een pull request. De CI-checks op die PR
  *      zijn de test: groen is veilig om te mergen.
- *   3. Altijd: welke pakketten een nieuwe hoofdversie hebben (die vragen om aandacht van
- *      Stage Two of Dependabot) en welke Dependabot-PR's er nog openstaan.
+ *   3. Altijd: welke pakketten een nieuwe hoofdversie hebben (die zet een bouwer zelf door
+ *      als wijziging aan de app, of Stage Two op verzoek tegen nacalculatie) en welke
+ *      Dependabot-PR's er nog openstaan.
  *
  * Uitkomst: één JSON-object met `status`:
  *   gepusht   de PR staat open; zie pr, hoofdversies, dependabot
@@ -111,7 +112,7 @@ export function prTekst({ hoofdversies, dependabot }) {
     "Aangemaakt met /stagetwo-tier2:updaten vanuit je eigen Claude Code-sessie. Wacht tot de checks groen zijn en druk dan op Merge. Rood? Neem contact op met Stage Two en zet de check niet uit.",
   ];
   if (hoofdversies.length > 0) {
-    regels.push("", "**Nieuwe hoofdversies (niet meegenomen, die vragen om aandacht van Stage Two):**", "");
+    regels.push("", "**Nieuwe hoofdversies (niet meegenomen).** Zo'n grote stap zet een bouwer zelf door als wijziging aan de app, met hulp van de assistent, of Stage Two doet het op verzoek tegen nacalculatie:", "");
     for (const p of hoofdversies) regels.push(`- \`${p.naam}\`: ${p.huidig} → ${p.nieuwste}`);
   }
   if (dependabot.length > 0) {

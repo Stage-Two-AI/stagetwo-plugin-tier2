@@ -148,3 +148,97 @@ test("isBronVanStageTwo herkent de github- en de git-vorm, en niets anders", () 
   assert.ok(!isBronVanStageTwo({ source: "directory", path: "/x" }));
   assert.ok(!isBronVanStageTwo(undefined));
 });
+
+test("--uit zet autoUpdate op false en laat de rest staan; een gewone run zet het daarna niet terug, --aan wel", () => {
+  metMap((map, env) => {
+    writeFileSync(join(map, "settings.json"), JSON.stringify({ theme: "dark", env: { FORCE_AUTOUPDATE_PLUGINS: "1" }, extraKnownMarketplaces: { "stagetwo-tier2": { source: BRON, autoUpdate: true }, ander: { source: { source: "github", repo: "x/y" }, autoUpdate: true } } }));
+    assert.equal(automatischBijwerken({ env, uit: true }).status, "uitgezet");
+    const na = lees(map);
+    assert.equal(na.theme, "dark");
+    assert.deepEqual(na.extraKnownMarketplaces["stagetwo-tier2"], { source: BRON, autoUpdate: false });
+    assert.equal(na.extraKnownMarketplaces.ander.autoUpdate, true, "andere marketplaces blijven onaangeroerd");
+    assert.equal(automatischBijwerken({ env, uit: true }).status, "uit", "tweede keer: niets te doen");
+    assert.equal(automatischBijwerken({ env }).status, "uit", "een gewone run (ook vanuit updaten) respecteert de keuze");
+    assert.equal(automatischBijwerken({ env, controle: true }).status, "uit");
+    assert.equal(lees(map).extraKnownMarketplaces["stagetwo-tier2"].autoUpdate, false);
+    assert.equal(automatischBijwerken({ env, aan: true }).status, "gezet");
+    assert.equal(lees(map).extraKnownMarketplaces["stagetwo-tier2"].autoUpdate, true);
+  });
+});
+
+test("--uit zonder bestand maakt de marketplace-regel aan met autoUpdate false; --uit met --controle schrijft niets", () => {
+  metMap((map, env) => {
+    assert.equal(automatischBijwerken({ env, uit: true, controle: true }).status, "ontbreekt");
+    assert.equal(existsSync(join(map, "settings.json")), false);
+    const uit = execFileSync(process.execPath, [SCRIPT, "--json", "--uit"], { env: { ...process.env, CLAUDE_CONFIG_DIR: map }, encoding: "utf8" });
+    assert.equal(JSON.parse(uit).status, "uitgezet");
+    assert.deepEqual(lees(map), { extraKnownMarketplaces: { "stagetwo-tier2": { source: BRON, autoUpdate: false } } });
+  });
+});
+
+test("--uit haalt ook FORCE_AUTOUPDATE_PLUGINS weg (andere env blijft); --aan zet het terug", () => {
+  metMap((map, env) => {
+    writeFileSync(join(map, "settings.json"), JSON.stringify({ env: { EIGEN: "ja", FORCE_AUTOUPDATE_PLUGINS: "1" }, extraKnownMarketplaces: { "stagetwo-tier2": { source: BRON, autoUpdate: true } } }));
+    const r = automatischBijwerken({ env, uit: true });
+    assert.equal(r.status, "uitgezet");
+    assert.deepEqual(r.gewijzigd, ["extraKnownMarketplaces.stagetwo-tier2.autoUpdate = false", "weg: env.FORCE_AUTOUPDATE_PLUGINS"]);
+    assert.deepEqual(lees(map).env, { EIGEN: "ja" });
+    assert.equal(automatischBijwerken({ env, aan: true }).status, "gezet");
+    assert.deepEqual(lees(map).env, { EIGEN: "ja", FORCE_AUTOUPDATE_PLUGINS: "1" });
+  });
+});
+
+test("--uit met alleen FORCE_AUTOUPDATE_PLUGINS in env: env verdwijnt helemaal", () => {
+  metMap((map, env) => {
+    writeFileSync(join(map, "settings.json"), JSON.stringify({ env: { FORCE_AUTOUPDATE_PLUGINS: "1" }, extraKnownMarketplaces: { "stagetwo-tier2": { source: BRON, autoUpdate: false } } }));
+    const r = automatischBijwerken({ env, uit: true });
+    assert.equal(r.status, "uitgezet", "autoUpdate stond al uit, maar FORCE stond er nog (van een oudere versie van dit script)");
+    assert.deepEqual(r.gewijzigd, ["weg: env.FORCE_AUTOUPDATE_PLUGINS"]);
+    assert.equal("env" in lees(map), false);
+  });
+});
+
+const BEKEND = (map) => join(map, "plugins", "known_marketplaces.json");
+function zetBekend(map, data) {
+  mkdirSync(join(map, "plugins"), { recursive: true });
+  writeFileSync(BEKEND(map), JSON.stringify(data));
+}
+const leesBekend = (map) => JSON.parse(readFileSync(BEKEND(map), "utf8"));
+
+test("known_marketplaces.json: aan en uit volgen daar ook, want in een app geldt die (de regel van de app heeft geen autoUpdate)", () => {
+  metMap((map, env) => {
+    const regel = { source: { source: "github", repo: STAGE_TWO.plugin }, installLocation: "/x", lastUpdated: "2026-10-16T00:00:00.000Z" };
+    zetBekend(map, { "stagetwo-tier2": regel, ander: { installLocation: "/y" } });
+    const r = automatischBijwerken({ env });
+    assert.equal(r.status, "gezet");
+    assert.ok(r.gewijzigd.includes("known_marketplaces.stagetwo-tier2.autoUpdate"));
+    assert.deepEqual(leesBekend(map), { "stagetwo-tier2": { ...regel, autoUpdate: true }, ander: { installLocation: "/y" } });
+    assert.equal(automatischBijwerken({ env }).status, "al-goed");
+
+    const uit = automatischBijwerken({ env, uit: true });
+    assert.equal(uit.status, "uitgezet");
+    assert.ok(uit.gewijzigd.includes("known_marketplaces.stagetwo-tier2.autoUpdate = false"));
+    assert.equal(leesBekend(map)["stagetwo-tier2"].autoUpdate, false);
+    assert.equal(leesBekend(map)["stagetwo-tier2"].installLocation, "/x", "de velden van Claude Code blijven staan");
+    assert.equal(automatischBijwerken({ env, uit: true }).status, "uit");
+
+    // De schakelaar in /plugin zette hem weer aan, maar de gebruikersinstelling zegt uit: --uit zet hem terug.
+    zetBekend(map, { "stagetwo-tier2": { ...regel, autoUpdate: true } });
+    const opnieuw = automatischBijwerken({ env, uit: true });
+    assert.equal(opnieuw.status, "uitgezet");
+    assert.deepEqual(opnieuw.gewijzigd, ["known_marketplaces.stagetwo-tier2.autoUpdate = false"]);
+  });
+});
+
+test("known_marketplaces.json: zonder regel of bestand maakt het script niets aan; kapotte JSON blijft onaangeroerd", () => {
+  metMap((map, env) => {
+    assert.equal(automatischBijwerken({ env }).status, "gezet");
+    assert.equal(existsSync(BEKEND(map)), false, "geen bestand: niets aangemaakt");
+    zetBekend(map, { ander: { installLocation: "/y" } });
+    assert.equal(automatischBijwerken({ env }).status, "al-goed", "geen regel voor stagetwo-tier2: niets te doen");
+    assert.deepEqual(leesBekend(map), { ander: { installLocation: "/y" } });
+    writeFileSync(BEKEND(map), "{ kapot");
+    assert.equal(automatischBijwerken({ env, uit: true }).status, "uitgezet");
+    assert.equal(readFileSync(BEKEND(map), "utf8"), "{ kapot");
+  });
+});

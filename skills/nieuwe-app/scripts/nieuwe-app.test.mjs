@@ -7,6 +7,8 @@ import {
   STAGE_TWO_LOGIN,
   controleerArgumenten,
   geldigeNaam,
+  STAGE_TWO_ORG,
+  eigenarenUitCodeowners,
   kiesReviewer,
   leesArgumenten,
   leesInrichting,
@@ -23,7 +25,14 @@ import {
   vulIn,
   zetDatabaseStand,
   zetWorkerNaam,
+  geldigeOrganisatie,
+  licentieTekst,
+  organisatieNaam,
+  zetLicentie,
+  zetPluginBron,
+  SENTRY_REGEL,
 } from "./nieuwe-app.mjs";
+import { STAGE_TWO } from "../../../lib/levering.mjs";
 
 function verseTemplate() {
   const map = tijdelijkeMap("nieuwe-app-");
@@ -74,7 +83,29 @@ test("controle: precies één modus; op het Cloudflare-spoor altijd een eigen da
 });
 
 test("reviewer: altijd de bouwer zelf, ook als Stage Two lid is", () => {
-  assert.equal(kiesReviewer({ login: "bart" }), "bart");
+  assert.deepEqual(kiesReviewer({ login: "bart", eigenaar: "Richplant-BV" }), { reviewer: "bart" });
+  assert.deepEqual(kiesReviewer({ login: "bart" }), { reviewer: "bart" });
+});
+
+test("reviewer: start Stage Two een klant-app, dan het bedrijfsaccount uit CODEOWNERS van de beheer-repo, nooit Stage Two", () => {
+  const codeowners = ["# eigenaren van de beheer-repo\n* @StageTwoAI @richplant-beheer\n"];
+  assert.deepEqual(kiesReviewer({ login: STAGE_TWO_LOGIN, eigenaar: "Richplant-BV", beheerCodeowners: codeowners }), { reviewer: "richplant-beheer" });
+  assert.deepEqual(kiesReviewer({ login: "stagetwoai", eigenaar: "Richplant-BV", beheerCodeowners: ["* @richplant-beheer @StageTwoAI"] }), { reviewer: "richplant-beheer" }, "hoofdletters tellen niet");
+  const fout = kiesReviewer({ login: STAGE_TWO_LOGIN, eigenaar: "Richplant-BV", beheerCodeowners: ["* @StageTwoAI @Richplant-BV/toegangsbeheer\n"] });
+  assert.equal(fout.reviewer, undefined);
+  assert.match(fout.fout, /bedrijfsaccount/);
+  assert.match(kiesReviewer({ login: STAGE_TWO_LOGIN, eigenaar: "Richplant-BV" }).fout, /Richplant-BV/, "geen beheer-repo of geen CODEOWNERS: duidelijke melding");
+});
+
+test("reviewer: in de eigen org van Stage Two blijft StageTwoAI", () => {
+  assert.equal(STAGE_TWO_ORG, "Stage-Two-AI");
+  assert.deepEqual(kiesReviewer({ login: STAGE_TWO_LOGIN, eigenaar: "Stage-Two-AI" }), { reviewer: STAGE_TWO_LOGIN });
+  assert.deepEqual(kiesReviewer({ login: STAGE_TWO_LOGIN, eigenaar: STAGE_TWO_LOGIN }), { reviewer: STAGE_TWO_LOGIN });
+});
+
+test("eigenarenUitCodeowners: logins in volgorde, zonder teams, Stage Two, commentaar of dubbele", () => {
+  assert.deepEqual(eigenarenUitCodeowners(["# @niet\n* @a @StageTwoAI @org/team\n/x/ @b @a\n", "* @c"]), ["a", "b", "c"]);
+  assert.deepEqual(eigenarenUitCodeowners([]), []);
 });
 
 test("invullen: projectnaam, omschrijving en reviewer erin, aanwijzingen eruit", () => {
@@ -320,4 +351,99 @@ test("kiesBeheerRepo: eerst stagetwo-beheer-tier2, dan de oude namen stagetwo-be
   assert.equal(kiesBeheerRepo("klant", (r) => r === "klant/stagetwo-beheer" || r === "klant/stack-beheer"), "klant/stagetwo-beheer");
   assert.equal(kiesBeheerRepo("klant", (r) => r === "klant/stack-beheer"), "klant/stack-beheer");
   assert.equal(kiesBeheerRepo("klant", () => false), null);
+});
+
+// ---------------------------------------------------------------- levering: bron en licentie
+
+const SETTINGS_TEMPLATE = `{
+  "extraKnownMarketplaces": {
+    "stagetwo-tier2": {
+      "source": {
+        "source": "github",
+        "repo": "Stage-Two-AI/stagetwo-plugin-tier2"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "stagetwo-tier2@stagetwo-tier2": true
+  }
+}
+`;
+
+test("zetPluginBron: bij een abonnee wijst de app naar zijn eigen kopie van de plugin", () => {
+  const map = verseTemplate();
+  schrijfBestanden(map, { ".claude/settings.json": SETTINGS_TEMPLATE });
+  assert.equal(zetPluginBron(map, "Richplant-BV/stagetwo-plugin-tier2"), "Richplant-BV/stagetwo-plugin-tier2");
+  const na = readFileSync(join(map, ".claude/settings.json"), "utf8");
+  assert.equal(na, SETTINGS_TEMPLATE.replace("Stage-Two-AI/stagetwo-plugin-tier2", "Richplant-BV/stagetwo-plugin-tier2"));
+  assert.doesNotMatch(na, /autoUpdate/, "nieuwe-app zet geen autoUpdate in de app; dat beslist de bouwer op zijn computer");
+  assert.equal(zetPluginBron(map, "Richplant-BV/stagetwo-plugin-tier2"), "Richplant-BV/stagetwo-plugin-tier2", "tweede keer: niets te doen");
+});
+
+test("zetPluginBron: zonder levering.json (eigen apps van Stage Two) blijft de bronrepo", () => {
+  const map = verseTemplate();
+  schrijfBestanden(map, { ".claude/settings.json": SETTINGS_TEMPLATE });
+  assert.equal(zetPluginBron(map, STAGE_TWO.plugin), STAGE_TWO.plugin);
+  assert.equal(readFileSync(join(map, ".claude/settings.json"), "utf8"), SETTINGS_TEMPLATE);
+  assert.equal(zetPluginBron(verseTemplate(), "Klant/x"), null, "geen settings: niets te doen");
+});
+
+test("licentieTekst: eigen code van de organisatie, onderdelen van Stage Two in LICENSE-STAGE-TWO", () => {
+  const tekst = licentieTekst("Richplant B.V.", 2026);
+  assert.match(tekst, /Copyright \(c\) 2026 Richplant B\.V\./);
+  assert.match(tekst, /is van Richplant B\.V\. Alle rechten voorbehouden/);
+  assert.match(tekst, /LICENSE-STAGE-TWO/);
+  assert.doesNotMatch(tekst, /<organisatie>|MIT|\u2014/);
+});
+
+test("zetLicentie: vervangt de LICENSE van de template, laat LICENSE-STAGE-TWO en een eigen LICENSE staan", () => {
+  const map = verseTemplate();
+  schrijfBestanden(map, { LICENSE: "Licentie van deze app\n\nis van <organisatie>.\n", "LICENSE-STAGE-TWO": "Gebruiksrecht Stage Two\n" });
+  assert.deepEqual(zetLicentie(map, " Richplant B.V. "), { gezet: true, organisatie: "Richplant B.V." });
+  assert.match(readFileSync(join(map, "LICENSE"), "utf8"), /is van Richplant B\.V\./);
+  assert.equal(readFileSync(join(map, "LICENSE-STAGE-TWO"), "utf8"), "Gebruiksrecht Stage Two\n");
+  // Hervatten of een eigen LICENSE: niet nog eens overschrijven.
+  writeFileSync(join(map, "LICENSE"), "MIT License\nCopyright (c) 2026 Richplant\n");
+  assert.equal(zetLicentie(map, "Ander").gezet, false);
+  assert.match(readFileSync(join(map, "LICENSE"), "utf8"), /Copyright \(c\) 2026 Richplant/);
+});
+
+test("zetLicentie: een oudere template zonder LICENSE-STAGE-TWO blijft zoals hij is", () => {
+  const map = verseTemplate();
+  schrijfBestanden(map, { LICENSE: "MIT License\n\nCopyright (c) 2026 Stage Two\n" });
+  const r = zetLicentie(map, "Richplant B.V.");
+  assert.equal(r.gezet, false);
+  assert.match(r.reden, /LICENSE-STAGE-TWO/);
+  assert.equal(readFileSync(join(map, "LICENSE"), "utf8"), "MIT License\n\nCopyright (c) 2026 Stage Two\n");
+});
+
+test("organisatie: --organisatie wint, dan de naam op GitHub, dan de inlognaam", () => {
+  assert.equal(organisatieNaam("Richplant-BV", "Richplant B.V.", () => "Iets anders"), "Richplant B.V.");
+  assert.equal(organisatieNaam("Richplant-BV", null, () => "Richplant"), "Richplant");
+  assert.equal(organisatieNaam("Richplant-BV", null, () => null), "Richplant-BV");
+  assert.equal(organisatieNaam("Richplant-BV", null, () => "regel\nbreuk"), "Richplant-BV");
+  assert.equal(geldigeOrganisatie("Winco Holland B.V."), true);
+  for (const fout of ["", "x", "a\nb", "<organisatie>", "x".repeat(101)]) assert.equal(geldigeOrganisatie(fout), false, fout);
+});
+
+test("argumenten: --organisatie wordt gelezen en gecontroleerd", () => {
+  const a = leesArgumenten(["--droogloop", "--naam", "voorraad", "--eigenaar", "Org", "--organisatie", "Org B.V."]);
+  assert.equal(a.organisatie, "Org B.V.");
+  assert.equal(controleerArgumenten(a), null);
+  assert.match(controleerArgumenten({ ...a, organisatie: "a\nb" }), /--organisatie/);
+});
+
+test("Sentry: per app op de app-repo met VITE_SENTRY_DSN, niet meer via de beheer-repo; in beide lijsten dezelfde regel", () => {
+  assert.match(SENTRY_REGEL, /app-repo/);
+  assert.match(SENTRY_REGEL, /VITE_SENTRY_DSN/);
+  assert.match(SENTRY_REGEL, /production/);
+  assert.match(SENTRY_REGEL, /de overdracht controleert het per app/);
+  assert.doesNotMatch(SENTRY_REGEL, /waarschuwt zolang/, "App inrichten kijkt in dezelfde run waarin de omgevingen ontstaan");
+  assert.doesNotMatch(SENTRY_REGEL, /beheer-repo/);
+  assert.doesNotMatch(SENTRY_REGEL, /—/);
+  assert.match(SENTRY_REGEL, /PREVIEW_VITE_SENTRY_DSN/, "tier 2: de previews lezen een repo-variabele");
+  const voor = nogTeDoen({ database: "eigen", ruleset: { gelukt: true } });
+  const na = nogTeDoenNaInrichting({ resultaat: { status: "gelukt", waarschuwingen: [] } });
+  assert.equal(voor.at(-1), SENTRY_REGEL);
+  assert.equal(na.at(-1), SENTRY_REGEL);
 });

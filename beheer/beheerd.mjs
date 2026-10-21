@@ -4,6 +4,9 @@
  * achterloopt naar de nieuwste template, als pull request van `Stage Two stack-sync`.
  * Dit is Christijns overzicht en noodrem; de gewone weg is dat de klant zelf
  * /stagetwo-tier2:updaten draait (KTD2). Dezelfde kern (lib/), dus hetzelfde gedrag.
+ * Na de overdracht heeft Stage Two standaard geen toegang tot de apps van een klant (voorstel
+ * 17-10-2026, abonnement zonder toegang): route `beheerd` is dan alleen voor de eigen
+ * apps van Stage Two en voor een klant die nog in de projectfase zit.
  *
  * Dit is geen skill en geen commando van de plugin: het staat onder beheer/ (niet
  * bin/, want die map zet Claude Code op het PATH van elke sessie) en wordt gestart
@@ -228,7 +231,7 @@ export function verwerk({ project, werkmap, tmplMap, doelVersie, rulesetPad, opt
     return "droogloop";
   }
 
-  commit({ map, identiteit: IDENTITEIT, bericht: `chore: stack-template naar versie ${doelVersie}`, versie: doelVersie });
+  commit({ map, identiteit: IDENTITEIT, bericht: `chore: template naar versie ${doelVersie}`, versie: doelVersie });
   if (alGelijkOpGitHub(map, branch)) {
     log(`  ${grijs("staat al zo op GitHub, niets gepusht")}`);
     return "al-bij";
