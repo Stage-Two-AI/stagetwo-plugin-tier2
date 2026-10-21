@@ -1,6 +1,6 @@
 ---
 name: nieuwe-app
-description: Een nieuwe app starten op tier 2 van Stage Two, op Cloudflare en Supabase - eerst meedenken over wat de app moet doen, dan de app aanmaken uit de nieuwste template voor tier 2 van Stage Two onder de organisatie van de gebruiker, en hosting, deur en database laten inrichten door de beheer-repo. Gebruik dit als de gebruiker /stagetwo-tier2:nieuwe-app typt of een nieuwe, losstaande app wil beginnen (niet een uitbreiding van een bestaande app).
+description: Een nieuwe app starten op tier 2 van Stage Two, op Cloudflare en Supabase - eerst meedenken over wat de app moet doen, dan de app aanmaken uit de nieuwste template voor tier 2 van Stage Two onder de organisatie van de gebruiker, en hosting, deur en database laten inrichten door de beheer-repo. Gebruik dit als de gebruiker /stagetwo-tier2:nieuwe-app typt of een nieuwe app wil beginnen. Gaat eerst na of het idee als nieuw onderdeel in een bestaande superapp van het bedrijf past; alleen bij een andere gebruikersgroep, een los geheel of een verzamelplek voor gegevens van buiten wordt het een nieuwe superapp.
 ---
 
 Je helpt iemand die niet technisch is om een nieuwe app goed te beginnen. Het gesprek
@@ -8,27 +8,55 @@ is het belangrijkste deel: de keuzes hieronder zijn achteraf duur om te verander
 in gewone taal, stel één vraag tegelijk, en geef bij elke keuze een advies met de reden.
 De gebruiker beslist. Voer niets uit wat hier niet staat.
 
-## Stap 1: is het wel een nieuwe app?
+## Stap 1: hoort het bij een superapp die er al is?
 
-Vraag wat de gebruiker wil maken, in één of twee zinnen. Toets het aan dit lijstje:
+Vraag wat de gebruiker wil maken, in één of twee zinnen. Ga daarna eerst na bij welke
+bestaande app van het bedrijf het past. De apps van een bedrijf zijn **superapps**: één app
+per gebruikersgroep, met één repo en één database, waarin elk onderdeel een eigen pad
+(bijvoorbeeld `/planning`) en een tegel op de startpagina krijgt. Een nieuw idee is daarom
+meestal een nieuw onderdeel, geen nieuwe app. Welke apps er zijn, vraag je de gebruiker of
+lees je uit de organisatie:
+`gh repo list <organisatie> --no-archived --json name,description -q '.[] | "\(.name): \(.description)"'`.
+Heeft het bedrijf nog geen app, dan wordt dit de eerste superapp; ga door naar stap 2.
 
-| Wat je hoort | Waarschijnlijk |
+Toets het idee aan drie vragen: **wie gebruikt het** (eigen mensen of mensen van buiten),
+**welke gegevens gebruikt het** (gegevens die al in een app zitten of daar naast horen), en
+**is het een los geheel** (een ander bedrijf in de groep, of iets wat later apart verkocht
+kan worden).
+
+| Wat je hoort | Advies |
 |---|---|
-| Gaat over gegevens die al in een app van het bedrijf zitten (dezelfde planten, orders, voorraad, klanten) | uitbreiding van die app |
-| Een scherm, een overzicht of een werktuig erbij voor dezelfde mensen | uitbreiding van die app |
-| Andere gebruikers, of gegevens die niets met elkaar te maken hebben | nieuwe app |
-| "Kan dit er ook nog bij?" | vaak een uitbreiding |
+| Eigen mensen, ook als het een andere groep is dan nu (bijvoorbeeld de werkvloer naast kantoor) | nieuw onderdeel van de interne superapp |
+| Gegevens die al in een app zitten, of die je daar later naast wilt zien | nieuw onderdeel van die app |
+| Een scherm, een overzicht of een werktuig erbij | nieuw onderdeel |
+| "Kan dit er ook nog bij?" | bijna altijd een nieuw onderdeel |
+| Mensen van buiten: klanten, leveranciers, een webshop, links die naar klanten gaan | nieuwe superapp |
+| Een los geheel: een ander bedrijf in de groep, of iets wat later apart verkocht kan worden | nieuwe superapp |
+| Een verzamelplek voor gegevens van buiten, die andere apps alleen lezen | nieuwe superapp |
 
-De regel erachter is simpel en de gebruiker mag hem horen: **één app per verzameling
-gegevens.** Gegevens die op twee plekken staan gaan uit elkaar lopen, en een app die de
-gegevens van een andere app gebruikt is voor iedereen moeilijker te overzien. Is het een
-uitbreiding? Zeg dat, en verwijs naar `/stagetwo-tier2:verder-werken` in de map van die app. Stop
-dan hier.
+De regel erachter is simpel en de gebruiker mag hem horen: **één database per superapp,
+en alleen die app verandert hem.** Gegevens die op twee plekken staan gaan uit elkaar lopen,
+en twee apps die dezelfde tabellen veranderen zitten elkaar in de weg.
 
-Wil de gebruiker toch een aparte app op de gegevens van een bestaande app, bijvoorbeeld
-een portaal voor mensen van buiten? Dat kan, maar dat is een keuze met een eigen
-beveiligingsopzet, en die maakt Stage Two samen met de gebruiker. Verwijs naar Stage Two
-en stop hier.
+Elke database kost ook geld: bij Supabase betaalt het bedrijf per database per maand, en
+elke app heeft er twee (echt en test). Een nieuwe app voor elk idee loopt dus op, terwijl
+een onderdeel erbij niets extra kost.
+Andere gebruikers zijn op zichzelf geen reden voor een nieuwe app: wie welk onderdeel mag
+gebruiken, regel je binnen de app.
+
+Past het bij een bestaande app? Zeg bij welke, en dat het een nieuw onderdeel wordt met een
+eigen pad en een tegel. Verwijs naar `/stagetwo-tier2:verder-werken` in de map van die app.
+Stop dan hier.
+
+Is een nieuwe superapp nodig? Zeg welke van de drie redenen het is (een andere
+gebruikersgroep, een los geheel of een verzamelplek voor gegevens van buiten), en dat de app
+een eigen database krijgt. Ga dan door.
+
+Moet die nieuwe app gegevens van een bestaande app gebruiken, bijvoorbeeld een portaal waarin
+klanten hun eigen orders zien? Dat kan: de nieuwe app leest dan mee en verandert niets aan de
+opbouw van de database, want dat doet alleen de app die hem bezit. Maar het is een keuze met
+een eigen beveiligingsopzet, en die maakt Stage Two samen met de gebruiker. Verwijs naar Stage
+Two en stop hier.
 
 Moet de app **vindbaar zijn in Google** (een website, een webshop, een pagina die mensen
 delen)? Dan past deze template niet: die is voor werk-apps achter een login. Zeg dat en
@@ -58,8 +86,9 @@ bedragen staan ook op https://stagetwo.nl/#aanbod.
 
 ## Stap 4: naam en plek
 
-- **Naam.** Stel er een voor uit de omschrijving: kort, kleine letters, streepjes,
-  bijvoorbeeld `voorraad-app`. Laat de gebruiker kiezen.
+- **Naam.** Stel er een voor: kort, kleine letters, streepjes. Het is een superapp, dus
+  een naam voor het geheel en de gebruikersgroep (bijvoorbeeld `intern` of `klantportaal`),
+  niet voor het eerste onderdeel. Laat de gebruiker kiezen.
 - **Eigenaar.** Toon de organisaties van de gebruiker met `gh api user/orgs -q '.[].login'`.
   Kies de organisatie van het bedrijf: daar staat de beheer-repo die hosting en database
   inricht, en dan is de app van het bedrijf en niet van één persoon. Is er geen
