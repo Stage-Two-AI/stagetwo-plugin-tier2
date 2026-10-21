@@ -122,9 +122,13 @@ een nieuwe app beginnen, verder werken aan een bestaande app, of alles updaten.
 Typ `/stagetwo-tier2:nieuwe-app`. Het eerste deel is een gesprek, en dat is bewust: de keuzes
 daar zijn achteraf duur om te veranderen.
 
-1. Is het echt een nieuwe app, of past het bij een app die je al hebt? De regel is: één
-   app per verzameling gegevens. Gaat het over gegevens die al in een app zitten, dan is
-   het een uitbreiding van die app, en die maak je met `/stagetwo-tier2:verder-werken`.
+1. Is het echt een nieuwe app, of past het in een app die je al hebt? Een bedrijf heeft
+   meestal één interne app (een superapp) waarin elk idee een eigen onderdeel krijgt, met
+   een eigen pad en een tegel; die maak je met `/stagetwo-tier2:verder-werken`. Een nieuwe
+   app, met een eigen database, komt er alleen voor een andere gebruikersgroep (mensen
+   van buiten, zoals klanten), voor een los geheel (een ander bedrijf in de groep, of iets
+   wat later apart verkocht kan worden) of voor een verzamelplek voor gegevens van buiten.
+   Elke database kost geld, en gegevens op twee plekken lopen uit elkaar.
 2. Wat moet de app doen, voor wie, met welke gegevens, en wat is de eerste versie waar
    iemand echt iets aan heeft?
 3. Een naam, de plek (onder het GitHub-account van je bedrijf, in een nieuwe map op je
