@@ -177,7 +177,7 @@ export function eigenarenUitCodeowners(teksten) {
  * sleutels bewaakt de eigenaar in stagetwo-beheer-tier2, niet hier.
  *
  * Stage Two (StageTwoAI) komt nooit in CODEOWNERS van een klant-app: na de overdracht houdt
- * Stage Two geen toegang. Start Stage Two de app in de projectfase, dan wordt het
+ * Stage Two standaard geen toegang, en CODEOWNERS gaat altijd naar de klant. Start Stage Two de app in de projectfase, dan wordt het
  * bedrijfsaccount de reviewer: de eigenaar naast Stage Two in CODEOWNERS van de beheer-repo
  * (`beheerCodeowners`, de teksten van die bestanden). toegang.json noemt alleen e-mailadressen,
  * geen GitHub-logins, dus daar valt geen bouwer uit te halen. Alleen in de org van Stage Two

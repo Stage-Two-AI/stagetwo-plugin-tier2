@@ -163,6 +163,6 @@ Zeg tot slot, in deze volgorde:
    merge zet de app echt neer.
 3. Laat Stage Two weten dat deze app bestaat (de naam en waarvoor hij is), zodat Stage Two
    bij vragen weet over welke app het gaat. Een link naar de repo helpt alleen tijdens het
-   project; na de overdracht kan Stage Two een privé-repo niet openen. Toegang tot de app
+   project; na de overdracht kan Stage Two een privé-repo standaard niet openen. Toegang tot de app
    heeft Stage Two niet nodig: nieuwe versies van de werkwijze haalt de gebruiker zelf in de app
    binnen met `/stagetwo-tier2:updaten`.

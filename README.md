@@ -29,7 +29,7 @@ loopt vanaf de oplevering, het moment waarop Stage Two de omgeving aan je bedrij
 en is per maand opzegbaar, met een opzegtermijn van één kalendermaand. Daarin zitten nieuwe
 versies van template en plugin, die Stage Two eerst op zijn eigen apps toepast, een nieuwe
 versie als een leverancier iets verandert, een nieuwe versie van de beheer-repo als dat nodig
-is, en vragen en meedenken. Het abonnement houdt de omgeving niet bij: beheer en werking
+is, en vragen en meedenken, tot ongeveer een uur per maand (meer tijd op afspraak). Het abonnement houdt de omgeving niet bij: beheer en werking
 blijven na de overdracht bij je bedrijf. Niet in het abonnement zitten systeembeheer, een garantie op beschikbaarheid en meer
 werk aan je apps; dat laatste doet Stage Two op verzoek, op nacalculatie tegen €120 per uur
 exclusief btw. Dependabot, een dienst van GitHub, stelt in elke app updates van de
@@ -38,7 +38,8 @@ van de GitHub-workflows komen met een nieuwe versie van de template; alleen een
 beveiligingsupdate kan Dependabot tussendoor voorstellen.
 
 Na de overdracht heeft Stage Two geen eigen account, geen beheerrechten en zelf geen toegang
-tot je apps in de GitHub-organisatie van je bedrijf, en heeft die ook niet nodig. Je apps
+tot je apps in de GitHub-organisatie van je bedrijf, tenzij je bedrijf dat wil; die toegang
+kan je bedrijf altijd zelf intrekken. Het abonnement heeft die toegang niet nodig. Je apps
 veranderen nooit vanzelf. De plugin wel: dat is software van Stage Two die op de computers
 van je bouwers draait met hun rechten, en die zichzelf bijwerkt uit de kopie waar Stage Two
 met een abonnement nieuwe versies in zet. Wil je zelf bepalen wanneer dat gebeurt, vraag je
@@ -216,7 +217,7 @@ bedrijf nog geen beheer-repo, dan richt Stage Two de hosting en de database in.
 
 Laat Stage Two weten dat de app bestaat (de naam en waarvoor hij is), zodat Stage Two bij
 vragen weet over welke app het gaat. Een link naar de repo helpt alleen tijdens het project;
-na de overdracht kan Stage Two een privé-repo niet openen. Stage Two heeft geen toegang tot de
+na de overdracht kan Stage Two een privé-repo standaard niet openen. Stage Two heeft geen toegang tot de
 app nodig: nieuwe versies van de werkwijze haal je zelf in de app binnen met
 `/stagetwo-tier2:updaten`.
 
@@ -250,7 +251,7 @@ Wat er dan gebeurt, in deze volgorde:
    overnemen, of jouw versie houden. Twijfel je? Kies "houden"; dat verandert niets aan
    wat nu werkt. Stage Two kan er daarna naar kijken: tijdens het project met de link naar
    de pull request, na de overdracht met een beschrijving of schermafbeelding (Stage Two kan
-   je privé-repo's dan niet openen).
+   je privé-repo's dan standaard niet openen).
 4. **De pakketten van je app** worden bijgewerkt, binnen de grenzen die in je app
    staan, als een tweede, los voorstel. Daarnaast stelt Dependabot in elke app updates van
    de npm-pakketten voor, ook zonder abonnement; de versies van de
@@ -269,9 +270,9 @@ gewone taal. Daarna is het aan jou, precies zoals bij elke andere wijziging: ope
 pull request, wacht tot de controles groen zijn en klik op **Merge**. Zijn de controles rood, dan
 voldoet je app niet aan een nieuwe regel. Neem dan contact op met Stage Two en zet de
 controle niet uit. Tijdens het project stuur je de link naar de pull request; na de overdracht
-kan Stage Two je privé-repo's niet openen, dus stuur dan een beschrijving of een
+kan Stage Two je privé-repo's standaard niet openen, dus stuur dan een beschrijving of een
 schermafbeelding van de rode controle.
-Meekijken en meedenken valt binnen het abonnement; moet er meer aan je
+Meekijken en meedenken valt binnen het abonnement, tot ongeveer een uur per maand; moet er meer aan je
 app gebeuren, dan doet Stage Two dat op nacalculatie (€120 per uur exclusief btw).
 
 ## Als iets niet lukt
@@ -294,7 +295,7 @@ app gebeuren, dan doet Stage Two dat op nacalculatie (€120 per uur exclusief b
 
 Kom je er niet uit, dan is de vraag altijd welkom bij Stage Two. Vertel wat je typte en
 wat er terugkwam; de melding is bedoeld om door te geven. Vragen en meedenken vallen binnen
-het abonnement; meer werk doet Stage Two op nacalculatie (€120 per uur exclusief btw).
+het abonnement, tot ongeveer een uur per maand; meer werk doet Stage Two op nacalculatie (€120 per uur exclusief btw).
 
 ## Voor Stage Two
 
@@ -544,8 +545,9 @@ bronrepo.
   verder niets (geen Pull requests, geen apps, geen beheer-repo). Recept in
   `Stack/docs/recepten/github-app-levering.md`.
 - Na de overdracht (voorstel 17-10-2026, abonnement zonder toegang): Stage Two houdt geen
-  persoonlijk account, geen beheerrechten en geen toegang tot apps in de org van de klant, en
-  `.github/CODEOWNERS` gaat naar de klant. Daarom zet `/stagetwo-tier2:nieuwe-app` nooit
+  persoonlijk account, geen beheerrechten en geen toegang tot apps in de org van de klant,
+  tenzij de klant schriftelijk vraagt die toegang te laten bestaan (besluit 21-10; de klant kan
+  die altijd zelf intrekken). `.github/CODEOWNERS` gaat altijd naar de klant. Daarom zet `/stagetwo-tier2:nieuwe-app` nooit
   `StageTwoAI` in CODEOWNERS van een klant-app: start Stage Two in de projectfase zelf een app,
   dan wordt het bedrijfsaccount de reviewer (de andere eigenaar in CODEOWNERS van de
   beheer-repo); staat daar geen ander account, dan stopt het script met een melding. Stage Two installeert `stagetwo-levering` bij de

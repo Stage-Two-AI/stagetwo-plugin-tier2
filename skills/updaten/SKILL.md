@@ -16,7 +16,7 @@ gebruiker. Mergen doet de gebruiker zelf.
 De gebruiker bouwt zelf; Stage Two richt in en begeleidt. Nieuwe versies komen uit de kopie
 van plugin en template die Stage Two bij de start in de GitHub-organisatie van de klant
 klaarzet (`levering.json`); Stage Two zet daar nieuwe versies in zolang het abonnement loopt, en past elke versie eerst toe op zijn
-eigen apps. Na de overdracht heeft Stage Two zelf geen toegang tot de apps en zet het daar
+eigen apps. Na de overdracht heeft Stage Two standaard zelf geen toegang tot de apps en zet het daar
 geen voorstellen klaar; een app verandert nooit vanzelf: dit commando is de weg waarlangs een nieuwe versie in een app komt.
 Houd twee dingen apart als je het uitlegt: de plugin op deze computer werkt zichzelf bij uit
 de kopie (deel 1), en een app verandert alleen via een voorstel dat een bouwer goedkeurt
@@ -153,7 +153,7 @@ Vraag daarna per bestand één keuze:
 
 Weet de gebruiker het niet, dan is **eigen** de veilige keuze: dat verandert niets aan
 wat er nu werkt. Wil de gebruiker dat Stage Two ernaar kijkt: tijdens het project volstaat
-de link naar de pull request; na de overdracht kan Stage Two een privé-repo niet openen, dus
+de link naar de pull request; na de overdracht kan Stage Two een privé-repo standaard niet openen, dus
 dan een beschrijving of schermafbeelding.
 
 Let op bij een bestand met een projectdeel, zoals `AGENTS.md`. Zegt de `reden` dat de
@@ -192,8 +192,8 @@ Onthoud voor de samenvatting aan het eind (deel 6), in gewone taal:
    Merge drukken. Zijn de checks rood, dan voldoet de app niet aan een nieuwe regel;
    dan neemt hij contact op met Stage Two en zet hij de check niet uit (tijdens het project
    met de link; na de overdracht met een beschrijving of schermafbeelding, want dan kan Stage
-   Two de privé-repo niet openen).
-   Meekijken en meedenken vallen binnen het abonnement; meer werk aan de app doet Stage Two
+   Two de privé-repo standaard niet openen).
+   Meekijken en meedenken vallen binnen het abonnement, tot ongeveer een uur per maand; meer werk aan de app doet Stage Two
    op nacalculatie.
 
 ## Deel 4: de afhankelijkheden van deze app
@@ -260,8 +260,8 @@ Sluit af met één overzicht, in gewone taal:
    Merge drukken. Zijn de checks rood, dan voldoet de app niet aan een nieuwe regel; dan
    neemt hij contact op met Stage Two en zet hij de check niet uit (tijdens het project
    met de link; na de overdracht met een beschrijving of schermafbeelding, want dan kan Stage
-   Two de privé-repo niet openen).
-   Meekijken en meedenken vallen binnen het abonnement; meer werk aan de app doet Stage Two
+   Two de privé-repo standaard niet openen).
+   Meekijken en meedenken vallen binnen het abonnement, tot ongeveer een uur per maand; meer werk aan de app doet Stage Two
    op nacalculatie.
 3. Is in deel 1 of 2 iets bijgewerkt, zeg dan dat de app opnieuw moet starten, met deze
    uitleg: sluit de Claude-app helemaal af (Windows: rechtsonder in het systeemvak op het
