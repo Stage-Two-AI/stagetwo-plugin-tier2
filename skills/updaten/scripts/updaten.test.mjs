@@ -9,7 +9,7 @@ import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 import { git, insteadOfEnv, maakKlantRepo, maakTemplateRepo, nepGh, opruimen, tijdelijkeMap } from "../../../lib/test-hulp.mjs";
-import { BRANCH, WERKMAP_PREFIX, hoofd as afhHoofd, hoofdversiesUit, prTekst } from "./afhankelijkheden.mjs";
+import { BRANCH, WERKMAP_PREFIX, hoofd as afhHoofd, hoofdversiesUit, prTekst, vreemdeImporters } from "./afhankelijkheden.mjs";
 import { hoofd as overzichtHoofd, leesArgumenten } from "./overzicht.mjs";
 
 const GH_BASIS = {
@@ -127,7 +127,7 @@ test("overzicht: niet ingelogd bij gh is mislukt met de route naar installatie",
 // ---------------------------------------------------------------- afhankelijkheden
 
 /** Een nep-pnpm: `update` herschrijft het lockfile (of niet), `outdated` geeft JSON en code 1. */
-function nepPnpm(binMap, { verandert = true, outdated = {}, alsoPackageJson = false } = {}) {
+function nepPnpm(binMap, { verandert = true, outdated = {}, alsoPackageJson = false, vreemdeImporter = false } = {}) {
   writeFileSync(
     join(binMap, "pnpm"),
     `#!/usr/bin/env node
@@ -136,6 +136,7 @@ const [cmd] = process.argv.slice(2);
 if (cmd === "update") {
   if (${verandert}) writeFileSync("pnpm-lock.yaml", readFileSync("pnpm-lock.yaml", "utf8") + "# bijgewerkt\\n");
   if (${alsoPackageJson}) writeFileSync("package.json", "{}\\n");
+  if (${vreemdeImporter}) writeFileSync("pnpm-lock.yaml", readFileSync("pnpm-lock.yaml", "utf8") + "importers:\\n  .:\\n    dependencies: {}\\n  ../../BART-W~1/AppData/Local/Temp/stack-afhankelijkheden-x/app:\\n    dependencies: {}\\n");
   process.exit(0);
 }
 if (cmd === "outdated") { process.stdout.write(${JSON.stringify(JSON.stringify(outdated))}); process.exit(1); }
@@ -231,6 +232,27 @@ test("afhankelijkheden: wijzigt er meer dan het lockfile, dan stopt hij en pusht
     assert.equal(r.status, "gestopt");
     assert.deepEqual(r.buiten, ["package.json"]);
     assert.equal(git(w.klant.origin, "branch", "--list", BRANCH), "");
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("afhankelijkheden: een importer buiten de repo in het lockfile stopt hem, en er wordt niets gepusht", () => {
+  assert.deepEqual(
+    vreemdeImporters(
+      "lockfileVersion: '9.0'\nimporters:\n\n  .:\n    dependencies: {}\n  packages/web:\n    dependencies: {}\n  ../../../BART-W~1/AppData/Local/Temp/x/app:\n    dependencies: {}\n  'C:/elders':\n    dependencies: {}\npackages:\n  ../nep@1.0.0:\n",
+    ),
+    ["../../../BART-W~1/AppData/Local/Temp/x/app", "C:/elders"],
+  );
+  assert.deepEqual(vreemdeImporters("importers:\r\n  .:\r\n    dependencies: {}\r\n"), []);
+
+  const w = afhWereld({ pnpm: { vreemdeImporter: true } });
+  try {
+    const r = w.draai(["--json"]);
+    assert.equal(r.status, "gestopt");
+    assert.deepEqual(r.vreemd, ["../../BART-W~1/AppData/Local/Temp/stack-afhankelijkheden-x/app"]);
+    assert.equal(git(w.klant.origin, "branch", "--list", BRANCH), "");
+    assert.deepEqual(w.werkmappen(), []);
   } finally {
     w.opruimen();
   }

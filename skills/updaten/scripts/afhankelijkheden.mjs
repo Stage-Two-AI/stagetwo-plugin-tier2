@@ -20,10 +20,11 @@
  * Uitkomst: één JSON-object met `status`:
  *   gepusht   de PR staat open; zie pr, hoofdversies, dependabot
  *   bij       niets bij te werken binnen de grenzen; hoofdversies en dependabot staan er wel bij
- *   gestopt   er staat al een voorstel open (pr), of er zou iets anders dan het lockfile wijzigen
+ *   gestopt   er staat al een voorstel open (pr), er zou iets anders dan het lockfile wijzigen,
+ *             of het lockfile kreeg een importer buiten de repo (vreemd)
  *   mislukt   een voorwaarde ontbreekt; `reden` is één zin met één handeling
  */
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -70,6 +71,28 @@ const mislukt = (reden) => ({ status: "mislukt", reden: zonderLogin(reden) });
 function hoofdversie(v) {
   const m = /^(\d+)/.exec(String(v ?? ""));
   return m ? Number(m[1]) : null;
+}
+
+/**
+ * Importers in pnpm-lock.yaml die buiten de repo liggen (`../...` of een absoluut pad). Een app
+ * heeft alleen importers binnen de repo; een importer erbuiten is de werkmap zelf onder een
+ * andere padnaam. Zo ging het op 23-10-2026 bij Winco (overzicht#26): op Windows geeft tmpdir()
+ * de korte vorm (BART-W~1), pnpm rekent met de lange, en zag de werkmap als een tweede app.
+ */
+export function vreemdeImporters(lockfile) {
+  const uit = [];
+  let inImporters = false;
+  for (const regel of String(lockfile).split(/\r?\n/)) {
+    if (/^\S/.test(regel)) {
+      inImporters = regel.startsWith("importers:");
+      continue;
+    }
+    const m = inImporters && /^ {2}(\S.*):\s*$/.exec(regel);
+    if (!m) continue;
+    const pad = m[1].replace(/^['"]|['"]$/g, "");
+    if (pad.startsWith("..") || pad.startsWith("/") || /^[A-Za-z]:/.test(pad)) uit.push(pad);
+  }
+  return uit;
 }
 
 /** Pakketten met een nieuwere hoofdversie dan de huidige; uit `pnpm outdated --format json`. */
@@ -144,7 +167,9 @@ export function afhankelijkheden({ checkout, opAfstand = null }) {
     return { status: "gestopt", reden: `er staat al een voorstel voor de afhankelijkheden open: ${open.url}; merge of sluit dat eerst`, pr: { url: open.url, nieuw: false } };
   }
 
-  const werkmap = mkdtempSync(join(tmpdir(), WERKMAP_PREFIX));
+  // De echte padnaam: op Windows is tmpdir() vaak de korte vorm (C:\Users\BART-W~1\...), en
+  // dan ziet pnpm de kopie als een andere map dan zichzelf (zie vreemdeImporters).
+  const werkmap = realpathSync.native(mkdtempSync(join(tmpdir(), WERKMAP_PREFIX)));
   const ruimOp = () => rmSync(werkmap, { recursive: true, force: true });
   try {
     const kloon = kloonRepo({ url: origin, doel: join(werkmap, "app") });
@@ -168,6 +193,11 @@ export function afhankelijkheden({ checkout, opAfstand = null }) {
     if (buiten.length > 0) {
       ruimOp();
       return { status: "gestopt", reden: "er zou meer wijzigen dan alleen het lockfile; vraag Stage Two ernaar", buiten };
+    }
+    const vreemd = gewijzigd.includes(LOCKFILE) ? vreemdeImporters(readFileSync(join(kloon, LOCKFILE), "utf8")) : [];
+    if (vreemd.length > 0) {
+      ruimOp();
+      return { status: "gestopt", reden: "het lockfile kreeg een app buiten de repo erbij; er is niets gepusht, vraag Stage Two ernaar", vreemd };
     }
     if (gewijzigd.length === 0) {
       ruimOp();
