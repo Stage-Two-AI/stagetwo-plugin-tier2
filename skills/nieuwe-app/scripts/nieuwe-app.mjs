@@ -233,6 +233,11 @@ export function vulIn(map, { naam, omschrijving, reviewer }) {
   if (existsSync(codeowners)) {
     writeFileSync(codeowners, readFileSync(codeowners, "utf8").replaceAll(`@${STAGE_TWO_LOGIN}`, `@${reviewer}`));
   }
+  // De naam in het tabblad en op het beginscherm (de app is installeerbaar sinds templateversie 31).
+  for (const bestand of ["index.html", "public/manifest.webmanifest"]) {
+    const pad = join(map, bestand);
+    if (existsSync(pad)) writeFileSync(pad, readFileSync(pad, "utf8").replaceAll("Stack Template", naam));
+  }
   for (const bestand of ["README.md", "AGENTS.md"]) {
     if (readFileSync(join(map, bestand), "utf8").includes("<projectnaam>")) {
       throw new Error(`de projectnaam is niet overal ingevuld in ${bestand}`);
