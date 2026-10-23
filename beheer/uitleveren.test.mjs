@@ -194,6 +194,35 @@ test("template bij de klant: .claude/settings.json wijst naar de plugin in zijn 
   });
 });
 
+test("plugin: een abonnee die na de tag op de lijst kwam, blokkeert het uitleveren niet", () => {
+  metMap((map) => {
+    const bron = repo(join(map, "bron"), {
+      ".claude-plugin/plugin.json": JSON.stringify({ version: "2.0.0" }),
+      "abonnees.json": JSON.stringify({ abonnees: [] }),
+      "lib/x.mjs": "export const x = 1;\n",
+    });
+    git(bron, "tag", "v2.0.0");
+    commitAlles(bron, { "abonnees.json": JSON.stringify({ abonnees: ["Klant-BV"] }) });
+    const doelPlugin = kaal(join(map, "Klant-BV", "stagetwo-plugin-tier2"));
+    kaal(join(map, "Klant-BV", "app-template-tier2"));
+    const tmpl = repo(join(map, "tmpl"), { "README.md": "v1\n" });
+    git(tmpl, "tag", "stack-v1");
+
+    const r = uitleverenAanKlant({ org: "Klant-BV", toegepastVersie: "2.0.0", toegepastTemplate: "stack-v1", pluginMap: bron, templateUrl: tmpl, url: (r) => join(map, r) });
+    assert.equal(r.plugin.status, "geleverd");
+    assert.equal(toon(doelPlugin, "main", "abonnees.json"), null);
+    assert.equal(git(bron, "status", "--porcelain"), "", "de werkmap van de bron blijft ongemoeid");
+  });
+});
+
+test("workflow Uitleveren: een omschrijving met een dubbele punt staat tussen aanhalingstekens (anders is het bestand ongeldig)", () => {
+  const yml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", ".github", "workflows", "uitleveren.yml"), "utf8");
+  for (const regel of yml.split("\n").filter((r) => /^\s+description: /.test(r))) {
+    const waarde = regel.replace(/^\s+description: /, "");
+    if (waarde.includes(": ")) assert.match(waarde, /^['"]/, regel.trim());
+  }
+});
+
 test("workflow Uitleveren: alleen met de hand, niet bij een merge en niet elk uur", () => {
   const yml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", ".github", "workflows", "uitleveren.yml"), "utf8");
   const aan = yml.slice(yml.indexOf("\non:"), yml.indexOf("\npermissions:"));

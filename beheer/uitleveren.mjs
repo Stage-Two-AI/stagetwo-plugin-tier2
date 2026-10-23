@@ -119,7 +119,9 @@ export function maakBoom(map, ref, { weglaten = [], extra = {}, bewerk = {} } = 
   const env = { GIT_INDEX_FILE: join(tijdelijk, "index") };
   try {
     gitIn(map, ["read-tree", ref], { env });
-    for (const pad of weglaten) gitIn(map, ["rm", "--cached", "-q", "--ignore-unmatch", "--", pad], { env });
+    // Alleen uit de index, zonder te kijken naar de werkmap: daar staat main, en abonnees.json
+    // wijkt daar af van de tag zodra er na de tag een abonnee bij is gekomen.
+    for (const pad of weglaten) gitIn(map, ["update-index", "--force-remove", "--", pad], { env });
     const bewerkt = {};
     for (const [pad, omzetten] of Object.entries(bewerk)) {
       const oud = bestandOp(map, ref, pad);
