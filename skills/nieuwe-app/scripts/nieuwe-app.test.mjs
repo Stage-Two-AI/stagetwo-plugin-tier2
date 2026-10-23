@@ -39,6 +39,8 @@ function verseTemplate() {
   schrijfBestanden(map, {
     "README.md": "# <projectnaam>\n\n<!-- Vervang <projectnaam> en schrijf hieronder in één zin wat deze app doet,\nvanuit de gebruiker. -->\n\n<!-- Wat deze app doet, in één zin, vanuit de gebruiker geschreven. -->\n\nVerder.\n",
     "AGENTS.md": "# <projectnaam>\n\n<!-- Vervang <projectnaam> en de regel hieronder bij het opzetten van een project. -->\n<!-- Wat deze app doet, in één zin, vanuit de gebruiker geschreven. -->\n\n<!-- stack:begin -->\nkern\n<!-- stack:end -->\n",
+    "index.html": "<title>Stack Template</title>\n<meta name=\"apple-mobile-web-app-title\" content=\"Stack Template\" />\n",
+    "public/manifest.webmanifest": '{ "name": "Stack Template", "short_name": "Stack Template" }\n',
     ".github/CODEOWNERS": `/supabase/ @${STAGE_TWO_LOGIN}\n/.github/ @${STAGE_TWO_LOGIN}\n`,
     "stack.config.json": `${JSON.stringify({ $beschrijving: ["uitleg"], database: true }, null, 2)}\n`,
     "supabase/migrations/0001_items.sql": "create table items ();\n",
@@ -119,6 +121,11 @@ test("invullen: projectnaam, omschrijving en reviewer erin, aanwijzingen eruit",
   assert.match(agents, /^# voorraad\n/);
   assert.match(agents, /Zien wat er op voorraad is\./);
   assert.match(agents, /stack:begin/, "de markeringen blijven staan");
+  assert.equal(
+    readFileSync(join(map, "index.html"), "utf8"),
+    '<title>voorraad</title>\n<meta name="apple-mobile-web-app-title" content="voorraad" />\n',
+  );
+  assert.deepEqual(JSON.parse(readFileSync(join(map, "public/manifest.webmanifest"), "utf8")), { name: "voorraad", short_name: "voorraad" });
   assert.equal(readFileSync(join(map, ".github/CODEOWNERS"), "utf8"), "/supabase/ @bart\n/.github/ @bart\n");
 });
 
