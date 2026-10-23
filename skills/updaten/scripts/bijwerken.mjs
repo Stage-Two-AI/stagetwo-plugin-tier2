@@ -32,7 +32,7 @@
  *   mislukt        een voorwaarde ontbreekt; `reden` is één zin met één handeling
  * De reden bevat nooit een token: een URL met login wordt afgeplakt.
  */
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -127,8 +127,8 @@ function leesToestand(werkmap) {
  */
 export function controleerWerkmap(werkmap, { tmp = tmpdir(), nu = Date.now() } = {}) {
   if (typeof werkmap !== "string" || !werkmap) return { fout: "geef --werkmap de map uit de droogloop mee", eigen: false };
-  const echt = resolve(werkmap);
-  const basis = resolve(tmp);
+  const echt = echtPad(werkmap);
+  const basis = echtPad(tmp);
   if (dirname(echt) !== basis || !echt.slice(basis.length + 1).startsWith(WERKMAP_PREFIX)) {
     return { fout: "de werkmap ligt niet in de tijdelijke map van deze computer; gebruik de map uit de droogloop", eigen: false };
   }
@@ -136,6 +136,19 @@ export function controleerWerkmap(werkmap, { tmp = tmpdir(), nu = Date.now() } =
   const leeftijd = nu - statSync(join(echt, TOESTAND)).mtimeMs;
   if (leeftijd > WERKMAP_MAX_LEEFTIJD_MS) return { fout: "de droogloop is ouder dan een uur; draai --droogloop opnieuw", eigen: true };
   return { fout: null, eigen: true };
+}
+
+/**
+ * De echte padnaam, of het pad zoals het is als het niet bestaat. Op Windows is tmpdir() vaak de
+ * korte vorm (C:\Users\BART-W~1\...), op macOS een symlink (/var naar /private/var); pnpm rekent
+ * met de echte naam en zag de kopie anders als een tweede app (zie vreemdeImporters).
+ */
+function echtPad(pad) {
+  try {
+    return realpathSync.native(resolve(pad));
+  } catch {
+    return resolve(pad);
+  }
 }
 
 /** Het verschil tussen het bestand in de app en dat in de template, als tekst voor de bouwer. */
@@ -215,7 +228,7 @@ export function droogloop({ checkout, opAfstand = null, env = process.env }) {
     }
   }
 
-  const werkmap = mkdtempSync(join(tmpdir(), WERKMAP_PREFIX));
+  const werkmap = echtPad(mkdtempSync(join(tmpdir(), WERKMAP_PREFIX)));
   try {
     const kloon = kloonRepo({ url: origin, doel: join(werkmap, "app") });
     if (opAfstand !== null) {

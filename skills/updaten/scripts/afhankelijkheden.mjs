@@ -45,6 +45,9 @@ import {
   repoUitUrl,
   sh,
 } from "../../../lib/repo.mjs";
+import { vreemdeImporters } from "../../../lib/toepassen.mjs";
+
+export { vreemdeImporters };
 
 export const BRANCH = "stack-afhankelijkheden";
 export const WERKMAP_PREFIX = "stack-afhankelijkheden-";
@@ -71,28 +74,6 @@ const mislukt = (reden) => ({ status: "mislukt", reden: zonderLogin(reden) });
 function hoofdversie(v) {
   const m = /^(\d+)/.exec(String(v ?? ""));
   return m ? Number(m[1]) : null;
-}
-
-/**
- * Importers in pnpm-lock.yaml die buiten de repo liggen (`../...` of een absoluut pad). Een app
- * heeft alleen importers binnen de repo; een importer erbuiten is de werkmap zelf onder een
- * andere padnaam. Zo ging het op 23-10-2026 bij Winco (overzicht#26): op Windows geeft tmpdir()
- * de korte vorm (BART-W~1), pnpm rekent met de lange, en zag de werkmap als een tweede app.
- */
-export function vreemdeImporters(lockfile) {
-  const uit = [];
-  let inImporters = false;
-  for (const regel of String(lockfile).split(/\r?\n/)) {
-    if (/^\S/.test(regel)) {
-      inImporters = regel.startsWith("importers:");
-      continue;
-    }
-    const m = inImporters && /^ {2}(\S.*):\s*$/.exec(regel);
-    if (!m) continue;
-    const pad = m[1].replace(/^['"]|['"]$/g, "");
-    if (pad.startsWith("..") || pad.startsWith("/") || /^[A-Za-z]:/.test(pad)) uit.push(pad);
-  }
-  return uit;
 }
 
 /** Pakketten met een nieuwere hoofdversie dan de huidige; uit `pnpm outdated --format json`. */

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, utimesSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSync, symlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
@@ -80,6 +80,15 @@ test("controleerWerkmap weigert alles wat niet uit een droogloop komt", () => {
     assert.match(verouderd.fout, /ouder dan een uur/);
     assert.equal(verouderd.eigen, true, "een verouderde map is wel van ons en mag opgeruimd worden");
     assert.match(controleerWerkmap(join(tmp, "andere-abc"), { tmp }).fout, /tijdelijke map/);
+    // Dezelfde map via een andere naam (zoals /var en /private/var, of BART-W~1 op Windows).
+    const omweg = join(tmp, "..", `omweg-${WERKMAP_PREFIX}`);
+    symlinkSync(tmp, omweg);
+    try {
+      assert.deepEqual(controleerWerkmap(goed, { tmp: omweg }), { fout: null, eigen: true });
+      assert.deepEqual(controleerWerkmap(join(omweg, `${WERKMAP_PREFIX}abc`), { tmp }), { fout: null, eigen: true });
+    } finally {
+      opruimen(omweg);
+    }
   } finally {
     opruimen(tmp);
   }
@@ -184,7 +193,7 @@ test("droogloop zonder afwijkingen: resultaat noemt de paden, werkmap staat klaa
     assert.deepEqual(r.verwijderd, ["scripts/guard-oud.mjs"]);
     assert.deepEqual(r.overgeslagen, []);
     assert.equal(r.samenvatting.length, 3);
-    assert.ok(r.werkmap.startsWith(w.tmp));
+    assert.ok(r.werkmap.startsWith(realpathSync.native(w.tmp)), "de werkmap heeft zijn echte padnaam");
     assert.equal(statSync(r.werkmap).mode & 0o777, 0o700);
     assert.equal(git(w.klant.origin, "branch", "--list", "stack-bijwerken/v9"), "", "droogloop pusht niets");
     assert.deepEqual(alleBestanden(w.klant.checkout), voor, "de checkout van de klant is onaangeroerd");
