@@ -1,4 +1,9 @@
 {
   "uitleg": "Wie nieuwe versies krijgt (besluit 16-10-2026, levering per klant). Per abonnee de GitHub-org; de workflow Uitleveren zet plugin en template door naar <org>/stagetwo-plugin-tier2 en <org>/app-template-tier2. Stopt het abonnement, haal de regel weg en start daarna de workflow Levering stoppen. Dit bestand gaat nooit mee naar een klant.",
-  "abonnees": []
+  "abonnees": [
+    {
+      "org": "Winco-Holland-B-V",
+      "klant": "Winco"
+    }
+  ]
 }

@@ -35,11 +35,11 @@ on:
   workflow_dispatch:
     inputs:
       toegepast_versie:
-        description: Pluginversie: de versie die op de eigen apps van Stage Two is toegepast (bijvoorbeeld 26.0.0); de tag v<versie> moet in deze repo staan
+        description: 'Pluginversie: de versie die op de eigen apps van Stage Two is toegepast (bijvoorbeeld 26.0.0); de tag v<versie> moet in deze repo staan'
         required: true
         type: string
       toegepast_template:
-        description: Nieuwste templatetag: de versie die op de eigen apps van Stage Two is toegepast (bijvoorbeeld stack-v26); nieuwere tags gaan niet mee
+        description: 'Nieuwste templatetag: de versie die op de eigen apps van Stage Two is toegepast (bijvoorbeeld stack-v26); nieuwere tags gaan niet mee'
         required: true
         type: string
 
