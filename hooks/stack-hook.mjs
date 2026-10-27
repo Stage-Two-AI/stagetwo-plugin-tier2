@@ -22,18 +22,30 @@
  * geschreven als er een antwoord van afstand was, of als GitHub de repo weigert (dan
  * volgt een melding daarover, hooguit één keer per dag).
  *
+ * Bij dezelfde dagelijkse controle, tegelijk en elk met een eigen tijdslimiet (samen binnen de
+ * tien seconden van hooks.json):
+ *   - is er een nieuwere versie, dan het changelog van stagetwo.nl (lib/updates.mjs), zodat de
+ *     melding zegt wat er nieuw is en of er iets moet vóór een datum; zonder antwoord blijft
+ *     het de melding zonder changelog;
+ *   - hooguit één keer per dag per organisatie (stempel org_<eigenaar>.json) de andere apps
+ *     van het bedrijf die achterlopen (lib/andere-apps.mjs, via `gh`); zonder antwoord binnen
+ *     de limiet ontbreekt die regel, en morgen volgt een nieuwe poging.
+ *
  * Testhaak: is STACK_VERSIE_OP_AFSTAND_TEST gezet, dan vervangt die waarde de
  * netwerkvraag ("10" telt als versie 10, "geen-toegang" als een repo die GitHub weigert,
  * elke andere waarde als null). Alleen voor de
  * tests van deze plugin; het enige wat een verkeerd gebruik oplevert is een onjuiste
- * melding in de eigen sessie.
+ * melding in de eigen sessie. STAGETWO_UPDATES_TEST en STAGETWO_ANDERE_APPS_TEST doen
+ * hetzelfde voor het changelog en de andere apps.
  */
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { andereAppsAchter, repoUitOrigin } from "../lib/andere-apps.mjs";
 import { isCloudflareManifest } from "../lib/manifest.mjs";
-import { beoordeelStart, beoordeelTool, moetControleren, stempelNaam } from "./regels.mjs";
+import { haalUpdates, uitgavenTussen } from "../lib/updates.mjs";
+import { beoordeelStart, beoordeelTool, meldingAndereApps, moetControleren, orgStempelNaam, stempelNaam } from "./regels.mjs";
 import { bronOpAfstand } from "./versie-op-afstand.mjs";
 
 const GIT_TIMEOUT_MS = 2000;
@@ -91,34 +103,57 @@ function bronOpAfstandOfTesthaak() {
   return bronOpAfstand();
 }
 
-function sessieStart(projectmap) {
+function schrijfStempel(map, pad, stempel) {
+  try {
+    mkdirSync(map, { recursive: true });
+    writeFileSync(pad, `${JSON.stringify(stempel)}\n`);
+  } catch {
+    // Geen stempel kunnen schrijven betekent hooguit morgen nog een keer kijken.
+  }
+}
+
+/** De andere apps die achterlopen, hooguit één keer per dag per organisatie; anders null. */
+async function andereApps({ map, origin, doel, nu }) {
+  const huidige = repoUitOrigin(origin);
+  if (!huidige) return null;
+  const eigenaar = huidige.split("/")[0];
+  const pad = join(map, `${orgStempelNaam(eigenaar)}.json`);
+  if (!moetControleren({ stempel: leesJson(pad), nu })) return null;
+  // De stempel komt er ook als het niet lukt: morgen opnieuw, niet bij elke sessie.
+  schrijfStempel(map, pad, { tijdstip: nu.toISOString() });
+  return andereAppsAchter({ eigenaar, huidige, doel });
+}
+
+async function sessieStart(projectmap) {
   const versieLokaal = leesVersie(projectmap);
   if (versieLokaal === null) return;
 
   const map = stempelMap();
-  const stempelPad = join(map, `${stempelNaam({ origin: originUrl(projectmap), projectmap })}.json`);
+  const origin = originUrl(projectmap);
+  const stempelPad = join(map, `${stempelNaam({ origin, projectmap })}.json`);
   const stempel = leesJson(stempelPad);
   const nu = new Date();
   if (!moetControleren({ stempel, nu })) return;
 
   const opAfstand = bronOpAfstandOfTesthaak();
+  const doel = opAfstand.versie;
+  const nieuwer = Number.isSafeInteger(doel) && doel > versieLokaal;
+  const [updates, achter] = await Promise.all([
+    nieuwer ? haalUpdates() : null,
+    Number.isSafeInteger(doel) ? andereApps({ map, origin, doel, nu }) : null,
+  ]);
   const { melding, nieuweStempel } = beoordeelStart({
     versieLokaal,
-    versieOpAfstand: opAfstand.versie,
+    versieOpAfstand: doel,
     bronFout: opAfstand.fout,
     bron: opAfstand.repo,
     stempel,
     nu,
+    uitgaven: uitgavenTussen(updates, { van: versieLokaal, tot: doel }),
   });
-  if (nieuweStempel) {
-    try {
-      mkdirSync(map, { recursive: true });
-      writeFileSync(stempelPad, `${JSON.stringify(nieuweStempel)}\n`);
-    } catch {
-      // Geen stempel kunnen schrijven betekent hooguit morgen nog een keer kijken.
-    }
-  }
-  if (melding) process.stdout.write(`${melding}\n`);
+  if (nieuweStempel) schrijfStempel(map, stempelPad, nieuweStempel);
+  const regels = [melding, meldingAndereApps({ apps: achter, dezeAppBij: !nieuwer })].filter(Boolean);
+  if (regels.length > 0) process.stdout.write(`${regels.join("\n\n")}\n`);
 }
 
 function preToolUse(projectmap, manifest, event) {
@@ -145,7 +180,7 @@ function preToolUse(projectmap, manifest, event) {
   );
 }
 
-function main() {
+async function main() {
   const event = leesEvent();
   if (!event) return;
   const projectmap = process.env.CLAUDE_PROJECT_DIR || event.cwd;
@@ -155,12 +190,12 @@ function main() {
   // Een app van het Vercel-spoor is voor de andere Stage Two-plugin, niet voor deze.
   if (!isCloudflareManifest(manifest)) return;
 
-  if (event.hook_event_name === "SessionStart") sessieStart(projectmap);
+  if (event.hook_event_name === "SessionStart") await sessieStart(projectmap);
   else if (event.hook_event_name === "PreToolUse") preToolUse(projectmap, manifest, event);
 }
 
 try {
-  main();
+  await main();
 } catch {
   // Nooit in de weg lopen: elke onverwachte fout is een no-op.
 }

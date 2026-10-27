@@ -4,7 +4,9 @@
  * netwerk), en de hook zelf als proces met een tijdelijke projectmap.
  *
  * De hook krijgt in de procestests STACK_VERSIE_OP_AFSTAND_TEST mee, de testhaak die de
- * netwerkvraag vervangt (zie stack-hook.mjs), zodat geen enkel scenario GitHub raakt.
+ * netwerkvraag vervangt (zie stack-hook.mjs), zodat geen enkel scenario GitHub raakt. Het
+ * changelog en de andere apps staan standaard op "geen" (STAGETWO_UPDATES_TEST en
+ * STAGETWO_ANDERE_APPS_TEST); een test die ze nodig heeft, geeft ze mee.
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -21,8 +23,10 @@ import {
   beoordeelStart,
   beoordeelTool,
   beschermdePaden,
+  meldingAndereApps,
   moetControleren,
   normaliseerPad,
+  orgStempelNaam,
   stempelNaam,
 } from "./regels.mjs";
 import { bronOpAfstand, hoogsteStackVersie, soortFout, versieOpAfstand } from "./versie-op-afstand.mjs";
@@ -452,7 +456,13 @@ function maakProject({ manifest = true, versie = "9" } = {}) {
 }
 
 function draaiHook(event, { projectmap, data, opAfstand, env = {} } = {}) {
-  const omgeving = { PATH: process.env.PATH, HOME: process.env.HOME ?? tmpdir(), ...env };
+  const omgeving = {
+    PATH: process.env.PATH,
+    HOME: process.env.HOME ?? tmpdir(),
+    STAGETWO_UPDATES_TEST: "geen",
+    STAGETWO_ANDERE_APPS_TEST: "geen",
+    ...env,
+  };
   if (projectmap) omgeving.CLAUDE_PROJECT_DIR = projectmap;
   if (data) omgeving.CLAUDE_PLUGIN_DATA = data;
   if (opAfstand !== undefined) omgeving.STACK_VERSIE_OP_AFSTAND_TEST = String(opAfstand);
@@ -601,7 +611,132 @@ test(
     git("remote", "add", "origin", "git@github.com:Klantorg/mooie-app.git");
     const data = mkdtempSync(join(tmpdir(), "stack-hook-data-"));
     draaiHook(start(map), { projectmap: map, data, opAfstand: 10 });
-    assert.deepEqual(readdirSync(data), ["Klantorg_mooie-app.json"]);
+    assert.deepEqual(readdirSync(data), ["Klantorg_mooie-app.json", "org_Klantorg.json"], "plus één stempel voor de andere apps");
+  },
+);
+
+// ---------------------------------------------------------------- wat er nieuw is (uitgave 33)
+
+const UITGAVE = (versie, extra = {}) => ({ versie, titel: `Titel ${versie}`, samenvatting: "", actieNodig: null, punten: [], ...extra });
+
+test("start: met uitgaven noemt de melding de titels (nieuwste eerst, hooguit drie) en de pagina", () => {
+  const uitgaven = [UITGAVE(33), UITGAVE(31), UITGAVE(30), UITGAVE(29)];
+  const { melding, nieuweStempel } = beoordeelStart({ versieLokaal: 28, versieOpAfstand: 33, stempel: null, nu: NU, uitgaven });
+  assert.match(melding, /versie 28/);
+  assert.match(melding, /- versie 33: Titel 33\n- versie 31: Titel 31\n- versie 30: Titel 30\n- en 1 eerdere uitgave/);
+  assert.doesNotMatch(melding, /Titel 29/);
+  assert.match(melding, /https:\/\/stagetwo\.nl\/plugin/);
+  assert.match(melding, /\/stagetwo-tier2:updaten/);
+  assert.doesNotMatch(melding, /nadrukkelijk/);
+  assert.doesNotMatch(melding, /\u2014/, "geen em-dashes");
+  assert.deepEqual(nieuweStempel, { versieOpAfstand: 33, tijdstip: NU.toISOString() });
+});
+
+test("start: een uitgave met actieNodig: wat, vóór wanneer (als 30-11-2026) en nadrukkelijk aanbieden", () => {
+  const uitgaven = [UITGAVE(33), UITGAVE(32, { actieNodig: { wat: "Werk bij voor de nieuwe database.", voor: "2026-11-30" } })];
+  const { melding } = beoordeelStart({ versieLokaal: 31, versieOpAfstand: 33, stempel: null, nu: NU, uitgaven });
+  assert.match(melding, /nodig vóór 30-11-2026: Werk bij voor de nieuwe database\./);
+  assert.match(melding, /nadrukkelijk/);
+  assert.match(melding, /\/stagetwo-tier2:updaten/);
+});
+
+test("start: zonder uitgaven (site onbereikbaar) precies de melding van vroeger", () => {
+  const met = beoordeelStart({ versieLokaal: 9, versieOpAfstand: 10, stempel: null, nu: NU, uitgaven: [] });
+  const zonder = beoordeelStart({ versieLokaal: 9, versieOpAfstand: 10, stempel: null, nu: NU });
+  assert.deepEqual(met, zonder);
+  assert.doesNotMatch(met.melding, /stagetwo\.nl/);
+});
+
+test("start: niets nieuws (lokaal is bij): geen melding, ook niet met uitgaven", () => {
+  assert.equal(beoordeelStart({ versieLokaal: 33, versieOpAfstand: 33, stempel: null, nu: NU, uitgaven: [UITGAVE(33)] }).melding, null);
+});
+
+test("andere apps: één regel, met of zonder dat de open app bij is; niets zonder achterlopers", () => {
+  const apps = [
+    { naam: "x", versie: 28 },
+    { naam: "y", versie: 29 },
+  ];
+  const bij = meldingAndereApps({ apps, dezeAppBij: true });
+  assert.match(bij, /deze app is bij, maar 2 andere apps lopen achter: x \(versie 28\) en y \(versie 29\)\./);
+  assert.match(bij, /\/stagetwo-tier2:updaten/);
+  assert.match(bij, /niet op deze computer staan/);
+  assert.match(meldingAndereApps({ apps: [apps[0]], dezeAppBij: false }), /ook 1 andere app loopt achter: x \(versie 28\)\./);
+  const veel = Array.from({ length: 7 }, (_, i) => ({ naam: `a${i}`, versie: 20 + i }));
+  assert.match(meldingAndereApps({ apps: veel, dezeAppBij: true }), /a3 \(versie 23\), a4 \(versie 24\) en nog 2 andere\./);
+  assert.equal(meldingAndereApps({ apps: [], dezeAppBij: true }), null);
+  assert.equal(meldingAndereApps({ apps: null, dezeAppBij: true }), null);
+  assert.equal(orgStempelNaam("Klant Org"), "org_Klant_Org");
+});
+
+function antwoordMet(...repos) {
+  return JSON.stringify({ data: { repositoryOwner: { repositories: { nodes: repos } } } });
+}
+const APP = (naam, versie) => ({
+  nameWithOwner: `Klantorg/${naam}`,
+  viewerPermission: "WRITE",
+  isTemplate: false,
+  manifest: { text: JSON.stringify(MANIFEST) },
+  versie: { text: `${versie}\n` },
+});
+const UPDATES = JSON.stringify({
+  formaat: 1,
+  uitgaven: [
+    { id: "b", datum: "b", titel: "Nieuw in 10", samenvatting: "", versies: { tier2: 10 }, punten: [] },
+    { id: "a", datum: "a", titel: "Oud in 9", samenvatting: "", versies: { tier2: 9 }, punten: [] },
+  ],
+});
+
+function projectMetOrigin(versie) {
+  const map = maakProject({ versie });
+  spawnSync("git", ["-C", map, "init", "-q"]);
+  spawnSync("git", ["-C", map, "remote", "add", "origin", "https://github.com/Klantorg/open-app.git"]);
+  return map;
+}
+
+test(
+  "hook: open app bij, andere app achter: alleen de regel over de andere apps, één keer per dag per organisatie",
+  { skip: spawnSync("git", ["--version"]).status !== 0 && "git ontbreekt" },
+  () => {
+    const map = projectMetOrigin("10");
+    const data = mkdtempSync(join(tmpdir(), "stack-hook-data-"));
+    const env = { STAGETWO_ANDERE_APPS_TEST: antwoordMet(APP("open-app", 10), APP("oud", 8), APP("bij", 10)) };
+    const uit = draaiHook(start(map), { projectmap: map, data, opAfstand: 10, env });
+    assert.equal(uit.status, 0);
+    assert.match(uit.stdout, /deze app is bij, maar 1 andere app loopt achter: oud \(versie 8\)\./);
+    assert.doesNotMatch(uit.stdout, /open-app/, "de open app telt niet als andere app");
+
+    // Een tweede app van dezelfde organisatie op dezelfde dag: geen tweede regel over de andere apps.
+    const tweede = maakProject({ versie: "10" });
+    spawnSync("git", ["-C", tweede, "init", "-q"]);
+    spawnSync("git", ["-C", tweede, "remote", "add", "origin", "https://github.com/Klantorg/tweede.git"]);
+    assert.equal(draaiHook(start(tweede), { projectmap: tweede, data, opAfstand: 10, env }).stdout, "");
+  },
+);
+
+test(
+  "hook: open app achter: wat er nieuw is uit het changelog, plus de andere apps",
+  { skip: spawnSync("git", ["--version"]).status !== 0 && "git ontbreekt" },
+  () => {
+    const map = projectMetOrigin("9");
+    const data = mkdtempSync(join(tmpdir(), "stack-hook-data-"));
+    const env = { STAGETWO_UPDATES_TEST: UPDATES, STAGETWO_ANDERE_APPS_TEST: antwoordMet(APP("oud", 8)) };
+    const uit = draaiHook(start(map), { projectmap: map, data, opAfstand: 10, env });
+    assert.match(uit.stdout, /- versie 10: Nieuw in 10/);
+    assert.doesNotMatch(uit.stdout, /Oud in 9/, "versie 9 heeft de app al");
+    assert.match(uit.stdout, /ook 1 andere app loopt achter: oud \(versie 8\)/);
+  },
+);
+
+test(
+  "hook: geen gh of geen antwoord binnen de limiet: de melding van vroeger, en morgen opnieuw",
+  { skip: spawnSync("git", ["--version"]).status !== 0 && "git ontbreekt" },
+  () => {
+    const map = projectMetOrigin("9");
+    const data = mkdtempSync(join(tmpdir(), "stack-hook-data-"));
+    const uit = draaiHook(start(map), { projectmap: map, data, opAfstand: 10 });
+    assert.match(uit.stdout, /de template is op versie 10\. Zeg dit één keer/);
+    assert.doesNotMatch(uit.stdout, /andere app/);
+    assert.ok(existsSync(join(data, "org_Klantorg.json")), "de stempel staat er: vandaag niet nog eens proberen");
   },
 );
 

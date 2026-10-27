@@ -38,6 +38,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isCloudflareManifest, leesManifest, toegestaan as toegestaneBestandenVan } from "../../../lib/manifest.mjs";
 import { BEVESTIGING, branchNaam, prTekst, prTitel, sluitTekst } from "../../../lib/pr-tekst.mjs";
+import { haalUpdates, uitgavenTussen } from "../../../lib/updates.mjs";
 import {
   alGelijkOpGitHub,
   branchHerbouwbaar,
@@ -295,7 +296,7 @@ function uitlegNaDroogloop(resultaat) {
 
 // ---------------------------------------------------------------- de tweede aanroep
 
-export function voerUit({ werkmap, losOp }) {
+export function voerUit({ werkmap, losOp, updates = null }) {
   const controle = controleerWerkmap(werkmap);
   if (controle.fout) {
     // Een verouderde map van onszelf ruimen we op; een vreemde map laten we staan.
@@ -357,7 +358,8 @@ export function voerUit({ werkmap, losOp }) {
     const gepusht = !alGelijkOpGitHub(kloon, branch);
     if (gepusht) push(kloon, branch);
 
-    const tekst = prTekst({ resultaat: eind, afzender: AFZENDER });
+    const uitgaven = uitgavenTussen(updates, { van: resultaat.van, tot: resultaat.naar });
+    const tekst = prTekst({ resultaat: eind, afzender: AFZENDER, uitgaven });
     let pr = null;
     if (metGh && repo) {
       pr = openOfWerkPRBij({ repo, branch, titel: prTitel(resultaat.naar), tekst });
@@ -399,7 +401,7 @@ function uitlegNaPush({ gepusht, pr, repo, branch, resultaat }) {
 
 // ---------------------------------------------------------------- draaien
 
-export function hoofd(argv, { cwd = process.cwd(), env = process.env } = {}) {
+export function hoofd(argv, { cwd = process.cwd(), env = process.env, updates = null } = {}) {
   let args;
   try {
     args = leesArgumenten(argv);
@@ -407,7 +409,7 @@ export function hoofd(argv, { cwd = process.cwd(), env = process.env } = {}) {
     return { status: "mislukt", reden: fout.message };
   }
   const checkout = resolve(args.checkout ?? cwd);
-  if (args.werkmap) return voerUit({ werkmap: args.werkmap, losOp: args.losOp });
+  if (args.werkmap) return voerUit({ werkmap: args.werkmap, losOp: args.losOp, updates });
   if (args.droogloop) return droogloop({ checkout, opAfstand: args.repo, env });
   return mislukt("geef --droogloop (eerste aanroep) of --werkmap <map> (tweede aanroep) mee");
 }
@@ -428,7 +430,9 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const argv = process.argv.slice(2);
   let uitkomst;
   try {
-    uitkomst = hoofd(argv);
+    // Het changelog alleen voor de tweede aanroep, die de pull request schrijft; zonder antwoord geen kopje.
+    const updates = argv.includes("--werkmap") ? await haalUpdates() : null;
+    uitkomst = hoofd(argv, { updates });
   } catch (fout) {
     // Nooit een stack trace op het scherm: ook een onverwachte fout wordt één JSON-object.
     uitkomst = { status: "mislukt", reden: zonderLogin(eersteRegel(fout)) };

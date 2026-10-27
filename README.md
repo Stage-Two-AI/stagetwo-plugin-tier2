@@ -86,7 +86,10 @@ Vier commando's, en een bewaker op de achtergrond:
   het meteen.
 - **Een melding als er een nieuwere werkwijze is.** Open je je app en heeft Stage Two de
   gedeelde werkwijze verbeterd, dan zegt je assistent dat één keer, hooguit één keer per
-  dag. Meer niet: hij doet niets zonder dat jij het vraagt.
+  dag, met wat er nieuw is (uit het overzicht op stagetwo.nl/plugin). Moet een update vóór
+  een datum, dan zegt hij dat er duidelijk bij. Lopen andere apps van je bedrijf achter, dan
+  noemt hij die ook, zodat geen app ongemerkt op een oude versie blijft staan. Meer niet: hij
+  doet niets zonder dat jij het vraagt.
 - **Alles updaten met één commando.** Typ `/stagetwo-tier2:updaten`, en je assistent werkt alles
   bij zoals een update van je computer: de plugin, de programma's op je computer, je app
   naar de nieuwste werkwijze en de pakketten van je app. Wat je app verandert komt als
@@ -363,6 +366,14 @@ gestart vanuit `Stack/bin/stack-sync.mjs`, dat het register en de ruleset meegee
   template van de klant (zie "Levering per bedrijf"; zonder levering die van Stage Two), met
   één `git ls-remote` zonder login (drie seconden) en een dagstempel per repo in
   `${CLAUDE_PLUGIN_DATA}`. Weigert GitHub de repo, dan zegt hij dat; zonder netwerk niets.
+  Is er een nieuwere versie, dan haalt hij `https://stagetwo.nl/plugin/updates.json` op (twee
+  seconden, `lib/updates.mjs`) en noemt hij de titels van de uitgaven daartussen, en een
+  `actieNodig` met datum; zonder antwoord of bij een onbekend `formaat` blijft het de kale
+  melding. Tegelijk vraagt hij, hooguit één keer per dag per organisatie (stempel
+  `org_<eigenaar>.json`), met één GraphQL-vraag via `gh` (drie seconden,
+  `lib/andere-apps.mjs`) welke andere apps achterlopen. Zonder `gh`, login of antwoord valt
+  die regel weg. De pull request van `/stagetwo-tier2:updaten` krijgt bovenaan hetzelfde kopje
+  "Wat er nieuw is" (`lib/pr-tekst.mjs`).
 - Het templatedeel van `/stagetwo-tier2:updaten` (`bijwerken.mjs`) draait in twee stappen: `--droogloop` (voorcontrole, tijdelijke
   kloon, kern toepassen, resultaat als JSON) en `--werkmap <map>` (keuzes toepassen,
   committen met de identiteit van de gebruiker, pushen als de boom verschilt, PR openen
@@ -444,6 +455,12 @@ mag starten; de sleutels staan in de omgeving `beheer` en zijn voor hem niet te 
 
 ### Een nieuwe versie uitbrengen
 
+Een nieuwe versie gaat altijd als **uitgave** via de werkplaats (`Stage-Two-AI/stagetwo-werkplaats`,
+README, "De ronde"; besluit 26-10-2026): meldingen verzamelen, één nummer voor plugins, templates
+en beheer, één ronde pull requests, taggen, eerst de eigen apps, dan uitleveren en het changelog op
+stagetwo.nl/plugin. Daar staat de volgorde van de hele ronde; hieronder alleen wat er per stap in
+deze repo en de template gebeurt. Een sessie buiten de werkplaats brengt zelf geen versie uit.
+
 Volgorde bij elke release: eerst de plugin, dan de template. Een oude plugin stopt op
 een nieuwer manifestformaat; een nieuwe plugin kan altijd met een oudere template
 overweg.
@@ -467,9 +484,9 @@ overweg.
 4. Na de merge de tag zetten: `git tag stack-v<n> && git push origin stack-v<n>`. Pas
    dan bestaat de versie voor de melding en de skill. Een tag wordt nooit verplaatst;
    de ruleset op de template weigert dat.
-5. Eerst de eigen apps bijwerken. Registerprojecten (de eigen apps van Stage Two):
-   `node bin/stack-sync.mjs --status` in Stack, dan de droogloop, dan `--doe-het`. Zo past
-   Stage Two elke versie eerst toe op de eigen apps, vóór een abonnee hem krijgt.
+5. Eerst de eigen apps bijwerken: minstens één eigen app van Stage Two per tier met
+   `/stagetwo-tier2:updaten`, en de pull request moet groen worden (stap 7 van de ronde). Zo
+   past Stage Two elke versie eerst toe op de eigen apps, vóór een abonnee hem krijgt.
 6. Dan Uitleveren aan abonnees: pas als plugin en template op de eigen apps goed werken,
    start je de workflow **Uitleveren** met de hand: `gh workflow run uitleveren.yml -R
    Stage-Two-AI/stagetwo-plugin-tier2 -f toegepast_versie=<versie> -f toegepast_template=stack-v<n>`,

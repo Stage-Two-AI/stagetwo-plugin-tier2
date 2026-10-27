@@ -26,6 +26,7 @@
  * ontsnapping: STACK_ALLOW_DEV=1, voor lokaal kijken voor jezelf.
  */
 import { posix as pad } from "node:path";
+import { actieUit, datumNL, PAGINA_URL } from "../lib/updates.mjs";
 
 /** De gereedschappen die de hook beoordeelt; hooks.json gebruikt dezelfde tekst. */
 export const MATCHER = "Edit|Write|MultiEdit|NotebookEdit|Bash";
@@ -244,8 +245,14 @@ function isKleinGetal(n) {
  * dus hooguit één keer per dag. Dat gebeurt als een app na het afschermen van de bronrepo
  * nog niet op de kopie van de klant staat; stil blijven zou betekenen dat er nooit meer een
  * nieuwe versie gemeld wordt zonder dat iemand het merkt.
+ *
+ * `uitgaven` komt uit het changelog op stagetwo.nl (lib/updates.mjs, uitgavenTussen): de
+ * uitgaven tussen de lokale versie en die op afstand, nieuwste eerst. Dan noemt de melding wat
+ * er nieuw is (hooguit drie titels) en, als een uitgave `actieNodig` heeft, wat er moet en vóór
+ * wanneer, met de vraag het nadrukkelijk aan te bieden. Een lege lijst (site onbereikbaar,
+ * onbekend formaat) geeft de melding zonder changelog.
  */
-export function beoordeelStart({ versieLokaal, versieOpAfstand, stempel, nu, bronFout = null, bron = null }) {
+export function beoordeelStart({ versieLokaal, versieOpAfstand, stempel, nu, bronFout = null, bron = null, uitgaven = [] }) {
   const niets = { melding: null, nieuweStempel: null };
   if (!isKleinGetal(versieLokaal)) return niets;
   if (!isKleinGetal(versieOpAfstand)) {
@@ -262,13 +269,68 @@ export function beoordeelStart({ versieLokaal, versieOpAfstand, stempel, nu, bro
   if (!moetControleren({ stempel, nu })) return niets;
   const nieuweStempel = { versieOpAfstand, tijdstip: nu.toISOString() };
   if (versieOpAfstand <= versieLokaal) return { melding: null, nieuweStempel };
-  const melding = [
+  const lijst = Array.isArray(uitgaven) ? uitgaven.filter((u) => u && typeof u.titel === "string") : [];
+  if (lijst.length === 0) {
+    const melding = [
+      `stack: er is een nieuwere versie van de Stage Two-template. Deze app staat op versie ${versieLokaal},`,
+      `de template is op versie ${versieOpAfstand}. Zeg dit één keer aan de gebruiker, in gewone taal, en`,
+      "bied /stagetwo-tier2:updaten aan om de app bij te werken (dat opent een pull request). Voer het",
+      "niet uit zonder dat hij erom vraagt.",
+    ].join("\n");
+    return { melding, nieuweStempel };
+  }
+  const regels = [
     `stack: er is een nieuwere versie van de Stage Two-template. Deze app staat op versie ${versieLokaal},`,
-    `de template is op versie ${versieOpAfstand}. Zeg dit één keer aan de gebruiker, in gewone taal, en`,
-    "bied /stagetwo-tier2:updaten aan om de app bij te werken (dat opent een pull request). Voer het",
-    "niet uit zonder dat hij erom vraagt.",
+    `de template is op versie ${versieOpAfstand}. Wat er nieuw is (nieuwste eerst):`,
+    ...lijst.slice(0, MAX_TITELS).map((u) => `- versie ${u.versie}: ${u.titel}`),
+  ];
+  if (lijst.length > MAX_TITELS) regels.push(`- en ${lijst.length - MAX_TITELS} eerdere uitgave(n)`);
+  regels.push(`Alles staat op ${PAGINA_URL}.`);
+  const actie = actieUit(lijst);
+  if (actie) {
+    const wanneer = actie.voor ? ` vóór ${datumNL(actie.voor)}` : "";
+    regels.push(
+      `Deze update is nodig${wanneer}: ${actie.wat}`,
+      "Zeg dit duidelijk aan de gebruiker, met de datum, en bied /stagetwo-tier2:updaten nadrukkelijk aan",
+      "(dat opent een pull request), niet terloops. Voer het niet uit zonder dat de gebruiker erom vraagt.",
+    );
+  } else {
+    regels.push(
+      "Zeg dit één keer aan de gebruiker, in gewone taal, met wat er nieuw is, en bied /stagetwo-tier2:updaten",
+      "aan om de app bij te werken (dat opent een pull request). Voer het niet uit zonder dat de gebruiker erom vraagt.",
+    );
+  }
+  return { melding: regels.join("\n"), nieuweStempel };
+}
+
+const MAX_TITELS = 3;
+
+// ---------------------------------------------------------------- andere apps
+
+/**
+ * De regel over andere apps van het bedrijf die achterlopen (lib/andere-apps.mjs), of null
+ * als er geen zijn. `dezeAppBij` zegt of de open app zelf op de nieuwste versie staat; ook
+ * dan volgt de regel, want anders hoort niemand over een app die nooit meer open gaat.
+ */
+export function meldingAndereApps({ apps, dezeAppBij }) {
+  if (!Array.isArray(apps) || apps.length === 0) return null;
+  const MAX = 5;
+  const namen = apps.slice(0, MAX).map((a) => `${a.naam} (versie ${a.versie})`);
+  if (apps.length > MAX) namen.push(`nog ${apps.length - MAX} andere`);
+  const opsomming = namen.length === 1 ? namen[0] : `${namen.slice(0, -1).join(", ")} en ${namen.at(-1)}`;
+  const aantal = apps.length === 1 ? "1 andere app loopt" : `${apps.length} andere apps lopen`;
+  return [
+    dezeAppBij
+      ? `stack: deze app is bij, maar ${aantal} achter: ${opsomming}.`
+      : `stack: ook ${aantal} achter: ${opsomming}.`,
+    "Noem dit één keer aan de gebruiker en bied /stagetwo-tier2:updaten aan; dat werkt ook apps bij die",
+    "niet op deze computer staan. Voer het niet uit zonder dat de gebruiker erom vraagt.",
   ].join("\n");
-  return { melding, nieuweStempel };
+}
+
+/** De bestandsnaam (zonder .json) van de stempel voor de andere apps: één per organisatie. */
+export function orgStempelNaam(eigenaar) {
+  return `org_${veilig(eigenaar ?? "onbekend") || "onbekend"}`;
 }
 
 // ---------------------------------------------------------------- stempelnaam
