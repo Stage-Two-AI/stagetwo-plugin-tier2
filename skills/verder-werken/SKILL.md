@@ -19,8 +19,15 @@ in de route van de app staat):
   Claude-app start de app op deze computer tegen de testdatabase, waar elke nacht een kopie
   van productie in komt, en logt in als de testgebruiker `testgebruiker@stagetwo.nl` (het
   wachtwoord haalt `pnpm testlogin` zelf op). Loop de wijziging daar na in het paneel, voordat
-  je de gebruiker vraagt te kijken. Ziet de testgebruiker niets, dan heeft hij in deze app nog
-  geen rol: vraag de gebruiker hem één keer een rol te geven, net als een nieuwe collega.
+  je de gebruiker vraagt te kijken. Ziet de testgebruiker niets, kijk dan eerst naar
+  `supabase/testrol.sql` (hieronder).
+- **De rol van de testgebruiker.** Heeft de app rollen en staat er nog geen
+  `supabase/testrol.sql`, schrijf dat bestand dan één keer en laat het meegaan in de pull
+  request van dit werk. Het geeft `testgebruiker@stagetwo.nl` dezelfde rol als de bouwer: zoek
+  in de migraties hoe de app rollen bijhoudt en welke rol de bouwer heeft, en vraag het alleen
+  bij twijfel. Schrijf het zo dat het vaker mag draaien (bijvoorbeeld `on conflict do nothing`).
+  Na de merge voert het nachtelijke verversen van de testdatabase het uit; de gebruiker hoeft
+  niemand een rol te geven.
 - **De Cloudflare-preview is voor de gebruiker.** Geef hem één keer het vaste adres van de app
   (`actueel-...`, staat in de reactie van Preview uitrollen): daar logt hij met zijn eigen
   account in, en dat kan hij open laten staan. Daar krijgt hij een apart testaccount; de

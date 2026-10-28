@@ -11,7 +11,8 @@ apps) vraag je het wel.
 
 Jij wijzigt zelf niets in de bestanden van een app. Alles wat een app verandert, loopt
 via de scripts hieronder, in een tijdelijke kopie, en komt als pull request bij de
-gebruiker. Mergen doet de gebruiker zelf.
+gebruiker. De enige uitzondering is deel 4b: één bestand, en ook dat als eigen pull request.
+Mergen doet de gebruiker zelf.
 
 De gebruiker bouwt zelf; Stage Two richt in en begeleidt. Nieuwe versies komen uit de kopie
 van plugin en template die Stage Two bij de start in de GitHub-organisatie van de klant
@@ -223,6 +224,17 @@ aan apps vallen buiten het abonnement. Begin er niet zelf aan zonder dat de gebr
 erom vraagt. `dependabot`: voorstellen van Dependabot die nog openstaan; noem ze en zeg dat de
 gebruiker ze kan mergen als de checks groen zijn.
 
+## Deel 4b: de rol van de testgebruiker
+
+Heeft deze app rollen en staat er op `main` nog geen `supabase/testrol.sql`, schrijf dat
+bestand dan één keer, als eigen pull request zoals elke wijziging (de route van
+`/stagetwo-tier2:verder-werken`, op een nieuwe branch vanaf `main`). Het geeft
+`testgebruiker@stagetwo.nl` dezelfde rol als de bouwer: zoek in de migraties hoe de app rollen
+bijhoudt en welke rol de bouwer heeft, en vraag het alleen bij twijfel. Schrijf het zo dat het
+vaker mag draaien (bijvoorbeeld `on conflict do nothing`); het nachtelijke verversen van de
+testdatabase voert het uit. Geen rollen, of staat het bestand er al: sla dit deel over.
+Onthoud de pull request voor deel 6. Bij de andere apps in deel 5 doe je dit niet.
+
 ## Deel 5: de andere apps (vraag het eerst)
 
 ```sh
@@ -254,8 +266,9 @@ Overgeslagen bestanden leg je net zo voor als bij deze app.
 
 Sluit af met één overzicht, in gewone taal:
 
-1. Per app de pull requests (template en afhankelijkheden) met hun link, en wat er voor
-   de template is bijgewerkt en wat niet (de bestanden waarvoor **eigen** is gekozen).
+1. Per app de pull requests (template, afhankelijkheden en de rol uit deel 4b) met hun
+   link, en wat er voor de template is bijgewerkt en wat niet (de bestanden waarvoor
+   **eigen** is gekozen).
 2. Wat de gebruiker nu doet: per pull request wachten tot de checks groen zijn en op
    Merge drukken. Zijn de checks rood, dan voldoet de app niet aan een nieuwe regel; dan
    neemt hij contact op met Stage Two en zet hij de check niet uit (tijdens het project
@@ -271,13 +284,13 @@ Sluit af met één overzicht, in gewone taal:
 4. Gaat een app naar template 34 of nieuwer, zeg dan in één zin wat er nieuw is: de
    assistent kijkt voortaan zelf in de app op deze computer, met een kopie van de echte
    gegevens van vannacht, en mail buiten productie gaat naar één testadres. Bij het
-   eerstvolgende werk aan die app vraagt de assistent één keer naar dat adres en naar de rol
-   van de testgebruiker.
+   eerstvolgende werk aan die app vraagt de assistent één keer naar dat adres; de testgebruiker
+   krijgt vanzelf dezelfde rol als de bouwer.
 
 ## Wat je niet doet
 
-- Je wijzigt geen bestanden in deze checkout, ook niet als de gebruiker dat vraagt om
-  "het even snel op te lossen": de update loopt altijd via de pull request.
+- Buiten deel 4b wijzig je geen bestanden in deze checkout, ook niet als de gebruiker dat
+  vraagt om "het even snel op te lossen": de update loopt altijd via de pull request.
 - Je voegt niets toe aan de commando's hierboven: geen `cd`, geen omgevingsvariabelen,
   geen token, geen `pass` of `gpg`. Het script vindt alles zelf.
 - Je merget geen pull request; dat doet de gebruiker zelf.
