@@ -143,6 +143,16 @@ van de klant klaarzet (uit `levering.json`); alleen daar komen nieuwe versies bi
 de klant die kopie nog niet, dan blijft het de bron die er al staat (of die van Stage Two);
 het omzetten regelt Stage Two.
 
+## Stap 5b: Sentry, zodat de assistent fouten uit productie ziet
+
+Elke app stuurt fouten uit productie naar Sentry, op een account van het bedrijf. Met de
+koppeling Sentry in claude.ai kan de assistent die fouten zelf lezen als er iets misgaat.
+Kijk of er tools van Sentry beschikbaar zijn (namen met `sentry` erin). Zo ja, zeg dat het
+goed staat. Zo niet, zeg in twee zinnen: de koppeling staat in claude.ai onder Instellingen,
+Connectors, Sentry; de login van Sentry beheert Stage Two, dus Stage Two zet hem in een kort
+gesprek aan, op het scherm van de gebruiker. Ga daarna gewoon door; zonder koppeling werkt
+alles, alleen moet de gebruiker een fout dan zelf doorgeven.
+
 ## Stap 6: wat wil je doen?
 
 Alles staat klaar. Vraag nu, met deze drie keuzes:

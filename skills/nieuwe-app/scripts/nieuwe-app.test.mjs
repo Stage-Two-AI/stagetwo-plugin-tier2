@@ -454,3 +454,12 @@ test("Sentry: per app op de app-repo met VITE_SENTRY_DSN, niet meer via de behee
   assert.equal(voor.at(-1), SENTRY_REGEL);
   assert.equal(na.at(-1), SENTRY_REGEL);
 });
+
+test("testmail: --testmail wordt gelezen en moet een gewoon mailadres zijn", () => {
+  const basis = ["--json", "--droogloop", "--naam", "intern", "--eigenaar", "Richplant-BV"];
+  assert.equal(leesArgumenten(basis).testmail, null);
+  const goed = leesArgumenten([...basis, "--testmail", "test@richplant.nl"]);
+  assert.equal(goed.testmail, "test@richplant.nl");
+  assert.equal(controleerArgumenten(goed), null);
+  assert.match(controleerArgumenten(leesArgumenten([...basis, "--testmail", "geen-adres"])), /--testmail/);
+});

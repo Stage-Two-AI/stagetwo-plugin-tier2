@@ -268,6 +268,11 @@ Sluit af met één overzicht, in gewone taal:
    pijltje **^**, rechtermuisknop op het Claude-icoon, **Afsluiten**; macOS: cmd+Q), open
    hem opnieuw, klik dit gesprek aan in de linkerzijbalk en typ **ga verder**. Is alleen de
    plugin bijgewerkt (deel 2 niet), dan is `/reload-plugins` in dit gesprek ook genoeg.
+4. Gaat een app naar template 34 of nieuwer, zeg dan in één zin wat er nieuw is: de
+   assistent kijkt voortaan zelf in de app op deze computer, met een kopie van de echte
+   gegevens van vannacht, en mail buiten productie gaat naar één testadres. Bij het
+   eerstvolgende werk aan die app vraagt de assistent één keer naar dat adres en naar de rol
+   van de testgebruiker.
 
 ## Wat je niet doet
 
