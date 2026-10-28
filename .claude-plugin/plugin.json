@@ -1,6 +1,6 @@
 {
   "name": "stagetwo-tier2",
-  "version": "34.0.0",
+  "version": "35.0.0",
   "description": "De werkwijze van Stage Two in Claude Code, voor tier 2-apps (Cloudflare en Supabase). Vier skills: /stagetwo-tier2:installatie voor een nieuwe computer, /stagetwo-tier2:nieuwe-app om zelf een app te beginnen, /stagetwo-tier2:verder-werken voor elke wijziging aan een app, en /stagetwo-tier2:updaten om plugin, computer en apps bij te werken. Plus de bewaking van de gedeelde template.",
   "author": {
     "name": "Stage Two",
