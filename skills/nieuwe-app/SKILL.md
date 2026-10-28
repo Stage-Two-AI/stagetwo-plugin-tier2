@@ -192,8 +192,10 @@ Zeg tot slot, in deze volgorde:
    van de werkwijze werken alleen in de map van de app zelf.
 2. Typ daar `/stagetwo-tier2:verder-werken` en beschrijf de eerste versie uit stap 2.
    Komen er gegevens in, dan begint dat werk met de eerste tabellen; die route zit in
-   `/stagetwo-tier2:verder-werken` (met `docs/routes/databasewijziging.md`). De eerste
-   merge zet de app echt neer.
+   `/stagetwo-tier2:verder-werken` (met `docs/routes/databasewijziging.md`). Krijgt de app
+   rollen, dan schrijft de assistent in die pull request ook één keer `supabase/testrol.sql`,
+   zodat de testgebruiker dezelfde rol heeft als de bouwer. De eerste merge zet de app echt
+   neer.
 3. Laat Stage Two weten dat deze app bestaat (de naam en waarvoor hij is), zodat Stage Two
    bij vragen weet over welke app het gaat. Een link naar de repo helpt alleen tijdens het
    project; na de overdracht kan Stage Two een privé-repo standaard niet openen. Toegang tot de app
