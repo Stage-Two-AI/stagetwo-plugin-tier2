@@ -7,7 +7,7 @@
  * gesprek ervoor (wat moet de app doen, welke databasestand) staat in SKILL.md.
  *
  *   node nieuwe-app.mjs --json --droogloop --naam <naam> --eigenaar <org> \
- *        [--omschrijving "..."] [--organisatie "<bedrijfsnaam>"] [--map <map>]
+ *        [--omschrijving "..."] [--organisatie "<bedrijfsnaam>"] [--testmail <adres>] [--map <map>]
  *       Op het Cloudflare-spoor heeft elke app een eigen database (Supabase): daar loopt het
  *       inloggen via de deur van Cloudflare doorheen. `--database eigen` mag, andere standen niet.
  *       voorcontrole: staat alles klaar, bestaat de repo nog niet, waar landt hij, wie
@@ -56,6 +56,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { LEVERING, STAGE_TWO } from "../../../lib/levering.mjs";
 import { SETTINGS_PAD, kiesPluginBron, metPluginBron } from "../../../lib/plugin-bron.mjs";
+import { geldigTestadres, zetTestadres } from "../../../lib/testmail.mjs";
 import { ghAanwezig, ghIngelogd, git, sh } from "../../../lib/repo.mjs";
 
 /** De template uit levering.json (een abonnee), anders die van Stage Two; zie lib/levering.mjs. */
@@ -79,6 +80,7 @@ export function leesArgumenten(argv) {
     eigenaar: null,
     omschrijving: null,
     organisatie: null,
+    testmail: null,
     database: null,
     gedeeldEigenaar: null,
     gedeeldRef: null,
@@ -95,6 +97,7 @@ export function leesArgumenten(argv) {
     "--gedeeld-ref": "gedeeldRef",
     "--map": "map",
     "--groepen": "groepen",
+    "--testmail": "testmail",
   };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
@@ -135,6 +138,9 @@ export function controleerArgumenten(arg) {
   if (arg.naam.length > 41) return "de naam mag hooguit 41 tekens lang zijn";
   if (arg.groepen && !arg.groepen.every((g) => /^[a-z0-9][a-z0-9-]{0,40}$/.test(g))) {
     return "--groepen: namen van groepen uit toegang.json, met komma's (kleine letters, cijfers, streepjes)";
+  }
+  if (arg.testmail !== null && arg.testmail !== undefined && !geldigTestadres(arg.testmail)) {
+    return "--testmail: een gewoon mailadres waar de testmails van de app heen gaan (bijvoorbeeld test@bedrijf.nl)";
   }
   if (arg.organisatie !== null && arg.organisatie !== undefined && !geldigeOrganisatie(arg.organisatie)) {
     return "--organisatie: de naam van het bedrijf, op één regel en hooguit 100 tekens (bijvoorbeeld \"Richplant B.V.\")";
@@ -943,6 +949,7 @@ export function doeHet(arg, { cwd = process.cwd() } = {}) {
     vulIn(map, { naam: arg.naam, omschrijving: arg.omschrijving, reviewer });
     zetWorkerNaam(map, arg.naam);
     zetDatabaseStand(map, arg);
+    if (arg.testmail) zetTestadres(map, arg.testmail);
     pluginBron = zetPluginBron(map);
     licentie = zetLicentie(map, bedrijfsnaam);
     stap = "pakketten installeren (pnpm install)";

@@ -100,6 +100,10 @@ bedragen staan ook op https://stagetwo.nl/#aanbod.
   dan de groepen (met wie erin zit, in gewone woorden) en laat de gebruiker kiezen. Zijn
   er geen groepen, dan maakt de owner van de organisatie die aan (tijdens het project
   Stage Two); ga gewoon door, stap 5b meldt het.
+- **Testadres.** Vraag naar welk adres de testmails van deze app mogen. In de testdatabase en lokaal gaat
+  elke mail van de app naar dat ene adres, wie er ook als ontvanger staat, want daar staat een
+  kopie van echte gegevens. Stel het adres van de gebruiker voor (`git config user.email`).
+  Het hoort bij de app, niet bij één persoon, dus een gedeeld adres mag ook.
 - **Map.** De app komt als nieuwe submap met de naam van de app onder de map die nu open
   staat. Zeg dat.
 
@@ -108,7 +112,7 @@ bedragen staan ook op https://stagetwo.nl/#aanbod.
 Draai eerst de droogloop, met Bash, precies zo:
 
 ```sh
-node "${CLAUDE_SKILL_DIR}/scripts/nieuwe-app.mjs" --json --droogloop --naam "<naam>" --eigenaar "<eigenaar>" --omschrijving "<omschrijving>" --organisatie "<bedrijfsnaam>"
+node "${CLAUDE_SKILL_DIR}/scripts/nieuwe-app.mjs" --json --droogloop --naam "<naam>" --eigenaar "<eigenaar>" --omschrijving "<omschrijving>" --organisatie "<bedrijfsnaam>" --testmail "<testadres>"
 ```
 
 `<bedrijfsnaam>` is de naam van het bedrijf waarvoor de app is, zoals je die uit het gesprek of
