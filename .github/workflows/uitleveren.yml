@@ -28,6 +28,8 @@
 # namens de klant installeert op alleen zijn twee leveringsrepo's ("Only select
 # repositories"); de klant kan hem altijd zelf verwijderen. Nodig in deze repo: de variabele LEVERING_APP_ID
 # en het geheim LEVERING_APP_PRIVATE_KEY (recept: Stack/docs/recepten/github-app-levering.md).
+# Het geheim staat in omgeving levering, die alleen main toelaat: een run vanaf een andere
+# branch krijgt de sleutel van de App niet.
 # Deze workflow, het script en abonnees.json gaan zelf nooit mee naar een klant.
 name: Uitleveren
 
@@ -87,6 +89,8 @@ jobs:
       fail-fast: false
       matrix:
         org: ${{ fromJSON(needs.abonnees.outputs.orgs) }}
+    # Hier zit de sleutel van de App; omgeving levering laat alleen main toe.
+    environment: levering
     steps:
       - uses: actions/checkout@v5
         with:
