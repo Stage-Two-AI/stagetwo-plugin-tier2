@@ -7,7 +7,8 @@
 # Stage Two zelf, dan stopt hij vóór er iets gebeurt. Met droogloop aangevinkt zegt hij alleen
 # welke installatie weg zou gaan.
 #
-# Zelfde variabele en geheim als Uitleveren: LEVERING_APP_ID en LEVERING_APP_PRIVATE_KEY.
+# Zelfde variabele en geheim als Uitleveren: LEVERING_APP_ID en LEVERING_APP_PRIVATE_KEY, het
+# geheim in omgeving levering (alleen main).
 # Het script (beheer/levering-stoppen.mjs) maakt zelf een JWT van de App, omdat het verwijderen
 # van een installatie de App zelf vraagt, geen token van een installatie.
 # Deze workflow en het script gaan nooit mee naar een klant.
@@ -37,6 +38,7 @@ jobs:
   stoppen:
     name: Levering stoppen
     runs-on: ubuntu-latest
+    environment: levering
     steps:
       - uses: actions/checkout@v5
         with:
