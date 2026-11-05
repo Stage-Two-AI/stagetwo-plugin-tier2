@@ -223,6 +223,8 @@ export const MIGRATIE_CONTEXT = [
   "route verder-werken. Migraties zijn aanvullend, elke nieuwe tabel krijgt RLS, een grant,",
   "policies en een A/B-test met `controleerAfscherming` (tests/rls/lib/afscherming.ts) in tests/rls/,",
   "of staat met een reden in `open_tabellen` van stack.config.json, en daarna `pnpm db:types`.",
+  "Raakt de migratie bestaande rijen (UPDATE of DELETE), zet dan bovenin per tabel één regel",
+  "`-- verwacht: <tabel> <min>-<max> rijen`.",
 ].join("\n");
 
 /**

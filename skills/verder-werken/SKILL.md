@@ -101,6 +101,11 @@ Wat verder bij deze route hoort, en wat de route zelf ook noemt:
     een policy `using (true)` hebben, en alleen `to authenticated`; nooit voor `anon` of zonder
     `to`. Een open tabel hoeft geen A/B-test. Vraag de gebruiker bij twijfel of de tabel echt
     open mag, en zeg het in de PR-tekst.
+  - Zet een migratie bestaande gegevens om (`update` of `delete`), dan zet je bovenin per
+    geraakte tabel één regel `-- verwacht: <tabel> <min>-<max> rijen`, bijvoorbeeld
+    `-- verwacht: orders 0-40 rijen`. De Kwaliteitspoort oefent de migratie op de
+    testdatabase en is rood als hij buiten dat bereik valt. Schat het bereik zelf, uit de
+    testdatabase of de code; de gebruiker hoeft het niet te beoordelen.
 - **Meekijken tijdens het bouwen** gaat in de Claude-app via de preview: die start de app
   op deze computer volgens `.claude/launch.json`, tegen de testdatabase en nooit tegen
   productie. Start geen dev-server in Bash. Opleveren blijft altijd de pull request met
