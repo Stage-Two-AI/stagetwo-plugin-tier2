@@ -9,9 +9,11 @@
  *       doelversie), branch stack-bijwerken/v<n>, de kern toepassen; niets gepusht.
  *       Het resultaat bevat `werkmap` voor de tweede aanroep.
  *
- *   node bijwerken.mjs --json --werkmap <map> [--los-op <pad> template|eigen]...
- *       keuzes voor overgeslagen bestanden toepassen, committen met de identiteit uit de
- *       checkout, pushen als de boom verschilt, de pull request openen of bijwerken.
+ *   node bijwerken.mjs --json --werkmap <map> [--los-op <pad> template|eigen]... [--kop <pad> <kop>]...
+ *       keuzes voor overgeslagen bestanden toepassen, de koppen van de onderdelen invullen
+ *       (alleen als de droogloop src/onderdelen.ts heeft neergezet), committen met de
+ *       identiteit uit de checkout, pushen als de boom verschilt, de pull request openen of
+ *       bijwerken.
  *
  * Met --repo werkt het script een andere app van de klant bij, zonder dat die op deze
  * computer staat: dezelfde route, alleen komt de kloon dan rechtstreeks van GitHub
@@ -59,6 +61,7 @@ import {
   openPRVoorVersie,
   originPushUrl,
   originUrl,
+  nodeVoorKern,
   pnpmVoorKern,
   push,
   pushDroog,
@@ -68,6 +71,7 @@ import {
   vergelijkUrl,
   versieOpAfstand,
 } from "../../../lib/repo.mjs";
+import { zetKoppen } from "../../../lib/projectbestanden.mjs";
 import { LOCKFILE, MANIFEST_PAD, leesVersie, pasToe } from "../../../lib/toepassen.mjs";
 
 export const WERKMAP_PREFIX = "stack-bijwerken-";
@@ -77,7 +81,7 @@ const TOESTAND = "toestand.json";
 // ---------------------------------------------------------------- argumenten
 
 export function leesArgumenten(argv) {
-  const uit = { json: false, droogloop: false, werkmap: null, losOp: [], checkout: null, repo: null };
+  const uit = { json: false, droogloop: false, werkmap: null, losOp: [], koppen: {}, checkout: null, repo: null };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
     if (a === "--json") uit.json = true;
@@ -87,6 +91,9 @@ export function leesArgumenten(argv) {
     else if (a === "--repo") uit.repo = argv[++i] ?? null;
     else if (a === "--los-op") {
       uit.losOp.push({ pad: argv[++i] ?? null, keuze: argv[++i] ?? null });
+    } else if (a === "--kop") {
+      const pad = argv[++i] ?? "";
+      uit.koppen[pad] = argv[++i] ?? "";
     } else throw new Error(`onbekend argument: ${a}`);
   }
   return uit;
@@ -262,7 +269,7 @@ export function droogloop({ checkout, opAfstand = null, env = process.env }) {
     checkoutTag(tmplMap, doel);
     maakBranch(kloon, branch);
 
-    const resultaat = pasToe({ map: kloon, tmplMap, git: gitVoorKern(kloon, tmplMap), pnpm: pnpmVoorKern() });
+    const resultaat = pasToe({ map: kloon, tmplMap, git: gitVoorKern(kloon, tmplMap), pnpm: pnpmVoorKern(), node: nodeVoorKern() });
     if (resultaat.status !== "bijgewerkt") {
       verwijderWerkmap(werkmap);
       return { ...resultaat, reden: resultaat.reden && zonderLogin(resultaat.reden) };
@@ -282,12 +289,18 @@ function uitlegNaDroogloop(resultaat) {
   const n = resultaat.bijgewerkt.length;
   const w = resultaat.verwijderd.length;
   const o = resultaat.overgeslagen.length;
+  const eigen = resultaat.projectbestanden ?? [];
   return {
     samenvatting: [
       `Van versie ${resultaat.van} naar ${resultaat.naar}: ${n} bestand(en) bijgewerkt, ${w} verwijderd, ${o} overgeslagen.`,
       o > 0
         ? "Bij de overgeslagen bestanden is lokaal iets aangepast; kies per bestand: de template overnemen of de eigen versie houden."
-        : "Alleen bestanden van de template zijn geraakt; je eigen code niet.",
+        : eigen.length > 0
+          ? "Verder alleen bestanden van de template."
+          : "Alleen bestanden van de template zijn geraakt; je eigen code niet.",
+      ...(eigen.length > 0
+        ? [`Eenmalig voor deze versie ook in je eigen bestanden: ${eigen.join(", ")}.`]
+        : []),
       "Er is nog niets gepusht.",
     ],
   };
@@ -295,7 +308,7 @@ function uitlegNaDroogloop(resultaat) {
 
 // ---------------------------------------------------------------- de tweede aanroep
 
-export function voerUit({ werkmap, losOp, updates = null }) {
+export function voerUit({ werkmap, losOp, koppen = {}, updates = null }) {
   const controle = controleerWerkmap(werkmap);
   if (controle.fout) {
     // Een verouderde map van onszelf ruimen we op; een vreemde map laten we staan.
@@ -330,10 +343,15 @@ export function voerUit({ werkmap, losOp, updates = null }) {
       }
       opgelost.push({ pad, keuze });
     }
+    const kopFout = zetKoppen(kloon, resultaat.onderdelen ?? null, koppen);
+    if (kopFout) {
+      verwijderWerkmap(werkmap);
+      return mislukt(kopFout);
+    }
     const nogOvergeslagen = resultaat.overgeslagen.filter((s) => !opgelost.some((o) => o.pad === s.pad)).map(({ verschil: _, ...rest }) => rest);
 
     // De controle op zichzelf, nog een keer: ook na de keuzes mag alleen het manifest geraakt zijn.
-    const magOok = new Set([...toegestaneBestandenVan(manifest), ...resultaat.verwijderd, LOCKFILE]);
+    const magOok = new Set([...toegestaneBestandenVan(manifest), ...resultaat.verwijderd, ...(resultaat.projectbestanden ?? []), LOCKFILE]);
     const buiten = gewijzigdePaden(kloon).filter((pad) => !magOok.has(pad));
     if (buiten.length > 0) {
       verwijderWerkmap(werkmap);
@@ -377,6 +395,8 @@ export function voerUit({ werkmap, losOp, updates = null }) {
       verwijderd: eind.verwijderd,
       overgeslagen: eind.overgeslagen,
       opgelost,
+      projectbestanden: eind.projectbestanden ?? [],
+      voorDeBouwer: eind.voorDeBouwer ?? [],
       samenvatting: uitlegNaPush({ gepusht, pr, repo, branch, resultaat: eind }),
     };
   } catch (fout) {
@@ -395,6 +415,9 @@ function uitlegNaPush({ gepusht, pr, repo, branch, resultaat }) {
   if (resultaat.overgeslagen.length > 0) {
     regels.push(`${resultaat.overgeslagen.length} bestand(en) zijn niet bijgewerkt omdat ze lokaal afwijken; dat staat in de pull request.`);
   }
+  if ((resultaat.voorDeBouwer ?? []).length > 0) {
+    regels.push("Voor deze versie is er ook iets voor jou om na te lopen; dat staat in de pull request onder Voor jou.");
+  }
   return regels;
 }
 
@@ -408,7 +431,7 @@ export function hoofd(argv, { cwd = process.cwd(), env = process.env, updates = 
     return { status: "mislukt", reden: fout.message };
   }
   const checkout = resolve(args.checkout ?? cwd);
-  if (args.werkmap) return voerUit({ werkmap: args.werkmap, losOp: args.losOp, updates });
+  if (args.werkmap) return voerUit({ werkmap: args.werkmap, losOp: args.losOp, koppen: args.koppen, updates });
   if (args.droogloop) return droogloop({ checkout, opAfstand: args.repo, env });
   return mislukt("geef --droogloop (eerste aanroep) of --werkmap <map> (tweede aanroep) mee");
 }

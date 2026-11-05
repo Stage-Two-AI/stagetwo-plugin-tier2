@@ -53,7 +53,11 @@ function wereld({ gh = GH_STANDAARD, tagV9 = true, app } = {}) {
 }
 
 test("argumenten en het afplakken van een login in een URL", () => {
-  assert.deepEqual(leesArgumenten(["--json", "--droogloop"]), { json: true, droogloop: true, werkmap: null, losOp: [], checkout: null, repo: null });
+  assert.deepEqual(leesArgumenten(["--json", "--droogloop"]), { json: true, droogloop: true, werkmap: null, losOp: [], koppen: {}, checkout: null, repo: null });
+  assert.deepEqual(leesArgumenten(["--werkmap", "/t/x", "--kop", "/", "Mijn lijst", "--kop", "/klanten", "Alle klanten"]).koppen, {
+    "/": "Mijn lijst",
+    "/klanten": "Alle klanten",
+  });
   assert.equal(leesArgumenten(["--droogloop", "--repo", "klant/voorraad"]).repo, "klant/voorraad");
   assert.deepEqual(leesArgumenten(["--werkmap", "/t/x", "--los-op", "a.yml", "template", "--los-op", "b.yml", "eigen"]).losOp, [
     { pad: "a.yml", keuze: "template" },

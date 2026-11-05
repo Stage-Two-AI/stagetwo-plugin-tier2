@@ -11,8 +11,8 @@ apps) vraag je het wel.
 
 Jij wijzigt zelf niets in de bestanden van een app. Alles wat een app verandert, loopt
 via de scripts hieronder, in een tijdelijke kopie, en komt als pull request bij de
-gebruiker. De enige uitzondering is deel 4b: één bestand, en ook dat als eigen pull request.
-Mergen doet de gebruiker zelf.
+gebruiker. De uitzonderingen zijn deel 4b (één bestand, als eigen pull request) en, alleen
+als de gebruiker ja zegt, `e2e/global-setup.ts` in deel 6. Mergen doet de gebruiker zelf.
 
 De gebruiker bouwt zelf; Stage Two richt in en begeleidt. Nieuwe versies komen uit de kopie
 van plugin en template die Stage Two bij de start in de GitHub-organisatie van de klant
@@ -137,7 +137,29 @@ het betekent, in hooguit drie regels; gebruik daarvoor `samenvatting` als die er
   door en ga door naar deel 4. Probeer het niet te omzeilen en verzin geen andere weg.
 - `klaar`: de werkkopie staat klaar. Ga door naar 3b.
 
+Het script raakt alleen bestanden van de template, met één uitzondering: een versie die
+eenmalig iets in een bestand van het project nodig heeft, anders is de pull request zelf rood.
+Die bestanden staan in `projectbestanden`, en wat de gebruiker daarna zelf moet nalopen in
+`voorDeBouwer`. Bij de overstap naar versie 39 zijn dat:
+
+- `src/onderdelen.ts`, als hij ontbreekt: de lijst met onderdelen die de nieuwe browsertest één
+  voor één opent, gevuld uit de routes van de app (`onderdelen`), of met alleen `/`. Zie 3b.
+- `stack.config.json`: tabellen die al een bewust open policy (`using (true)`) hadden, staan dan
+  in `open_tabellen` met de reden "nog nalopen" (het script `scripts/open-tabellen-opnemen.mjs`
+  van de template). Anders maakt de nieuwe regel in de Kwaliteitspoort de pull request rood.
+- `e2e/global-setup.ts` raakt het script niet: dat bestand is van het project. Mist daar de
+  testrol, dan staat in `voorDeBouwer` wat erbij moet (zie deel 6).
+
 ### 3b: alleen bij overgeslagen bestanden een vraag
+
+**Eerst de koppen van de onderdelen** (alleen als `onderdelen` in het antwoord staat). De
+browsertest zoekt per onderdeel de kop (h1) van het hoofdscherm, en die kan het script niet
+weten. Zoek per pad in `onderdelen.onderdelen` in de code van de app (alleen lezen, niets
+wijzigen) welk scherm daar opent en wat zijn h1 is, en geef die in 3c mee met
+`--kop "<pad>" "<kop>"`. Is de kop gelijk aan de `naam`, of vind je geen vaste kop (hij komt
+uit de gegevens), laat `--kop` voor dat pad dan weg en noem het in deel 6. Bij een andere app
+(deel 5, `--repo`) staat de code niet op deze computer: laat `--kop` dan weg en noem het ook.
+Dit is geen vraag aan de gebruiker.
 
 Is `overgeslagen` leeg, dan is er niets te kiezen: ga meteen naar 3c. Het typen van
 `/stagetwo-tier2:updaten` was de toestemming voor de pull request; vraag die niet nog een keer.
@@ -174,7 +196,8 @@ Draai het script opnieuw met de `werkmap` uit 3a en per gekozen bestand een
 node "${CLAUDE_SKILL_DIR}/scripts/bijwerken.mjs" --json --werkmap "<werkmap uit 3a>" --los-op "<pad>" template --los-op "<ander pad>" eigen
 ```
 
-Zonder keuzes laat je `--los-op` weg. Het script commit met de git-naam en het
+Met koppen uit 3b komt er per onderdeel `--kop "<pad>" "<kop>"` bij. Zonder keuzes laat je
+`--los-op` weg. Het script commit met de git-naam en het
 e-mailadres van de gebruiker, pusht de branch `stack-bijwerken/v<versie>` naar zijn
 eigen GitHub en opent de pull request, of werkt een bestaande bij.
 
@@ -187,7 +210,8 @@ de gebruiker het opnieuw proberen, dan draait hij later `/stagetwo-tier2:updaten
 Onthoud voor de samenvatting aan het eind (deel 6), in gewone taal:
 
 1. wat er is bijgewerkt en waarom (een nieuwere versie van de gedeelde werkwijze), en
-   wat er niet is bijgewerkt (de bestanden waarvoor hij **eigen** koos);
+   wat er niet is bijgewerkt (de bestanden waarvoor hij **eigen** koos); en of er eenmalig
+   een eigen bestand bij zat (`projectbestanden`) en wat er in `voorDeBouwer` staat;
 2. waar de pull request staat (`pr.url`, of anders `vergelijkUrl` om hem zelf te openen);
 3. wat hij nu doet: de pull request bekijken, wachten tot de checks groen zijn en op
    Merge drukken. Zijn de checks rood, dan voldoet de app niet aan een nieuwe regel;
@@ -281,7 +305,14 @@ Sluit af met één overzicht, in gewone taal:
    pijltje **^**, rechtermuisknop op het Claude-icoon, **Afsluiten**; macOS: cmd+Q), open
    hem opnieuw, klik dit gesprek aan in de linkerzijbalk en typ **ga verder**. Is alleen de
    plugin bijgewerkt (deel 2 niet), dan is `/reload-plugins` in dit gesprek ook genoeg.
-4. Gaat een app naar template 34 of nieuwer, zeg dan in één zin wat er nieuw is: de
+4. Staat er iets in `voorDeBouwer`, zeg het per punt in gewone taal; het staat ook in de pull
+   request onder **Voor jou**. Gaat het om `e2e/global-setup.ts` (de testrol voor de
+   browsertest) en heeft de app rollen (`supabase/testrol.sql`), bied dan aan het meteen te doen
+   op de branch van de update-PR, met de route van `/stagetwo-tier2:verder-werken`: dat ene
+   bestand, zoals `voorDeBouwer` zegt. Daar kan het, omdat die branch de nieuwe
+   `scripts/write-local-env.mjs` al heeft (die zet `SUPABASE_DB_URL`); anders blijft de
+   browsertest per onderdeel in de update-PR rood. Doe het alleen als de gebruiker ja zegt.
+5. Gaat een app naar template 34 of nieuwer, zeg dan in één zin wat er nieuw is: de
    assistent kijkt voortaan zelf in de app op deze computer, met een kopie van de echte
    gegevens van vannacht, en mail buiten productie gaat naar één testadres. Bij het
    eerstvolgende werk aan die app vraagt de assistent één keer naar dat adres; de testgebruiker
@@ -289,7 +320,8 @@ Sluit af met één overzicht, in gewone taal:
 
 ## Wat je niet doet
 
-- Buiten deel 4b wijzig je geen bestanden in deze checkout, ook niet als de gebruiker dat
+- Buiten deel 4b (en `e2e/global-setup.ts` als de gebruiker daar in deel 6 ja op zegt)
+  wijzig je geen bestanden in deze checkout, ook niet als de gebruiker dat
   vraagt om "het even snel op te lossen": de update loopt altijd via de pull request.
 - Je voegt niets toe aan de commando's hierboven: geen `cd`, geen omgevingsvariabelen,
   geen token, geen `pass` of `gpg`. Het script vindt alles zelf.
