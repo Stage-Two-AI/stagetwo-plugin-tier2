@@ -74,7 +74,10 @@ Vier commando's, en een bewaker op de achtergrond:
   bedrijf zet hem daarna online, achter de deur. Zie hieronder.
 - **Verder werken aan een app.** `/stagetwo-tier2:verder-werken` is de vaste route voor elke
   wijziging, ook aan de database. Je hoeft het commando niet te typen: gewoon vragen wat
-  je wilt werkt ook. De route staat ook in je app beschreven (`docs/routes/`).
+  je wilt werkt ook. De route staat ook in je app beschreven (`docs/routes/`). Je kunt
+  Claude starten in de map van een app, of in de map waarin al je apps staan: dan zegt hij
+  welke apps er staan en of er een achterloopt, en werkt hij in de map van de app waar je
+  vraag over gaat.
 - **Meekijken terwijl je bouwt.** In de Claude-app start je assistent de app vanzelf op
   je eigen computer en laat hij hem zien in het venster naast het gesprek (de preview).
   Hij kijkt daar zelf ook mee om zijn werk te controleren. De preview praat met de
@@ -82,8 +85,10 @@ Vier commando's, en een bewaker op de achtergrond:
 - **Een bewaker.** Een deel van de bestanden in je app is niet van jou maar van de
   gedeelde werkwijze: de automatische controles, de afspraken, de routes. Vraag je je
   assistent om daar iets in te wijzigen, dan houdt de plugin dat tegen en legt hij uit
-  waarom. Zonder plugin houdt de controle op GitHub het alsnog tegen; met plugin hoor je
-  het meteen.
+  waarom, ook als hij het via de opdrachtregel probeert. Zonder plugin houdt de controle op
+  GitHub het alsnog tegen; met plugin hoor je het meteen. Een pull request begint bij de
+  bewaker altijd als concept: dan draaien tussendoor alleen de snelle controles, en dat
+  scheelt GitHub-minuten.
 - **Een melding als er een nieuwere werkwijze is.** Open je je app en heeft Stage Two de
   gedeelde werkwijze verbeterd, dan zegt je assistent dat één keer, hooguit één keer per
   dag, met wat er nieuw is (uit het overzicht op stagetwo.nl/plugin). Moet een update vóór
@@ -343,18 +348,18 @@ Een verbetering die voor beide varianten geldt, doe je in beide repo's.
 hooks/             de bewaker (PreToolUse) en de melding bij sessiestart (SessionStart)
 skills/            de vier skills; met een script: updaten (bijwerken.mjs voor de
                    template, afhankelijkheden.mjs, overzicht.mjs), installatie
-                   (controle.sh, shell omdat Node kan ontbreken) en nieuwe-app
+                   (controle.sh, shell omdat Node kan ontbreken; werkmap.mjs), verder-werken
+                   (testmail.mjs, logboek.mjs) en nieuwe-app
                    (nieuwe-app.mjs: aanmaken, en --inrichten start de workflow in de
                    beheer-repo van de klant; plus ruleset.json voor main)
 lib/               de kern: manifest lezen, toepassen, PR-tekst, git- en PR-stappen
-beheer/            alleen voor Stage Two, geen skill: de beheerde run over het register,
-                   Uitleveren en levering-omzetten.mjs (bestaande apps naar de kopie)
+beheer/            alleen voor Stage Two, geen skill: Uitleveren en levering-omzetten.mjs
+                   (bestaande apps naar de kopie)
 test/              de geheimenscan over boom en geschiedenis
 ```
 
-`beheer/beheerd.mjs` staat bewust niet onder `bin/`: die map zet Claude Code op het
-PATH van elke sessie waarin de plugin aanstaat, ook bij klanten. De beheerde run wordt
-gestart vanuit `Stack/bin/stack-sync.mjs`, dat het register en de ruleset meegeeft.
+De scripts in `beheer/` staan bewust niet onder `bin/`: die map zet Claude Code op het
+PATH van elke sessie waarin de plugin aanstaat, ook bij klanten.
 
 ### Hoe het werkt, in het kort
 
@@ -362,6 +367,26 @@ gestart vanuit `Stack/bin/stack-sync.mjs`, dat het register en de ruleset meegee
   (de lijst `vervangen`, plus `.github/CODEOWNERS` en alles onder `.github/workflows/`
   en `.claude/`). Zonder manifest doet hij niets. `STACK_ALLOW_POLICY_EDIT=1` laat
   padbewerkingen door, voor onderhoud aan de template zelf.
+- **Werkmap** (uitgave 39, `lib/werkmap.mjs`). Heeft de projectmap geen manifest, dan kijkt de
+  hook één niveau dieper. Staan daar apps van deze tier (geen git-worktrees), dan zegt hij
+  bij sessiestart één regel: welke apps, dat wijzigingen via verder-werken in de map van de
+  app gaan, en alleen als er een achterloopt ook welke (de versie op afstand hooguit één keer
+  per dag, stempel `werkmap_<map>.json`). Niets uit een logboek. Bij PreToolUse beoordeelt
+  de bewaker een bestand in de map van zijn app; de Bash-regels gelden als de opdracht in een
+  app draait (cwd, `cd <app>`, `git -C <app>`, `pnpm --dir <app>`, `--repo <eigenaar>/<app>`),
+  dus niet voor bijvoorbeeld de architectuur-repo ernaast. `skills/installatie/scripts/werkmap.mjs`
+  zet in de werkmap een `CLAUDE.md` (blok tussen markeringen) en per app een preview in
+  `.claude/launch.json` (`.claude/stagetwo-preview.mjs` gaat naar de map van de app en start
+  daar `scripts/preview.mjs`).
+- Sinds uitgave 39 leest de bewaker ook Bash-opdrachten op schrijven naar die paden: een
+  omleiding (`>`, `>>`), `tee`, `sed -i`, `perl -i`, `cp`, `mv`, `rm`, `touch`, `truncate`,
+  `dd of=`, `git rm`, `git mv`, en een `node -e` of `python -c` die een beschermd pad noemt en
+  schrijft (`hooks/regels.mjs`, een kleine lezer voor de opdrachtregel, met here-documents
+  overgeslagen). Terugzetten (`git checkout`, `git restore`) mag. Dat is een vroege
+  waarschuwing; `guard:template` blijft de echte controle. Ook nieuw: `gh pr create` zonder
+  `--draft` (of `-d`) wordt geweigerd, met de uitleg waarom en hoe de PR later op klaar gaat
+  (`gh pr ready`). En `git -C <map> push` naar main of met `--force` valt nu ook onder de
+  regels.
 - De melding vergelijkt `.claude/stack-version` met de hoogste tag `stack-v<n>` op de
   template van de klant (zie "Levering per bedrijf"; zonder levering die van Stage Two), met
   één `git ls-remote` zonder login (drie seconden) en een dagstempel per repo in
@@ -381,14 +406,19 @@ gestart vanuit `Stack/bin/stack-sync.mjs`, dat het register en de ruleset meegee
   een commit zonder die trailer wordt nooit opnieuw opgebouwd. De tijdelijke map
   verdwijnt na de tweede aanroep en bij elke mislukking. Met `--repo eigenaar/naam`
   werkt het een app bij die niet op de computer staat (kloon via de gh-login). De
-  branchnaam `stack-bijwerken/v<n>` en de trailer blijven zo heten: de beheerde run en
-  de bestaande pull requests van klanten leunen erop.
+  branchnaam `stack-bijwerken/v<n>` en de trailer blijven zo heten: de bestaande pull
+  requests van klanten leunen erop.
 - `afhankelijkheden.mjs`: `pnpm update --no-save` in een tijdelijke kloon (alleen het
   lockfile verandert, de grenzen in package.json zijn deels van de template), PR op de
   vaste branch `stack-afhankelijkheden`; staat die PR al open, dan stopt hij. Noemt de
   hoofdversies uit `pnpm outdated` en de open Dependabot-PR's.
 - `overzicht.mjs`: de apps uit de template met schrijfrecht, per eigenaar via
   `gh repo list` en de inhoud van `.claude/stack-version`; wijzigt niets.
+- `verder-werken/scripts/logboek.mjs` (uitgave 39): de laatste twintig regels van
+  `docs/logboek.md` in `<eigenaar>/architectuur`, eerst via `gh`, anders een kopie naast de
+  app of in de werkmap. Claude leest ze stil mee bij de start van een klus; de hook leest
+  niets voor. Bij "PR op klaar" vult Claude het kopje "Voor de architectuur" van het
+  PR-sjabloon zelf in; de workflow in de beheer-repo zet dat na de merge in het logboek.
 - De hook geeft bij schrijven in `supabase/migrations/` de databaseroute mee als
   `additionalContext` (geen weigering, de gewone toestemmingsvraag blijft). Dat
   vervangt de vroegere skill databasewijziging.
@@ -445,20 +475,21 @@ mag starten; de sleutels staan in de omgeving `beheer` en zijn voor hem niet te 
    in zijn instellingen) tegen. Een gewone run (ook vanuit `/stagetwo-tier2:updaten`) laat
    dat staan, alleen `--aan` zet het terug. De plugin bijwerken gaat dan met
    `/stagetwo-tier2:updaten`.
-6. Loop de melding en `/stagetwo-tier2:updaten` één keer samen door, en `/stagetwo-tier2:nieuwe-app` als
+6. Laat elke bouwer `/stagetwo-tier2:installatie` draaien in de map waarin zijn apps staan;
+   stap 7 daarvan zet daar een `CLAUDE.md` en de previews (één keer per bouwer en per
+   computer, niet in git). Zet het op de lijst met handmatige stappen van de klant.
+7. Loop de melding en `/stagetwo-tier2:updaten` één keer samen door, en `/stagetwo-tier2:nieuwe-app` als
    de klant zelf apps gaat starten. Cloudflare en Supabase richt de workflow "App
    inrichten" in `<klantorg>/stagetwo-beheer-tier2` in (recept: Stage-Two-AI/beheer-template,
    `klant-tier2/`); die toegang komt nooit op de computer van de klant (besluit
    22-09-2026).
-7. Zet in `Stack/projecten.json` de `route` van het project op `plugin`; een app die de
-   klant zelf met `/stagetwo-tier2:nieuwe-app` maakte, voeg je toe zodra hij hem meldt.
 
 ### Een nieuwe versie uitbrengen
 
 Een nieuwe versie gaat altijd als **uitgave** via de werkplaats (`Stage-Two-AI/stagetwo-werkplaats`,
 README, "De ronde"; besluit 26-10-2026): meldingen verzamelen, één nummer voor plugins, templates
-en beheer, één ronde pull requests, taggen, eerst de eigen apps, dan uitleveren en het changelog op
-stagetwo.nl/plugin. Daar staat de volgorde van de hele ronde; hieronder alleen wat er per stap in
+en beheer, één ronde pull requests, taggen, uitleveren, het changelog op
+stagetwo.nl/plugin en de lessen vastleggen. Daar staat de volgorde van de hele ronde; hieronder alleen wat er per stap in
 deze repo en de template gebeurt. Een sessie buiten de werkplaats brengt zelf geen versie uit.
 
 Volgorde bij elke release: eerst de plugin, dan de template. Een oude plugin stopt op
@@ -484,14 +515,13 @@ overweg.
 4. Na de merge de tag zetten: `git tag stack-v<n> && git push origin stack-v<n>`. Pas
    dan bestaat de versie voor de melding en de skill. Een tag wordt nooit verplaatst;
    de ruleset op de template weigert dat.
-5. Eerst de eigen apps bijwerken: minstens één eigen app van Stage Two per tier met
-   `/stagetwo-tier2:updaten`, en de pull request moet groen worden (stap 7 van de ronde). Zo
-   past Stage Two elke versie eerst toe op de eigen apps, vóór een abonnee hem krijgt.
-6. Dan Uitleveren aan abonnees: pas als plugin en template op de eigen apps goed werken,
-   start je de workflow **Uitleveren** met de hand: `gh workflow run uitleveren.yml -R
+5. Mag: eerst een eigen app bijwerken met `/stagetwo-tier2:updaten` en kijken of de pull
+   request groen wordt (stap 7 van de ronde). Verplicht is het niet (Christijn 29-10-2026): de
+   eigen apps draaien op de tiers en lopen zo vanzelf tegen echte problemen aan.
+6. Dan Uitleveren aan abonnees: start de workflow **Uitleveren** met de hand: `gh workflow run uitleveren.yml -R
    Stage-Two-AI/stagetwo-plugin-tier2 -f toegepast_versie=<versie> -f toegepast_template=stack-v<n>`,
    of op de pagina van de workflow **Run workflow**. Beide invoeren zijn verplicht: daarmee
-   bevestig je welke pluginversie en welke templatetag op de eigen apps zijn toegepast. De plugin
+   bevestig je welke pluginversie en welke templatetag uitgaan. De plugin
    gaat naar de klant vanaf de tag `v<versie>` uit stap 2, niet vanaf `main`, en heet bij de
    klant ook `v<versie>`. Bestaat die tag niet, heeft `.claude-plugin/plugin.json` op die tag
    een ander versienummer, of is `toegepast_template` geen tag `stack-v<n>`, dan stopt de run met
@@ -574,10 +604,9 @@ bronrepo.
   beheer-repo); staat daar geen ander account, dan stopt het script met een melding. Stage Two installeert `stagetwo-levering` bij de
   start namens de klant, op alleen de twee leveringsrepo's ("Only select repositories"); de
   klant kan hem altijd zelf verwijderen. Update-voorstellen in apps zet de bouwer zelf klaar met
-  `/stagetwo-tier2:updaten`; Stage Two opent geen pull requests bij de klant. De beheerde
-  run (`beheer/beheerd.mjs`) is alleen voor de eigen apps van Stage Two en voor een klant die
-  nog in de projectfase zit. Een nieuwe versie van de beheer-repo alleen op verzoek: de owner
-  geeft Stage Two tijdelijk toegang en haalt die daarna weer weg. Opzeggen: zie hieronder.
+  `/stagetwo-tier2:updaten`; Stage Two opent geen pull requests bij de klant. Een nieuwe
+  versie van de beheer-repo alleen op verzoek: de owner geeft Stage Two tijdelijk toegang en
+  haalt die daarna weer weg. Opzeggen: zie hieronder.
 
 ### Een abonnement stoppen
 

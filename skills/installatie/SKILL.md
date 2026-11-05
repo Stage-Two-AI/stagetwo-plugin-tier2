@@ -164,13 +164,32 @@ Alles staat klaar. Vraag nu, met deze drie keuzes:
    naam halen, toon dan de lijst met `gh repo list <organisatie> --limit 50` (de
    organisatie is meestal het bedrijf van de gebruiker; `gh api user/orgs -q '.[].login'`
    noemt ze). Kloon de app in een eigen map onder de huidige map met
-   `gh repo clone <eigenaar>/<naam>` en draai daarin `pnpm install`. Zeg daarna dat
-   de gebruiker die map in Claude Code moet openen (Bestand, map openen) en daar verder
-   kan met `/stagetwo-tier2:verder-werken`. Werk niet vanuit de huidige map aan die app: de
-   afspraken en de bewaker werken alleen als de map van de app zelf open staat.
+   `gh repo clone <eigenaar>/<naam>` en draai daarin `pnpm install`. Richt daarna de
+   huidige map in als werkmap (stap 7). De gebruiker kan daarna gewoon hier blijven
+   werken met `/stagetwo-tier2:verder-werken`, voor elke app in deze map; de afspraken en
+   de bewaker werken ook vanuit hier. Een app als eigen map openen in Claude Code mag ook.
 3. **Alles bijwerken.** Typ `/stagetwo-tier2:updaten`. Dat werkt de plugin en de programma's op
    deze computer bij, en daarna de apps die de gebruiker kiest, elk als pull request.
    Een app hoeft daarvoor niet op deze computer te staan.
 
 Zeg tot slot dat `/stagetwo-tier2:installatie` altijd opnieuw getypt mag worden, bijvoorbeeld op een
 andere computer of na een herinstallatie: het slaat over wat al goed staat.
+
+## Stap 7: de werkmap van de bouwer
+
+Draai dit in de map waarin de apps staan (meestal de huidige map), ook als je er net een
+hebt gekloond, en ook bij een volgende keer installatie:
+
+```sh
+node "${CLAUDE_SKILL_DIR}/scripts/werkmap.mjs"
+```
+
+- `klaar`: in deze map staan nu een `CLAUDE.md` (welke apps hier staan, en dat elke
+  wijziging via `/stagetwo-tier2:verder-werken` gaat, in de map van de app) en in
+  `.claude/launch.json` per app een preview met de naam van de app. Eigen tekst in
+  `CLAUDE.md` blijft staan; alleen het blok tussen de markeringen schrijft het script. Zeg in
+  één zin dat de gebruiker Claude voortaan in deze map kan starten.
+- `geen-apps`: hier staan (nog) geen apps van tier 2. Zeg niets.
+- `mislukt`: geef `reden` door. Alles werkt gewoon, alleen de werkmap kent zijn apps niet.
+
+Dit is één bestand per bouwer en per computer; het komt niet in git.

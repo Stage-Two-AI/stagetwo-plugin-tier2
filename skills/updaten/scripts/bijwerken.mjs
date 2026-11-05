@@ -27,8 +27,8 @@
  *   geen-template  deze repo is niet uit de template gebouwd
  *   klaar          (na --droogloop) de werkkopie staat klaar; zie bijgewerkt, overgeslagen
  *   gepusht        (na --werkmap) de branch staat op GitHub; zie pr of vergelijkUrl
- *   gestopt        er is een reden om niet door te gaan (bijvoorbeeld een open PR van de
- *                  beheerde run, of een branch waar iemand zelf op heeft gecommit)
+ *   gestopt        er is een reden om niet door te gaan (bijvoorbeeld een branch waar
+ *                  iemand zelf op heeft gecommit)
  *   mislukt        een voorwaarde ontbreekt; `reden` is één zin met één handeling
  * De reden bevat nooit een token: een URL met login wordt afgeplakt.
  */
@@ -70,7 +70,6 @@ import {
 } from "../../../lib/repo.mjs";
 import { LOCKFILE, MANIFEST_PAD, leesVersie, pasToe } from "../../../lib/toepassen.mjs";
 
-export const AFZENDER = "klantsessie";
 export const WERKMAP_PREFIX = "stack-bijwerken-";
 const WERKMAP_MAX_LEEFTIJD_MS = 60 * 60 * 1000;
 const TOESTAND = "toestand.json";
@@ -216,7 +215,7 @@ export function droogloop({ checkout, opAfstand = null, env = process.env }) {
   if (doel === null) return mislukt(`de template is niet bereikbaar (${tmplRepo}): geen netwerk, nog geen versie-tag, of de repo bestaat niet of is niet openbaar; probeer het later opnieuw, en geef deze melding door aan Stage Two als het dan nog niet lukt`);
   if (opAfstand === null && leesVersie(checkout) >= doel) return alBij(leesVersie(checkout), doel);
 
-  const branch = branchNaam(AFZENDER, doel);
+  const branch = branchNaam(doel);
   if (metGh && repo) {
     let andere = null;
     try {
@@ -359,7 +358,7 @@ export function voerUit({ werkmap, losOp, updates = null }) {
     if (gepusht) push(kloon, branch);
 
     const uitgaven = uitgavenTussen(updates, { van: resultaat.van, tot: resultaat.naar });
-    const tekst = prTekst({ resultaat: eind, afzender: AFZENDER, uitgaven });
+    const tekst = prTekst({ resultaat: eind, uitgaven });
     let pr = null;
     if (metGh && repo) {
       pr = openOfWerkPRBij({ repo, branch, titel: prTitel(resultaat.naar), tekst });

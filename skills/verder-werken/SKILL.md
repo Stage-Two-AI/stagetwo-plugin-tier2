@@ -10,11 +10,43 @@ Hier staat bewust geen kopie van de tekst. De route is voor elke agent dezelfde,
 `docs/routes/` is de enige plek waar hij staat, zodat er nooit twee versies zijn die
 uit elkaar lopen. Deze skill is alleen de aansluiting voor Claude Code.
 
-Het ritme van een wijziging (template-versie 21 en nieuwer; bij een oudere versie geldt wat
-in de route van de app staat):
+## Start je boven de apps?
 
-- **Een PR begint als concept** (`gh pr create --draft`). Dan draaien alleen de snelle
-  checks en wordt de preview bijgewerkt. Push per afgerond stukje, niet per kleine wijziging.
+Bouwers starten vaak in de map waarin hun apps staan (de werkmap), niet in de map van één app.
+De hook zegt dat dan bij de start in één regel ("je staat boven de apps van ..."). Dat is
+gewoon een werkplek; stuur de gebruiker niet naar een andere map.
+
+- **Welke app?** Vraag niet "waar werk je aan", maar leid de app af uit de vraag van de
+  gebruiker (de naam, of wat de app doet: kijk zo nodig in `<app>/README.md` of
+  `<app>/AGENTS.md`). Vraag alleen als het echt bij meer dan één app kan horen.
+- **De route** staat dan in `<app>/docs/routes/verder-werken.md`. Lees die.
+- **Alles draait in de map van de app**: `cd <app> && ...`, of `git -C <app>` en
+  `pnpm --dir <app>`. Dat geldt voor branch, `pnpm check`, `pnpm testlogin`, pushen,
+  `gh pr create --draft` en de scripts van deze skill (`cd <app> && node "${CLAUDE_SKILL_DIR}/scripts/testmail.mjs"`).
+  De bewaker van de plugin werkt ook vanuit de werkmap.
+- **De preview** start per app: de configuratie heet zoals de map van de app. Staat die
+  er nog niet in `.claude/launch.json` van de werkmap, draai dan eerst in de werkmap
+  `node "${CLAUDE_SKILL_DIR}/../installatie/scripts/werkmap.mjs"` (zet ook de CLAUDE.md van de
+  werkmap bij).
+- **Meer apps in één sessie** kan: elke app zijn eigen branch en zijn eigen concept-PR.
+  Zeg bij elke stap over welke app het gaat.
+
+## Het ritme van een wijziging
+
+Template-versie 21 en nieuwer; bij een oudere versie geldt wat in de route van de app staat:
+
+- **Bij de start van een klus: lees stil het logboek mee.** Draai in de map van de app
+  `node "${CLAUDE_SKILL_DIR}/scripts/logboek.mjs"`. Dat geeft de laatste regels van
+  `docs/logboek.md` in de architectuur-repo van het bedrijf: wat er onlangs met de hand is
+  ingesteld, welke besluiten vielen en wat andere onderdelen raakte. Gebruik het als
+  achtergrond bij je werk; lees het niet voor en vat het niet samen voor de gebruiker, tenzij
+  hij erom vraagt of er iets in staat dat zijn vraag direct raakt. Geen uitvoer betekent: er is
+  (nog) geen logboek.
+
+- **Een PR begint als concept** (`gh pr create --draft`), ook als er een migratie in zit. Dan
+  draaien alleen de snelle checks en wordt de preview bijgewerkt. De hook van de plugin weigert
+  `gh pr create` zonder `--draft`. Push per afgerond stukje, niet per kleine wijziging, en
+  draai vóór elke push `pnpm check`.
 - **Kijk eerst zelf, lokaal, met echte gegevens** (template 34 en nieuwer). De preview in de
   Claude-app start de app op deze computer tegen de testdatabase, waar elke nacht een kopie
   van productie in komt, en logt in als de testgebruiker `testgebruiker@stagetwo.nl` (het
@@ -42,18 +74,47 @@ in de route van de app staat):
   adres de testmails van deze app mogen (stel het adres van de gebruiker voor), zet het met
   `--zet "<adres>"` en laat het meegaan in de pull request van dit werk. Zonder testadres
   verstuurt de app buiten productie geen mail.
-- **Zegt de gebruiker dat het goed is**, zet de PR dan op klaar (`gh pr ready`), wacht zelf op
-  alle checks (`gh pr checks --watch`) en repareer wat rood is, net zo lang tot alles groen
-  is. Vraag de gebruiker nooit wat hij met een rode check moet; leg alleen iets voor als een
+- **Zegt de gebruiker dat het goed is**, vul dan eerst zelf het kopje **Voor de architectuur**
+  in de PR-tekst in (`gh pr edit <nummer> --body-file <bestand>`), zonder de gebruiker iets te
+  vragen: haal het uit dit gesprek en de wijziging. Drie regels: wat er met de hand is ingesteld
+  (wat en waar, bijvoorbeeld een geheim dat de owner zette of een instelling in een dashboard),
+  of hier een besluit viel (welk, in één zin), en of dit een ander onderdeel of een andere app
+  raakt (welk). Niets van toepassing: `nee`. Na de merge komt dit in het logboek. Zet de PR
+  daarna op klaar (`gh pr ready`), wacht zelf op alle checks (`gh pr checks --watch`) en
+  repareer wat rood is, net zo lang tot alles groen is. Vraag de gebruiker nooit wat hij met een rode check moet; leg alleen iets voor als een
   check om een besluit vraagt (zoals `guard:migrations`), met jouw advies.
-- **Geen Docker.** De databasetests draaien in GitHub. Een PR met een migratie begint
-  daarom niet als concept, en de types haal je met `pnpm db:types:uit-ci` uit de run.
+- **Geen Docker.** De databasetests draaien in GitHub, en de types haal je met
+  `pnpm db:types:uit-ci` uit de run.
 
 Wat verder bij deze route hoort, en wat de route zelf ook noemt:
+
+- **Een nieuw onderdeel** (een eigen pad met een tegel op de startpagina) krijgt een regel in
+  `src/onderdelen.ts` (`pad`, `naam` en zo nodig `kop`, de kop van het hoofdscherm). De
+  browsertest `e2e/onderdelen.spec.ts` opent het dan vanzelf, en een unittest wordt rood als
+  er een hoofdpad bij komt zonder regel in die lijst.
 
 - **Raakt de wijziging de database** (een tabel, kolom, index of policy), lees dan ook
   `docs/routes/databasewijziging.md` in zijn geheel en volg die stappen. De hook van de
   plugin herinnert je eraan zodra je in `supabase/migrations/` schrijft.
+  - Elke nieuwe tabel krijgt een A/B-test in `tests/rls/` met de gedeelde hulp
+    `controleerAfscherming` uit `tests/rls/lib/afscherming.ts` (`tabel: "<naam>"`): gebruiker
+    B ziet, wijzigt en verwijdert de rij van A niet. De Kwaliteitspoort (`guard:rls-tests`)
+    zoekt per tabel naar zo'n aanroep.
+  - Mag iedereen die binnen is een tabel helemaal zien (een kalender, een lijst zonder
+    persoonsgegevens)? Dan staat de tabel in `open_tabellen` in `stack.config.json`, met de
+    reden: `"feestdagen": "kalender voor iedereen binnen, geen persoonsgegevens"`. Alleen dan mag
+    een policy `using (true)` hebben, en alleen `to authenticated`; nooit voor `anon` of zonder
+    `to`. Een open tabel hoeft geen A/B-test. Vraag de gebruiker bij twijfel of de tabel echt
+    open mag, en zeg het in de PR-tekst.
+  - Zet een migratie bestaande gegevens om (`update` of `delete`), dan zet je bovenin per
+    geraakte tabel één regel `-- verwacht: <tabel> <min>-<max> rijen`, bijvoorbeeld
+    `-- verwacht: orders 0-40 rijen`. De Kwaliteitspoort oefent de migratie op de
+    testdatabase en is rood als hij buiten dat bereik valt. Schat het bereik zelf, uit de
+    testdatabase of de code; de gebruiker hoeft het niet te beoordelen.
+  - Leest een andere app deze database via een eigen rol (een koppeling, zoals een datalake),
+    dan staat die rol in `leesrollen` in `stack.config.json` en krijgt hij alleen `select`, op
+    de views in `api`. Nooit `grant insert`, `update` of `delete` aan zo'n rol: schrijven gaat
+    via een functie in de app die de database beheert. De Kwaliteitspoort zet zo'n grant rood.
 - **Meekijken tijdens het bouwen** gaat in de Claude-app via de preview: die start de app
   op deze computer volgens `.claude/launch.json`, tegen de testdatabase en nooit tegen
   productie. Start geen dev-server in Bash. Opleveren blijft altijd de pull request met

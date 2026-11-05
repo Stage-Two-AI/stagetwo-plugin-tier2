@@ -1,5 +1,5 @@
 {
-  "description": "De bewaker van de Stage Two-template: houdt de agent tegen bij templatebestanden en riskante commando's (PreToolUse) en meldt bij sessiestart dat er een nieuwere template is. Doet niets in een repo zonder .claude/stack-manifest.json en niets als node ontbreekt.",
+  "description": "De bewaker van de Stage Two-template: houdt de agent tegen bij templatebestanden en riskante commando's (PreToolUse) en meldt bij sessiestart dat er een nieuwere template is. Doet niets in een map zonder .claude/stack-manifest.json (behalve in een werkmap met apps één niveau dieper) en niets als node ontbreekt.",
   "hooks": {
     "PreToolUse": [
       {

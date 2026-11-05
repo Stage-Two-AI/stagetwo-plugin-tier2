@@ -153,20 +153,6 @@ test("voorcontrole: gh niet ingelogd, geen netwerk, geen manifest, geen schrijfr
   }
 });
 
-test("open PR van de beheerde run voor dezelfde versie: gestopt met de URL, niets gekloond", () => {
-  const w = wereld({
-    gh: { ...GH_STANDAARD, "pr list": { stdout: [{ number: 7, headRefName: "stack-sync/v9", url: "https://github.com/klant/app/pull/7" }] } },
-  });
-  try {
-    const r = w.draai(["--droogloop"]);
-    assert.equal(r.status, "gestopt");
-    assert.match(r.reden, /pull\/7/);
-    assert.deepEqual(w.werkmappen(), []);
-  } finally {
-    w.opruimen();
-  }
-});
-
 test("gh pr list faalt: mislukt met een reden over de pull requests, niets gekloond", () => {
   const w = wereld({ gh: { ...GH_STANDAARD, "pr list": { exit: 1, stderr: "boom" } } });
   try {
