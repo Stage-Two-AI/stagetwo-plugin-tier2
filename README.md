@@ -99,7 +99,9 @@ Vier commando's, en een bewaker op de achtergrond:
   bij zoals een update van je computer: de plugin, de programma's op je computer, je app
   naar de nieuwste werkwijze en de pakketten van je app. Wat je app verandert komt als
   voorstel (een pull request) dat jij bekijkt en goedkeurt. Daarna vraagt hij of je
-  andere apps ook mee moeten. Je eigen werk raakt hij nooit aan.
+  andere apps ook mee moeten. Je eigen werk raakt hij niet aan. Heeft een nieuwe versie
+  eenmalig iets in een eigen bestand nodig (zoals de lijst met onderdelen in versie 39), dan
+  staat dat apart in het voorstel, onder **Voor jou**.
 
 Er komt geen wachtwoord, sleutel of computer van Stage Two aan te pas. Alles loopt via je
 eigen GitHub-account en je eigen computer.
@@ -424,7 +426,15 @@ PATH van elke sessie waarin de plugin aanstaat, ook bij klanten.
   vervangt de vroegere skill databasewijziging.
 - De kern (`lib/toepassen.mjs`) controleert zichzelf: raakt er iets buiten het manifest,
   dan stopt hij. Een eigen bestand van de klant wordt nooit stil overschreven of
-  verwijderd; het komt in `overgeslagen` met een reden en een keuze.
+  verwijderd; het komt in `overgeslagen` met een reden en een keuze. De enige
+  projectbestanden die hij raakt, staan per versie in `lib/projectbestanden.mjs`: een
+  overgang die eenmalig iets in een eigen bestand nodig heeft, anders is de update-PR zelf
+  rood. Ze staan in de uitkomst als `projectbestanden`, met uitleg in `voorDeBouwer` (en in
+  de PR onder "Voor jou"). Bij de overgang naar versie 39 zet hij `src/onderdelen.ts`
+  neer als dat ontbreekt (uit de routes van de app; de koppen geeft de skill mee met
+  `--kop`), neemt hij met `scripts/open-tabellen-opnemen.mjs` van
+  de template bestaande open policies op in `open_tabellen`, en zegt hij wat er in
+  `e2e/global-setup.ts` moet voor de testrol (dat bestand raakt hij niet).
 
 ### Een klant aansluiten (checklist)
 
