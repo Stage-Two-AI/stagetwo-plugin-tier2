@@ -415,6 +415,11 @@ gestart vanuit `Stack/bin/stack-sync.mjs`, dat het register en de ruleset meegee
   hoofdversies uit `pnpm outdated` en de open Dependabot-PR's.
 - `overzicht.mjs`: de apps uit de template met schrijfrecht, per eigenaar via
   `gh repo list` en de inhoud van `.claude/stack-version`; wijzigt niets.
+- `verder-werken/scripts/logboek.mjs` (uitgave 39): de laatste twintig regels van
+  `docs/logboek.md` in `<eigenaar>/architectuur`, eerst via `gh`, anders een kopie naast de
+  app of in de werkmap. Claude leest ze stil mee bij de start van een klus; de hook leest
+  niets voor. Bij "PR op klaar" vult Claude het kopje "Voor de architectuur" van het
+  PR-sjabloon zelf in; de workflow in de beheer-repo zet dat na de merge in het logboek.
 - De hook geeft bij schrijven in `supabase/migrations/` de databaseroute mee als
   `additionalContext` (geen weigering, de gewone toestemmingsvraag blijft). Dat
   vervangt de vroegere skill databasewijziging.

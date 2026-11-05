@@ -35,6 +35,14 @@ gewoon een werkplek; stuur de gebruiker niet naar een andere map.
 
 Template-versie 21 en nieuwer; bij een oudere versie geldt wat in de route van de app staat:
 
+- **Bij de start van een klus: lees stil het logboek mee.** Draai in de map van de app
+  `node "${CLAUDE_SKILL_DIR}/scripts/logboek.mjs"`. Dat geeft de laatste regels van
+  `docs/logboek.md` in de architectuur-repo van het bedrijf: wat er onlangs met de hand is
+  ingesteld, welke besluiten vielen en wat andere onderdelen raakte. Gebruik het als
+  achtergrond bij je werk; lees het niet voor en vat het niet samen voor de gebruiker, tenzij
+  hij erom vraagt of er iets in staat dat zijn vraag direct raakt. Geen uitvoer betekent: er is
+  (nog) geen logboek.
+
 - **Een PR begint als concept** (`gh pr create --draft`), ook als er een migratie in zit. Dan
   draaien alleen de snelle checks en wordt de preview bijgewerkt. De hook van de plugin weigert
   `gh pr create` zonder `--draft`. Push per afgerond stukje, niet per kleine wijziging, en
@@ -66,9 +74,14 @@ Template-versie 21 en nieuwer; bij een oudere versie geldt wat in de route van d
   adres de testmails van deze app mogen (stel het adres van de gebruiker voor), zet het met
   `--zet "<adres>"` en laat het meegaan in de pull request van dit werk. Zonder testadres
   verstuurt de app buiten productie geen mail.
-- **Zegt de gebruiker dat het goed is**, zet de PR dan op klaar (`gh pr ready`), wacht zelf op
-  alle checks (`gh pr checks --watch`) en repareer wat rood is, net zo lang tot alles groen
-  is. Vraag de gebruiker nooit wat hij met een rode check moet; leg alleen iets voor als een
+- **Zegt de gebruiker dat het goed is**, vul dan eerst zelf het kopje **Voor de architectuur**
+  in de PR-tekst in (`gh pr edit <nummer> --body-file <bestand>`), zonder de gebruiker iets te
+  vragen: haal het uit dit gesprek en de wijziging. Drie regels: wat er met de hand is ingesteld
+  (wat en waar, bijvoorbeeld een geheim dat de owner zette of een instelling in een dashboard),
+  of hier een besluit viel (welk, in één zin), en of dit een ander onderdeel of een andere app
+  raakt (welk). Niets van toepassing: `nee`. Na de merge komt dit in het logboek. Zet de PR
+  daarna op klaar (`gh pr ready`), wacht zelf op alle checks (`gh pr checks --watch`) en
+  repareer wat rood is, net zo lang tot alles groen is. Vraag de gebruiker nooit wat hij met een rode check moet; leg alleen iets voor als een
   check om een besluit vraagt (zoals `guard:migrations`), met jouw advies.
 - **Geen Docker.** De databasetests draaien in GitHub, en de types haal je met
   `pnpm db:types:uit-ci` uit de run.
