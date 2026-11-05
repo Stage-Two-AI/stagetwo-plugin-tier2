@@ -188,9 +188,11 @@ dit tot een kwartier kan duren: een nieuwe database moet opstarten. Het antwoord
 
 Zeg tot slot, in deze volgorde:
 
-1. Open de nieuwe map in Claude Code (Bestand, map openen). De afspraken en de bewaker
-   van de werkwijze werken alleen in de map van de app zelf.
-2. Typ daar `/stagetwo-tier2:verder-werken` en beschrijf de eerste versie uit stap 2.
+1. Draai in de huidige map `node "${CLAUDE_SKILL_DIR}/../installatie/scripts/werkmap.mjs"`,
+   zodat de werkmap de nieuwe app kent (CLAUDE.md en de preview). De gebruiker kan hier
+   blijven werken; de afspraken en de bewaker werken ook vanuit deze map. De nieuwe map
+   apart openen in Claude Code (Bestand, map openen) mag ook.
+2. Typ `/stagetwo-tier2:verder-werken` en beschrijf de eerste versie uit stap 2.
    Komen er gegevens in, dan begint dat werk met de eerste tabellen; die route zit in
    `/stagetwo-tier2:verder-werken` (met `docs/routes/databasewijziging.md`). Krijgt de app
    rollen, dan schrijft de assistent in die pull request ook één keer `supabase/testrol.sql`,

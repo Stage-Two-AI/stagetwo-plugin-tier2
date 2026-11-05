@@ -31,6 +31,11 @@
  * begint als concept (`gh pr create --draft`). Een volle Kwaliteitspoort bij elke tussenstap
  * kost GitHub-minuten (meting oktober 2026: de grootste post).
  *
+ * Werkmap (uitgave 39): staat er in de projectmap geen manifest, maar wel apps één niveau
+ * dieper, dan beoordeelt beoordeelWerkmap elk bestand in de map van de app waar het in staat,
+ * en de Bash-regels alleen als de opdracht in een app draait (cwd, `cd <app>`, `git -C <app>`,
+ * `--repo <eigenaar>/<app>`). Zo werkt de bewaker ook als de bouwer boven zijn apps start.
+ *
  * Bewust openlaten kan met STACK_ALLOW_POLICY_EDIT=1 (padbewerkingen, ook via Bash), voor
  * wanneer je met opzet aan het vangnet zelf werkt. De dev-server heeft zijn eigen, kleinere
  * ontsnapping: STACK_ALLOW_DEV=1, voor lokaal kijken voor jezelf.
@@ -513,6 +518,106 @@ function naVlag(args, vlaggen) {
   const uit = [];
   for (let k = 0; k < args.length - 1; k++) if (vlaggen.includes(args[k])) uit.push(args[k + 1]);
   return uit;
+}
+
+// ---------------------------------------------------------------- werkmap
+
+/**
+ * Beoordeelt een gereedschapsaanroep in een werkmap (de map boven de apps, zonder eigen
+ * manifest; zie lib/werkmap.mjs). `apps` is de lijst uit appsInWerkmap. Een pad wordt
+ * beoordeeld in de app waar het in staat; buiten een app is alles toegestaan. Een
+ * Bash-opdracht valt onder BASH_REGELS als hij in een app draait (de cwd ligt in een app,
+ * of de opdracht noemt er een met `cd`, `git -C`, `pnpm --dir` of `--repo`/`-R`), en het
+ * schrijven op templatebestanden wordt voor elke app bekeken.
+ */
+export function beoordeelWerkmap({ werkmap, apps, toolName, toolInput, env = {}, cwd = null }) {
+  const toe = { weiger: false, reden: null };
+  if (!Array.isArray(apps) || apps.length === 0 || !toolInput || typeof toolInput !== "object") return toe;
+
+  if (Object.hasOwn(PAD_VELD, toolName)) {
+    const veld = PAD_VELD[toolName];
+    const relatief = normaliseerPad(werkmap, toolInput[veld]);
+    const app = appVanRelatief(relatief, apps);
+    if (!app) return toe;
+    // Het pad als absoluut pad doorgeven: relatief is het ten opzichte van de werkmap, niet van de app.
+    const absoluut = pad.join(pad.normalize(werkmap.replaceAll("\\", "/")), relatief);
+    return beoordeelTool({ projectmap: app.map, manifest: app.manifest, toolName, toolInput: { ...toolInput, [veld]: absoluut }, env });
+  }
+
+  if (toolName === "Bash") {
+    const commando = toolInput.command;
+    if (typeof commando !== "string") return toe;
+    const start = cwd && normaliseerPad(werkmap, cwd) ? cwd : werkmap;
+    if (appsInOpdracht({ commando, werkmap, cwd: start, apps }).length > 0) {
+      const regel = bashRegel(commando, env);
+      if (regel) return regel;
+    }
+    for (const app of apps) {
+      const geraakt = schrijftOpTemplate({ commando, cwd: start, projectmap: app.map, manifest: app.manifest, env });
+      if (geraakt) return weigerPad(`${app.naam}/${geraakt}`, { viaBash: true });
+    }
+  }
+  return toe;
+}
+
+function appVanRelatief(relatief, apps) {
+  if (!relatief) return null;
+  const eerste = relatief.split("/")[0];
+  return apps.find((a) => a.naam === eerste) ?? null;
+}
+
+/** De apps waarin deze opdracht draait of die hij met naam aanwijst. */
+export function appsInOpdracht({ commando, werkmap, cwd, apps }) {
+  const gevonden = new Set();
+  const opPad = (map) => {
+    const app = appVanRelatief(map ? normaliseerPad(werkmap, map) : null, apps);
+    if (app) gevonden.add(app);
+  };
+  opPad(cwd);
+  let map = cwd;
+  for (const seg of segmenten(lexeer(commando))) {
+    const woorden = woordenVan(seg);
+    if (woorden[0] === "cd" || woorden[0] === "pushd") {
+      map = volgendeMap(map, woorden[1]);
+      opPad(map);
+      continue;
+    }
+    for (let k = 0; k < woorden.length - 1; k++) {
+      const w = woorden[k];
+      const volgende = woorden[k + 1];
+      if (w === "-C" || w === "--dir" || w === "--prefix") opPad(volgendeMap(map, volgende));
+      if (w === "--repo" || w === "-R") {
+        const app = apps.find((a) => a.naam === String(volgende).split("/").pop());
+        if (app) gevonden.add(app);
+      }
+    }
+  }
+  return [...gevonden];
+}
+
+/**
+ * De ene regel bij sessiestart in een werkmap: welke apps hier staan, dat wijzigingen via
+ * verder-werken in de map van de app gaan, en alleen als er apps achterlopen ook welke. Niets
+ * uit een logboek of geschiedenis: dat gaat vervelen (Christijn 29-10).
+ */
+export function meldingWerkmap({ apps, eigenaren = [], versieOpAfstand = null }) {
+  if (!Array.isArray(apps) || apps.length === 0) return null;
+  const van = eigenaren.length > 0 ? ` van ${opsomming(eigenaren)}` : "";
+  let regel = `stack: je staat boven de apps${van}: ${opsomming(apps.map((a) => a.naam))}; wijzigingen gaan via /stagetwo-tier2:verder-werken in de map van de app.`;
+  const achter = isKleinGetal(versieOpAfstand) ? apps.filter((a) => isKleinGetal(a.versie) && a.versie < versieOpAfstand) : [];
+  if (achter.length > 0) {
+    regel += ` Achter op de nieuwste template (versie ${versieOpAfstand}): ${opsomming(achter.map((a) => `${a.naam} (versie ${a.versie})`))}; noem dat één keer en bied /stagetwo-tier2:updaten aan, zonder het uit te voeren.`;
+  }
+  return regel;
+}
+
+function opsomming(namen) {
+  return namen.length <= 1 ? (namen[0] ?? "") : `${namen.slice(0, -1).join(", ")} en ${namen.at(-1)}`;
+}
+
+/** De bestandsnaam (zonder .json) van de stempel van een werkmap. */
+export function werkmapStempelNaam(werkmap) {
+  return `werkmap_${veilig(werkmap ?? "onbekend") || "onbekend"}`;
 }
 
 // ---------------------------------------------------------------- sessiestart

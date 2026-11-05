@@ -6,7 +6,11 @@
  *
  * De plugin draait in elke sessie van de klant, ook buiten stack-repo's. Daarom is de
  * eerste vraag altijd: heeft deze projectmap een .claude/stack-manifest.json? Zo niet,
- * dan exit 0 zonder uitvoer (R4, AE7). Staat er in dat manifest geen `variant: "cloudflare"`,
+ * dan kijkt de hook één niveau dieper (lib/werkmap.mjs, uitgave 39): staan daar apps van
+ * deze tier, dan is dit een werkmap. Bij sessiestart volgt dan één regel (welke apps, en
+ * alleen als er een achterloopt ook welke; de versie op afstand hooguit één keer per dag,
+ * stempel werkmap_<map>.json), en bij PreToolUse beoordeelt de bewaker elk bestand in de
+ * map van zijn app. Geen manifest en geen apps eronder: exit 0 zonder uitvoer (R4, AE7). Staat er in dat manifest geen `variant: "cloudflare"`,
  * dan is het een app van het Vercel-spoor en doet deze plugin ook niets. Kapotte invoer is ook een no-op: een hook die
  * crasht mag nooit de sessie in de weg zitten.
  *
@@ -45,13 +49,17 @@ import { join } from "node:path";
 import { andereAppsAchter, repoUitOrigin } from "../lib/andere-apps.mjs";
 import { isCloudflareManifest } from "../lib/manifest.mjs";
 import { haalUpdates, uitgavenTussen } from "../lib/updates.mjs";
+import { appsInWerkmap, eigenaarUitOrigin, originVan } from "../lib/werkmap.mjs";
 import {
   beoordeelStart,
   beoordeelTool,
+  beoordeelWerkmap,
   meldingAndereApps,
+  meldingWerkmap,
   moetControleren,
   orgStempelNaam,
   stempelNaam,
+  werkmapStempelNaam,
 } from "./regels.mjs";
 import { bronOpAfstand } from "./versie-op-afstand.mjs";
 
@@ -198,13 +206,50 @@ function preToolUse(projectmap, manifest, event) {
   );
 }
 
+/** Sessiestart in een werkmap: één regel, met de versie op afstand hooguit één keer per dag. */
+function werkmapStart(werkmap, apps) {
+  const map = stempelMap();
+  const pad = join(map, `${werkmapStempelNaam(werkmap)}.json`);
+  const stempel = leesJson(pad);
+  const nu = new Date();
+  let versie = Number.isSafeInteger(stempel?.versieOpAfstand) ? stempel.versieOpAfstand : null;
+  if (moetControleren({ stempel, nu })) {
+    const opAfstand = bronOpAfstandOfTesthaak();
+    if (Number.isSafeInteger(opAfstand.versie)) {
+      versie = opAfstand.versie;
+      schrijfStempel(map, pad, { versieOpAfstand: versie, tijdstip: nu.toISOString() });
+    }
+  }
+  const eigenaren = [...new Set(apps.map((a) => eigenaarUitOrigin(originVan(a.map))).filter(Boolean))];
+  const melding = meldingWerkmap({ apps, eigenaren, versieOpAfstand: versie });
+  if (melding) process.stdout.write(`${melding}\n`);
+}
+
+function werkmap(projectmap, event) {
+  const apps = appsInWerkmap(projectmap);
+  if (apps.length === 0) return;
+  if (event.hook_event_name === "SessionStart") werkmapStart(projectmap, apps);
+  else if (event.hook_event_name === "PreToolUse") {
+    schrijfOordeel(
+      beoordeelWerkmap({
+        werkmap: projectmap,
+        apps,
+        toolName: event.tool_name,
+        toolInput: event.tool_input,
+        env: process.env,
+        cwd: startmap(event, projectmap),
+      }),
+    );
+  }
+}
+
 async function main() {
   const event = leesEvent();
   if (!event) return;
   const projectmap = process.env.CLAUDE_PROJECT_DIR || event.cwd;
   if (typeof projectmap !== "string" || !projectmap) return;
   const manifest = leesJson(join(projectmap, ".claude", "stack-manifest.json"));
-  if (!manifest) return;
+  if (!manifest) return werkmap(projectmap, event);
   // Een app van het Vercel-spoor is voor de andere Stage Two-plugin, niet voor deze.
   if (!isCloudflareManifest(manifest)) return;
 

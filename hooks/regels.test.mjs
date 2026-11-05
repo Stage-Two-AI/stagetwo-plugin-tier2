@@ -20,17 +20,21 @@ import {
   BESCHERMDE_PREFIXEN,
   MATCHER,
   MIGRATIE_CONTEXT,
+  appsInOpdracht,
   beoordeelStart,
   beoordeelTool,
+  beoordeelWerkmap,
   beschermdePaden,
   lexeer,
   meldingAndereApps,
+  meldingWerkmap,
   schrijfdoelen,
   segmenten,
   moetControleren,
   normaliseerPad,
   orgStempelNaam,
   stempelNaam,
+  werkmapStempelNaam,
 } from "./regels.mjs";
 import { bronOpAfstand, hoogsteStackVersie, soortFout, versieOpAfstand } from "./versie-op-afstand.mjs";
 
@@ -849,4 +853,105 @@ test("bash: gh pr create zonder --draft wordt geweigerd, met uitleg waarom en ho
 test("bash: git -C <map> push naar main of met --force wordt ook geweigerd", () => {
   geweigerd(bash("git -C app push origin main"), "Rechtstreeks naar main");
   geweigerd(bash("git -C app push --force"), "Force pushen");
+});
+
+// ---------------------------------------------------------------- uitgave 39: werkmap
+
+const WERKMAP = "/home/klant";
+const APPS = [
+  { naam: "app", map: PROJECT, manifest: MANIFEST, versie: 37 },
+  { naam: "crm", map: `${WERKMAP}/crm`, manifest: MANIFEST, versie: 39 },
+];
+const inWerkmap = (toolName, toolInput, { cwd = null, env = {} } = {}) =>
+  beoordeelWerkmap({ werkmap: WERKMAP, apps: APPS, toolName, toolInput, cwd, env });
+
+test("werkmap: een templatebestand in een app wordt geweigerd, een eigen bestand of iets buiten de apps niet", () => {
+  geweigerd(inWerkmap("Edit", { file_path: `${PROJECT}/biome.json` }), "Bestand: biome.json");
+  geweigerd(inWerkmap("Write", { file_path: "crm/.github/workflows/ci.yml" }), ".github/workflows/ci.yml");
+  assert.deepEqual(inWerkmap("Edit", { file_path: "app/src/App.tsx" }), TOE);
+  assert.deepEqual(inWerkmap("Edit", { file_path: "architectuur/docs/besluiten/x.md" }), TOE);
+  assert.deepEqual(inWerkmap("Edit", { file_path: "CLAUDE.md" }), TOE, "de CLAUDE.md van de werkmap zelf is van de bouwer");
+  const migratie = inWerkmap("Write", { file_path: "app/supabase/migrations/1_a.sql" });
+  assert.equal(migratie.context, MIGRATIE_CONTEXT);
+});
+
+test("werkmap: Bash-regels alleen als de opdracht in een app draait", () => {
+  geweigerd(inWerkmap("Bash", { command: "cd app && git push origin main" }), "Rechtstreeks naar main");
+  geweigerd(inWerkmap("Bash", { command: "git -C crm push origin main" }), "Rechtstreeks naar main");
+  geweigerd(inWerkmap("Bash", { command: "gh pr create --repo Klant/crm --title x" }), "--draft");
+  geweigerd(inWerkmap("Bash", { command: "git push origin main" }, { cwd: `${PROJECT}/src` }), "Rechtstreeks naar main");
+  assert.deepEqual(inWerkmap("Bash", { command: "cd architectuur && git push origin main" }), TOE, "de architectuur-repo is geen app");
+  assert.deepEqual(inWerkmap("Bash", { command: "gh pr create --title x" }, { cwd: `${WERKMAP}/architectuur` }), TOE);
+  geweigerd(inWerkmap("Bash", { command: "echo x > app/biome.json" }), "Bestand: app/biome.json", "opdrachtregel");
+  assert.deepEqual(inWerkmap("Bash", { command: "echo x > notities.md" }), TOE);
+});
+
+test("werkmap: appsInOpdracht vindt de app uit cwd, cd, -C, --dir en --repo", () => {
+  const namen = (commando, cwd = WERKMAP) => appsInOpdracht({ commando, werkmap: WERKMAP, cwd, apps: APPS }).map((a) => a.naam);
+  assert.deepEqual(namen("ls"), []);
+  assert.deepEqual(namen("ls", `${PROJECT}/src`), ["app"]);
+  assert.deepEqual(namen("cd crm && pnpm check"), ["crm"]);
+  assert.deepEqual(namen("pnpm --dir app check"), ["app"]);
+  assert.deepEqual(namen("gh pr view 3 -R Klant/crm"), ["crm"]);
+});
+
+test("werkmap: de regel bij sessiestart noemt de apps, en alleen achterlopers met hun versie", () => {
+  const regel = meldingWerkmap({ apps: APPS, eigenaren: ["Klant"], versieOpAfstand: 39 });
+  assert.match(regel, /^stack: je staat boven de apps van Klant: app en crm; wijzigingen gaan via \/stagetwo-tier2:verder-werken in de map van de app\. /);
+  assert.match(regel, /Achter op de nieuwste template \(versie 39\): app \(versie 37\);/);
+  assert.doesNotMatch(regel, /crm \(versie/);
+  assert.doesNotMatch(regel, /\n/, "één regel");
+  assert.doesNotMatch(regel, /\u2014/);
+  const bij = meldingWerkmap({ apps: APPS, eigenaren: [], versieOpAfstand: null });
+  assert.equal(bij, "stack: je staat boven de apps: app en crm; wijzigingen gaan via /stagetwo-tier2:verder-werken in de map van de app.");
+  assert.equal(meldingWerkmap({ apps: [], versieOpAfstand: 39 }), null);
+  assert.match(werkmapStempelNaam("/home/klant"), /^werkmap_home_klant$/);
+});
+
+function maakWerkmap() {
+  const werkmap = mkdtempSync(join(tmpdir(), "stack-hook-werkmap-"));
+  for (const [naam, versie] of [["intern", "37"], ["crm", "39"]]) {
+    mkdirSync(join(werkmap, naam, ".claude"), { recursive: true });
+    writeFileSync(join(werkmap, naam, ".claude", "stack-manifest.json"), JSON.stringify(MANIFEST));
+    writeFileSync(join(werkmap, naam, ".claude", "stack-version"), `${versie}\n`);
+  }
+  mkdirSync(join(werkmap, "architectuur", "docs"), { recursive: true });
+  return werkmap;
+}
+
+test("hook: SessionStart in een werkmap geeft één regel; de versie op afstand hooguit één keer per dag", () => {
+  const werkmap = maakWerkmap();
+  const data = mkdtempSync(join(tmpdir(), "stack-hook-data-"));
+  const uit = draaiHook(start(werkmap), { projectmap: werkmap, data, opAfstand: 39 });
+  assert.equal(uit.status, 0, uit.stderr);
+  assert.match(uit.stdout, /je staat boven de apps: crm en intern;/);
+  assert.match(uit.stdout, /intern \(versie 37\)/);
+  assert.equal(uit.stdout.trim().split("\n").length, 1);
+  assert.deepEqual(readdirSync(data).filter((f) => f.startsWith("werkmap_")).length, 1);
+  const tweede = draaiHook(start(werkmap), { projectmap: werkmap, data, opAfstand: 40 });
+  assert.match(tweede.stdout, /versie 39\)/, "zelfde dag: de versie uit de stempel, geen nieuwe vraag");
+  const zonderNet = draaiHook(start(werkmap), { projectmap: werkmap, data: mkdtempSync(join(tmpdir(), "stack-hook-data-")), opAfstand: "null" });
+  assert.doesNotMatch(zonderNet.stdout, /Achter/, "zonder versie op afstand alleen de regel met de apps");
+  assert.match(zonderNet.stdout, /je staat boven de apps/);
+});
+
+test("hook: PreToolUse in een werkmap weigert een templatebestand van een app, en laat de rest door", () => {
+  const werkmap = maakWerkmap();
+  const uit = draaiHook(pre(werkmap, "Edit", { file_path: join(werkmap, "intern", ".github/workflows/ci.yml") }), { projectmap: werkmap });
+  assert.equal(JSON.parse(uit.stdout).hookSpecificOutput.permissionDecision, "deny");
+  assert.deepEqual(draaiHook(pre(werkmap, "Edit", { file_path: join(werkmap, "architectuur", "docs", "a.md") }), { projectmap: werkmap }), {
+    status: 0,
+    stdout: "",
+    stderr: "",
+  });
+  const push = draaiHook(pre(werkmap, "Bash", { command: "cd crm && git push origin main" }), { projectmap: werkmap });
+  assert.equal(JSON.parse(push.stdout).hookSpecificOutput.permissionDecision, "deny");
+});
+
+test("hook: een map zonder manifest en zonder apps eronder blijft stil", () => {
+  const leeg = mkdtempSync(join(tmpdir(), "stack-hook-leeg-"));
+  mkdirSync(join(leeg, "iets"));
+  const data = mkdtempSync(join(tmpdir(), "stack-hook-data-"));
+  assert.deepEqual(draaiHook(start(leeg), { projectmap: leeg, data, opAfstand: 39 }), { status: 0, stdout: "", stderr: "" });
+  assert.deepEqual(readdirSync(data), []);
 });

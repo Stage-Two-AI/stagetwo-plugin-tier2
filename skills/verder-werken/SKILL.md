@@ -10,8 +10,30 @@ Hier staat bewust geen kopie van de tekst. De route is voor elke agent dezelfde,
 `docs/routes/` is de enige plek waar hij staat, zodat er nooit twee versies zijn die
 uit elkaar lopen. Deze skill is alleen de aansluiting voor Claude Code.
 
-Het ritme van een wijziging (template-versie 21 en nieuwer; bij een oudere versie geldt wat
-in de route van de app staat):
+## Start je boven de apps?
+
+Bouwers starten vaak in de map waarin hun apps staan (de werkmap), niet in de map van één app.
+De hook zegt dat dan bij de start in één regel ("je staat boven de apps van ..."). Dat is
+gewoon een werkplek; stuur de gebruiker niet naar een andere map.
+
+- **Welke app?** Vraag niet "waar werk je aan", maar leid de app af uit de vraag van de
+  gebruiker (de naam, of wat de app doet: kijk zo nodig in `<app>/README.md` of
+  `<app>/AGENTS.md`). Vraag alleen als het echt bij meer dan één app kan horen.
+- **De route** staat dan in `<app>/docs/routes/verder-werken.md`. Lees die.
+- **Alles draait in de map van de app**: `cd <app> && ...`, of `git -C <app>` en
+  `pnpm --dir <app>`. Dat geldt voor branch, `pnpm check`, `pnpm testlogin`, pushen,
+  `gh pr create --draft` en de scripts van deze skill (`cd <app> && node "${CLAUDE_SKILL_DIR}/scripts/testmail.mjs"`).
+  De bewaker van de plugin werkt ook vanuit de werkmap.
+- **De preview** start per app: de configuratie heet zoals de map van de app. Staat die
+  er nog niet in `.claude/launch.json` van de werkmap, draai dan eerst in de werkmap
+  `node "${CLAUDE_SKILL_DIR}/../installatie/scripts/werkmap.mjs"` (zet ook de CLAUDE.md van de
+  werkmap bij).
+- **Meer apps in één sessie** kan: elke app zijn eigen branch en zijn eigen concept-PR.
+  Zeg bij elke stap over welke app het gaat.
+
+## Het ritme van een wijziging
+
+Template-versie 21 en nieuwer; bij een oudere versie geldt wat in de route van de app staat:
 
 - **Een PR begint als concept** (`gh pr create --draft`), ook als er een migratie in zit. Dan
   draaien alleen de snelle checks en wordt de preview bijgewerkt. De hook van de plugin weigert
