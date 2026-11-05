@@ -23,7 +23,10 @@ import {
   beoordeelStart,
   beoordeelTool,
   beschermdePaden,
+  lexeer,
   meldingAndereApps,
+  schrijfdoelen,
+  segmenten,
   moetControleren,
   normaliseerPad,
   orgStempelNaam,
@@ -77,8 +80,8 @@ function geweigerd(uit, ...fragmenten) {
 
 // ---------------------------------------------------------------- BASH_REGELS en matcher
 
-test("regels: BASH_REGELS zijn de vier regels uit guard.mjs, met patroon, tenzij en reden", () => {
-  assert.equal(BASH_REGELS.length, 4);
+test("regels: BASH_REGELS zijn de vier regels uit guard.mjs plus de conceptregel, met patroon, tenzij en reden", () => {
+  assert.equal(BASH_REGELS.length, 5);
   for (const r of BASH_REGELS) {
     assert.ok(r.patroon instanceof RegExp);
     assert.equal(typeof r.reden, "string");
@@ -749,4 +752,101 @@ test("versie 26: overgeslagen nummers; lokaal 21 of 24 ziet 26 als nieuwer, 26 i
     assert.match(melding, /versie 26/);
   }
   assert.equal(beoordeelStart({ versieLokaal: 26, versieOpAfstand: 26, stempel: null, nu: NU }).melding, null);
+});
+
+// ---------------------------------------------------------------- uitgave 39: schrijven via Bash
+
+test("lezer: woorden zonder aanhalingstekens, omleidingen apart, here-document overgeslagen", () => {
+  const tokens = lexeer(`echo "a > b" 'c;d' >> uit.txt 2>&1 && cat <<'EOF' > x\nregel > biome.json\nEOF\nls`);
+  assert.deepEqual(
+    tokens.map((t) => `${t.soort[0]}:${t.waarde}`),
+    ["w:echo", "w:a > b", "w:c;d", "o:>>", "w:uit.txt", "o:>&", "w:1", "s:&&", "w:cat", "o:<<", "o:>", "w:x", "s:\n", "w:ls"],
+  );
+  assert.equal(segmenten(tokens).length, 3);
+});
+
+test("lezer: schrijfdoelen per soort opdracht", () => {
+  const doelen = (c) => schrijfdoelen(segmenten(lexeer(c))[0]).paden;
+  assert.deepEqual(doelen("echo x > a.txt"), ["a.txt"]);
+  assert.deepEqual(doelen("ls 2>/dev/null"), ["/dev/null"]);
+  assert.deepEqual(doelen("ls 2>&1"), []);
+  assert.deepEqual(doelen("tee -a a b"), ["a", "b"]);
+  assert.deepEqual(doelen("sed -n 1p a"), [], "sed zonder -i leest alleen");
+  assert.deepEqual(doelen("sed -i.bak s/a/b/ a"), ["s/a/b/", "a"]);
+  assert.deepEqual(doelen("cp x y/"), ["y/", "y/x"]);
+  assert.deepEqual(doelen("mv a b"), ["b", "b/a", "a"]);
+  assert.deepEqual(doelen("git -C app rm a"), ["app/a"]);
+  assert.deepEqual(doelen("git checkout -- a"), [], "terugzetten mag");
+  assert.deepEqual(doelen("dd if=x of=y"), ["y"]);
+  assert.deepEqual(schrijfdoelen(segmenten(lexeer("node -e 'x()'"))[0]).code, ["x()"]);
+});
+
+test("bash: schrijven op een templatebestand via de opdrachtregel wordt geweigerd", () => {
+  for (const c of [
+    "echo x > biome.json",
+    "echo x >> .github/workflows/ci.yml",
+    "cat <<'EOF' > .claude/settings.json\n{}\nEOF",
+    "sed -i '' 's/a/b/' scripts/guard-template.mjs",
+    "perl -pi -e 's/a/b/' biome.json",
+    "cp /tmp/ci.yml .github/workflows/",
+    "mv biome.json /tmp/",
+    "rm -f CLAUDE.md",
+    "git rm docs/routes/verder-werken.md",
+    "touch .github/workflows/nieuw.yml",
+    "truncate -s 0 biome.json",
+    "dd if=/dev/zero of=biome.json",
+    "printf x | tee biome.json",
+    `node -e "require('fs').writeFileSync('biome.json', '{}')"`,
+    `python3 -c "open('.github/workflows/x.yml', 'w').write('')"`,
+    "cd src && echo x > ../biome.json",
+    `echo x > ${PROJECT}/biome.json`,
+  ]) {
+    geweigerd(bash(c), "gedeelde Stage Two-template", "opdrachtregel");
+  }
+});
+
+test("bash: lezen, terugzetten, een commitbericht en eigen bestanden mogen wel", () => {
+  for (const c of [
+    "cat biome.json",
+    "sed -n 1,10p scripts/guard-template.mjs",
+    "git checkout -- biome.json",
+    "git restore .github/workflows/ci.yml",
+    'git commit -m "fix > biome.json"',
+    "git commit -F - <<'EOF'\nregel > biome.json\nEOF\n",
+    "echo x > src/a.ts",
+    "cp biome.json /tmp/kopie.json",
+    "pnpm test 2>&1 | tee /tmp/uit.log",
+    "rm -rf .claude/worktrees/oud",
+    `node -e "console.log(require('fs').readFileSync('biome.json', 'utf8'))"`,
+    "cd /tmp && echo x > biome.json",
+  ]) {
+    assert.deepEqual(bash(c), TOE, c);
+  }
+});
+
+test("bash: STACK_ALLOW_POLICY_EDIT=1 laat schrijven op templatebestanden door, ook vóór de opdracht", () => {
+  assert.deepEqual(bash("sed -i s/a/b/ biome.json", { STACK_ALLOW_POLICY_EDIT: "1" }), TOE);
+  assert.deepEqual(bash("STACK_ALLOW_POLICY_EDIT=1 sed -i s/a/b/ biome.json"), TOE);
+  geweigerd(bash("pnpm dev", { STACK_ALLOW_POLICY_EDIT: "1" }), "Geen dev-server");
+});
+
+test("bash: relatieve paden gelden vanaf de cwd van de sessie", () => {
+  const vanuit = (command, cwd) => beoordeelTool({ projectmap: PROJECT, manifest: MANIFEST, toolName: "Bash", toolInput: { command }, cwd });
+  assert.deepEqual(vanuit("echo x > biome.json", `${PROJECT}/src`), TOE, "src/biome.json is geen templatebestand");
+  geweigerd(vanuit("echo x > ../biome.json", `${PROJECT}/src`), "Bestand: biome.json");
+});
+
+test("bash: gh pr create zonder --draft wordt geweigerd, met uitleg waarom en hoe later op klaar", () => {
+  geweigerd(bash("gh pr create --title t --body b"), "gh pr create --draft", "GitHub-minuten", "gh pr ready", "Voor de architectuur", "migratie");
+  geweigerd(bash("git push -u origin x && gh pr create --fill"), "--draft");
+  assert.deepEqual(bash("gh pr create --draft --title t"), TOE);
+  assert.deepEqual(bash("gh pr create -d --fill"), TOE);
+  assert.deepEqual(bash("gh pr create --title 'a; b' --draft"), TOE, "een ; in de titel breekt de opdracht niet");
+  assert.deepEqual(bash("git commit -m 'gh pr create'"), TOE, "alleen de echte opdracht telt");
+  assert.deepEqual(bash("gh pr ready 12"), TOE);
+});
+
+test("bash: git -C <map> push naar main of met --force wordt ook geweigerd", () => {
+  geweigerd(bash("git -C app push origin main"), "Rechtstreeks naar main");
+  geweigerd(bash("git -C app push --force"), "Force pushen");
 });

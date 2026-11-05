@@ -82,8 +82,10 @@ Vier commando's, en een bewaker op de achtergrond:
 - **Een bewaker.** Een deel van de bestanden in je app is niet van jou maar van de
   gedeelde werkwijze: de automatische controles, de afspraken, de routes. Vraag je je
   assistent om daar iets in te wijzigen, dan houdt de plugin dat tegen en legt hij uit
-  waarom. Zonder plugin houdt de controle op GitHub het alsnog tegen; met plugin hoor je
-  het meteen.
+  waarom, ook als hij het via de opdrachtregel probeert. Zonder plugin houdt de controle op
+  GitHub het alsnog tegen; met plugin hoor je het meteen. Een pull request begint bij de
+  bewaker altijd als concept: dan draaien tussendoor alleen de snelle controles, en dat
+  scheelt GitHub-minuten.
 - **Een melding als er een nieuwere werkwijze is.** Open je je app en heeft Stage Two de
   gedeelde werkwijze verbeterd, dan zegt je assistent dat één keer, hooguit één keer per
   dag, met wat er nieuw is (uit het overzicht op stagetwo.nl/plugin). Moet een update vóór
@@ -362,6 +364,15 @@ gestart vanuit `Stack/bin/stack-sync.mjs`, dat het register en de ruleset meegee
   (de lijst `vervangen`, plus `.github/CODEOWNERS` en alles onder `.github/workflows/`
   en `.claude/`). Zonder manifest doet hij niets. `STACK_ALLOW_POLICY_EDIT=1` laat
   padbewerkingen door, voor onderhoud aan de template zelf.
+- Sinds uitgave 39 leest de bewaker ook Bash-opdrachten op schrijven naar die paden: een
+  omleiding (`>`, `>>`), `tee`, `sed -i`, `perl -i`, `cp`, `mv`, `rm`, `touch`, `truncate`,
+  `dd of=`, `git rm`, `git mv`, en een `node -e` of `python -c` die een beschermd pad noemt en
+  schrijft (`hooks/regels.mjs`, een kleine lezer voor de opdrachtregel, met here-documents
+  overgeslagen). Terugzetten (`git checkout`, `git restore`) mag. Dat is een vroege
+  waarschuwing; `guard:template` blijft de echte controle. Ook nieuw: `gh pr create` zonder
+  `--draft` (of `-d`) wordt geweigerd, met de uitleg waarom en hoe de PR later op klaar gaat
+  (`gh pr ready`). En `git -C <map> push` naar main of met `--force` valt nu ook onder de
+  regels.
 - De melding vergelijkt `.claude/stack-version` met de hoogste tag `stack-v<n>` op de
   template van de klant (zie "Levering per bedrijf"; zonder levering die van Stage Two), met
   één `git ls-remote` zonder login (drie seconden) en een dagstempel per repo in

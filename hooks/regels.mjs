@@ -21,8 +21,18 @@
  * route docs/routes/databasewijziging.md voorgehouden (`context`). Die route was eerder
  * een eigen skill; nu komt hij precies op het moment dat het ertoe doet.
  *
- * Bewust openlaten kan met STACK_ALLOW_POLICY_EDIT=1 (padbewerkingen), voor wanneer je
- * met opzet aan het vangnet zelf werkt. De dev-server heeft zijn eigen, kleinere
+ * Sinds uitgave 39 kijkt de bewaker ook naar schrijven via Bash: een omleiding (`>`, `>>`),
+ * `tee`, `sed -i`, `perl -i`, `cp`, `mv`, `rm`, `touch`, `truncate`, `dd of=`, `git rm` en
+ * `git mv`, en een korte `node -e` of `python -c` die een beschermd pad noemt én schrijft.
+ * Dat is een vroege waarschuwing, geen volledige shell: wat hier doorglipt, zet guard:template
+ * alsnog rood. Terugzetten mag altijd (`git checkout`, `git restore`).
+ *
+ * En één regel dwingt een afspraak af die eerder alleen in de route stond: een pull request
+ * begint als concept (`gh pr create --draft`). Een volle Kwaliteitspoort bij elke tussenstap
+ * kost GitHub-minuten (meting oktober 2026: de grootste post).
+ *
+ * Bewust openlaten kan met STACK_ALLOW_POLICY_EDIT=1 (padbewerkingen, ook via Bash), voor
+ * wanneer je met opzet aan het vangnet zelf werkt. De dev-server heeft zijn eigen, kleinere
  * ontsnapping: STACK_ALLOW_DEV=1, voor lokaal kijken voor jezelf.
  */
 import { posix as pad } from "node:path";
@@ -69,7 +79,8 @@ export const BASH_REGELS = [
     ].join("\n"),
   },
   {
-    patroon: /git\s+push\b[^&|;]*\b(?:main|master)\b/,
+    // Ook `git -C <map> push`, zoals vanuit een werkmap boven de apps.
+    patroon: /git\s+(?:-C\s+\S+\s+)?push\b[^&|;]*\b(?:main|master)\b/,
     reden: [
       "Rechtstreeks naar main pushen kan niet, en hoeft niet.",
       "",
@@ -78,7 +89,7 @@ export const BASH_REGELS = [
     ].join("\n"),
   },
   {
-    patroon: /git\s+push\b[^&|;]*(?:--force\b|--force-with-lease\b|\s-f\b)/,
+    patroon: /git\s+(?:-C\s+\S+\s+)?push\b[^&|;]*(?:--force\b|--force-with-lease\b|\s-f\b)/,
     reden: [
       "Force pushen is uitgezet op deze repo.",
       "",
@@ -99,7 +110,34 @@ export const BASH_REGELS = [
       "Een migratie test je door hem te pushen: de Kwaliteitspoort draait hem in een eigen Supabase.",
     ].join("\n"),
   },
+  {
+    // Snoeipunt 1 van de meting van oktober 2026: concept afdwingen in plaats van vragen. De
+    // tekst kan "gh pr create" ook in een commitbericht noemen; daarom kijkt `tenzij` naar de
+    // echte opdrachten in de regel, niet naar de tekst.
+    patroon: /\bgh\s+pr\s+create\b/,
+    tenzij: (commando) => !segmenten(lexeer(commando)).some((seg) => isPrZonderConcept(woordenVan(seg))),
+    reden: [
+      "Een pull request begint altijd als concept: `gh pr create --draft`.",
+      "",
+      "Waarom: bij een concept draaien alleen de snelle controles. De zware database- en",
+      "browsertest wachten tot de pull request op klaar staat. Zonder concept draait bij elke",
+      "push de volle Kwaliteitspoort, en dat kost de klant GitHub-minuten voor tussenstappen",
+      "die nog niemand hoeft te beoordelen. Dat geldt ook voor een pull request met een migratie.",
+      "",
+      "Op klaar zetten doe je later, als de gebruiker het werk goed vindt (stap 7 van",
+      "docs/routes/verder-werken.md): vul in de PR-tekst het kopje \"Voor de architectuur\" in,",
+      "draai `pnpm check`, en dan `gh pr ready <nummer>` en `gh pr checks --watch`.",
+    ].join("\n"),
+  },
 ];
+
+/** `gh pr create` zonder `--draft` (of `-d`) in deze woorden van één opdracht. */
+function isPrZonderConcept(woorden) {
+  const start = woorden.findIndex((w, i) => naamVan(w) === "gh" && woorden[i + 1] === "pr" && woorden[i + 2] === "create");
+  if (start === -1) return false;
+  const vlaggen = woorden.slice(start + 3);
+  return !vlaggen.some((w) => w === "--draft" || w === "-d" || w === "--draft=true");
+}
 
 // ---------------------------------------------------------------- paden
 
@@ -147,13 +185,16 @@ function isBeschermd(relatief, { exact, prefixen }) {
   return prefixen.some((prefix) => relatief.startsWith(prefix));
 }
 
-function weigerPad(relatief) {
+function weigerPad(relatief, { viaBash = false } = {}) {
   return {
     weiger: true,
     reden: [
       "Dit bestand hoort bij de gedeelde Stage Two-template en wordt niet per project gewijzigd.",
       "",
       `Bestand: ${relatief}`,
+      ...(viaBash
+        ? ["", "Dat geldt ook via de opdrachtregel (een omleiding met >, sed -i, cp, mv, rm en dergelijke)."]
+        : []),
       "",
       "Wil je de nieuwste versie van dit bestand? Draai dan /stagetwo-tier2:updaten: dat brengt",
       "de hele app naar de nieuwste template, als pull request.",
@@ -180,12 +221,14 @@ export const MIGRATIE_CONTEXT = [
 
 /**
  * Beoordeelt één gereedschapsaanroep: `{weiger, reden, context}`. Zonder manifest (geen
- * stack-repo) wordt nooit geweigerd. Bash gaat langs BASH_REGELS; de padgereedschappen
- * langs de beschermde paden, tenzij env.STACK_ALLOW_POLICY_EDIT === "1". `context` is
+ * stack-repo) wordt nooit geweigerd. Bash gaat langs BASH_REGELS en daarna langs het
+ * schrijven op templatebestanden; de padgereedschappen langs de beschermde paden, tenzij
+ * env.STACK_ALLOW_POLICY_EDIT === "1". `cwd` is de map waarin een Bash-opdracht start
+ * (standaard de projectmap); relatieve paden in de opdracht gelden vanaf daar. `context` is
  * een herinnering die de agent bij een toegestane aanroep meekrijgt (nu alleen voor
  * migraties).
  */
-export function beoordeelTool({ projectmap, manifest, toolName, toolInput, env = {} }) {
+export function beoordeelTool({ projectmap, manifest, toolName, toolInput, env = {}, cwd = null }) {
   const toe = { weiger: false, reden: null };
   if (!manifest || typeof manifest !== "object") return toe;
   if (!toolInput || typeof toolInput !== "object") return toe;
@@ -193,12 +236,10 @@ export function beoordeelTool({ projectmap, manifest, toolName, toolInput, env =
   if (toolName === "Bash") {
     const commando = toolInput.command;
     if (typeof commando !== "string") return toe;
-    for (const regel of BASH_REGELS) {
-      if (!regel.patroon.test(commando)) continue;
-      if (regel.tenzij?.(commando, env ?? {})) continue;
-      return { weiger: true, reden: regel.reden };
-    }
-    return toe;
+    const regel = bashRegel(commando, env);
+    if (regel) return regel;
+    const geraakt = schrijftOpTemplate({ commando, cwd: cwd ?? projectmap, projectmap, manifest, env });
+    return geraakt ? weigerPad(geraakt, { viaBash: true }) : toe;
   }
 
   if (Object.hasOwn(PAD_VELD, toolName)) {
@@ -211,6 +252,267 @@ export function beoordeelTool({ projectmap, manifest, toolName, toolInput, env =
   }
 
   return toe;
+}
+
+/** De eerste regel uit BASH_REGELS die deze opdracht weigert, als `{weiger, reden}`; anders null. */
+export function bashRegel(commando, env = {}) {
+  for (const regel of BASH_REGELS) {
+    if (!regel.patroon.test(commando)) continue;
+    if (regel.tenzij?.(commando, env ?? {})) continue;
+    return { weiger: true, reden: regel.reden };
+  }
+  return null;
+}
+
+/**
+ * Het eerste templatebestand (relatief pad) waar deze Bash-opdracht in schrijft, of null.
+ * `cd <map>` en `pushd <map>` verleggen de map voor de opdrachten erna.
+ */
+export function schrijftOpTemplate({ commando, cwd, projectmap, manifest, env = {} }) {
+  if (env?.STACK_ALLOW_POLICY_EDIT === "1" || /\bSTACK_ALLOW_POLICY_EDIT=1\b/.test(commando)) return null;
+  const beschermd = beschermdePaden(manifest);
+  let map = cwd;
+  for (const seg of segmenten(lexeer(commando))) {
+    const woorden = woordenVan(seg);
+    if (woorden[0] === "cd" || woorden[0] === "pushd") {
+      map = volgendeMap(map, woorden[1]);
+      continue;
+    }
+    const { paden, code } = schrijfdoelen(seg);
+    for (const p of paden) {
+      const relatief = padVanuit(projectmap, map, p);
+      if (relatief && !relatief.startsWith(".claude/worktrees/") && isBeschermd(relatief, beschermd)) return relatief;
+    }
+    for (const stuk of code) {
+      const relatief = beschermdInCode(stuk, beschermd, projectmap);
+      if (relatief) return relatief;
+    }
+  }
+  return null;
+}
+
+function volgendeMap(map, doel) {
+  if (typeof doel !== "string" || !doel || doel === "-" || doel.startsWith("~") || doel.includes("$")) return null;
+  const los = doel.replaceAll("\\", "/");
+  if (isAbsoluut(los)) return pad.normalize(los);
+  return map ? pad.join(map, los) : null;
+}
+
+/** Het pad `p` uit een opdracht die in `map` draait, relatief aan de projectmap; of null. */
+function padVanuit(projectmap, map, p) {
+  if (typeof p !== "string" || !p || p.startsWith("~") || p.includes("$")) return null;
+  const los = p.replaceAll("\\", "/");
+  if (isAbsoluut(los)) return normaliseerPad(projectmap, los);
+  if (!map) return null;
+  return normaliseerPad(projectmap, pad.join(map.replaceAll("\\", "/"), los));
+}
+
+/** Een stukje code (node -e, python -c) dat schrijft én een beschermd pad noemt. */
+const SCHRIJFT_IN_CODE =
+  /\b(?:writeFile(?:Sync)?|appendFile(?:Sync)?|copyFile(?:Sync)?|rename(?:Sync)?|unlink(?:Sync)?|rmSync|createWriteStream|write_text|write_bytes|shutil\.(?:copy\w*|move)|os\.(?:remove|rename|replace|unlink))\b|\bopen\([^)]*,\s*['"][wax]/;
+
+function beschermdInCode(code, { exact, prefixen }, projectmap) {
+  if (!SCHRIJFT_IN_CODE.test(code)) return null;
+  const voor = `(?:^|['"\`]|${escape(`${String(projectmap).replace(/\/+$/, "")}/`)})(?:\\./)?`;
+  for (const p of exact) if (new RegExp(`${voor}${escape(p)}['"\`]`).test(code)) return p;
+  for (const p of prefixen) if (new RegExp(`${voor}${escape(p)}`).test(code)) return p;
+  return null;
+}
+
+function escape(tekst) {
+  return tekst.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// ---------------------------------------------------------------- de opdrachtregel lezen
+
+/**
+ * Een kleine lezer voor één Bash-opdracht: woorden (met de aanhalingstekens eraf),
+ * omleidingen (`>`, `>>`, `2>`, `&>`, `<<`) en scheidingstekens (`&&`, `||`, `;`, `|`,
+ * een nieuwe regel). De tekst van een here-document slaat hij over, zodat een `>` in een
+ * commitbericht geen omleiding wordt. Geen volledige shell: genoeg om te zien wat er
+ * geschreven wordt.
+ */
+export function lexeer(tekst) {
+  const tokens = [];
+  const n = tekst.length;
+  const heredocs = [];
+  let woord = null;
+  let i = 0;
+  const sluit = () => {
+    if (woord !== null) tokens.push({ soort: "woord", waarde: woord });
+    woord = null;
+  };
+  while (i < n) {
+    const c = tekst[i];
+    if (c === "\n") {
+      sluit();
+      tokens.push({ soort: "scheiding", waarde: "\n" });
+      i++;
+      while (heredocs.length > 0) {
+        const { tag, tabs } = heredocs.shift();
+        while (i < n) {
+          const eind = tekst.indexOf("\n", i);
+          const regel = tekst.slice(i, eind === -1 ? n : eind);
+          i = eind === -1 ? n : eind + 1;
+          if ((tabs ? regel.replace(/^\t+/, "") : regel) === tag) break;
+        }
+      }
+      continue;
+    }
+    if (c === " " || c === "\t" || c === "\r") {
+      sluit();
+      i++;
+      continue;
+    }
+    if (c === "#" && woord === null) {
+      while (i < n && tekst[i] !== "\n") i++;
+      continue;
+    }
+    if (c === "\\") {
+      if (tekst[i + 1] !== "\n") woord = (woord ?? "") + (tekst[i + 1] ?? "");
+      i += 2;
+      continue;
+    }
+    if (c === "'") {
+      const eind = tekst.indexOf("'", i + 1);
+      woord = (woord ?? "") + tekst.slice(i + 1, eind === -1 ? n : eind);
+      i = eind === -1 ? n : eind + 1;
+      continue;
+    }
+    if (c === '"') {
+      let j = i + 1;
+      let stuk = "";
+      while (j < n && tekst[j] !== '"') {
+        if (tekst[j] === "\\" && j + 1 < n && '"\\$`'.includes(tekst[j + 1])) {
+          stuk += tekst[j + 1];
+          j += 2;
+        } else {
+          stuk += tekst[j];
+          j++;
+        }
+      }
+      woord = (woord ?? "") + stuk;
+      i = j + 1;
+      continue;
+    }
+    if (c === ">" || c === "<" || (c === "&" && tekst[i + 1] === ">")) {
+      const m = /^(?:&>>|&>|>>|>\||>&|>|<<<|<<-|<<|<&|<>|<)/.exec(tekst.slice(i));
+      if (woord !== null && /^\d+$/.test(woord)) woord = null;
+      else sluit();
+      tokens.push({ soort: "omleiding", waarde: m[0] });
+      i += m[0].length;
+      if (m[0] === "<<" || m[0] === "<<-") {
+        while (tekst[i] === " " || tekst[i] === "\t") i++;
+        const d = /^(['"]?)([^\s'";&|<>()]+)\1/.exec(tekst.slice(i));
+        if (d) {
+          heredocs.push({ tag: d[2], tabs: m[0] === "<<-" });
+          i += d[0].length;
+        }
+      }
+      continue;
+    }
+    const scheiding = ["&&", "||", ";;", ";", "|&", "|", "&", "(", ")"].find((s) => tekst.startsWith(s, i));
+    if (scheiding) {
+      sluit();
+      tokens.push({ soort: "scheiding", waarde: scheiding });
+      i += scheiding.length;
+      continue;
+    }
+    woord = (woord ?? "") + c;
+    i++;
+  }
+  sluit();
+  return tokens;
+}
+
+/** De tokens per losse opdracht (gesplitst op scheidingstekens), zonder lege. */
+export function segmenten(tokens) {
+  const uit = [[]];
+  for (const t of tokens) {
+    if (t.soort === "scheiding") uit.push([]);
+    else uit.at(-1).push(t);
+  }
+  return uit.filter((s) => s.length > 0);
+}
+
+/** De woorden van een opdracht, zonder omleidingen en hun doel. */
+export function woordenVan(seg) {
+  const woorden = [];
+  for (let k = 0; k < seg.length; k++) {
+    if (seg[k].soort === "omleiding") {
+      if (seg[k + 1]?.soort === "woord") k++;
+      continue;
+    }
+    woorden.push(seg[k].waarde);
+  }
+  return woorden;
+}
+
+function naamVan(woord) {
+  return String(woord).replaceAll("\\", "/").split("/").pop();
+}
+
+const SCHRIJF_OMLEIDING = new Set([">", ">>", ">|", "&>", "&>>", "<>"]);
+const VOORVOEGSELS = new Set(["sudo", "env", "command", "exec", "nohup", "time", "builtin"]);
+const SCHRIJVERS = new Set(["rm", "unlink", "truncate", "touch", "shred", "tee"]);
+const INTERPRETERS = new Set(["node", "python", "python3", "ruby", "deno", "bun"]);
+
+/**
+ * Waar één opdracht in schrijft: `paden` (zoals ze in de opdracht staan) en `code` (een
+ * stukje node -e of python -c, dat beschermdInCode leest).
+ */
+export function schrijfdoelen(seg) {
+  const paden = [];
+  const code = [];
+  for (let k = 0; k < seg.length; k++) {
+    const t = seg[k];
+    if (t.soort !== "omleiding" || seg[k + 1]?.soort !== "woord") continue;
+    const doel = seg[k + 1].waarde;
+    if (SCHRIJF_OMLEIDING.has(t.waarde) || (t.waarde === ">&" && !/^(?:\d+|-)$/.test(doel))) paden.push(doel);
+  }
+  const alle = woordenVan(seg);
+  let s = 0;
+  while (s < alle.length && (/^[A-Za-z_][A-Za-z0-9_]*=/.test(alle[s]) || VOORVOEGSELS.has(alle[s]))) s++;
+  if (s >= alle.length) return { paden, code };
+  const naam = naamVan(alle[s]);
+  const args = alle.slice(s + 1);
+  const isVlag = (a) => a.startsWith("-") && a !== "-";
+  const gewoon = args.filter((a) => !isVlag(a) && a !== "");
+
+  if (SCHRIJVERS.has(naam)) paden.push(...gewoon);
+  else if (naam === "sed" || naam === "gsed") {
+    if (args.some((a) => /^-[A-Za-z]*i/.test(a) || a.startsWith("--in-place"))) paden.push(...gewoon);
+  } else if (naam === "perl") {
+    if (args.some((a) => /^-[A-Za-z]*i/.test(a))) paden.push(...gewoon);
+    else code.push(...naVlag(args, ["-e", "-E"]));
+  } else if (naam === "cp" || naam === "install" || naam === "ln" || naam === "mv") {
+    const t = args.indexOf("-t");
+    const doel = t !== -1 ? args[t + 1] : gewoon.at(-1);
+    const bronnen = gewoon.filter((a) => a !== doel);
+    if (doel) paden.push(doel, ...bronnen.map((b) => `${doel.replace(/\/+$/, "")}/${naamVan(b)}`));
+    if (naam === "mv") paden.push(...bronnen);
+  } else if (naam === "dd") {
+    for (const a of args) if (a.startsWith("of=")) paden.push(a.slice(3));
+  } else if (naam === "git") {
+    let k = 0;
+    let basis = "";
+    while (k < args.length && args[k].startsWith("-")) {
+      if (args[k] === "-C") {
+        basis = `${args[k + 1] ?? ""}/`;
+        k += 2;
+      } else k++;
+    }
+    if (args[k] === "rm" || args[k] === "mv") paden.push(...args.slice(k + 1).filter((a) => !isVlag(a)).map((a) => `${basis}${a}`));
+  } else if (INTERPRETERS.has(naam)) {
+    code.push(...naVlag(args, ["-e", "-c", "-p", "--eval", "--print"]));
+  }
+  return { paden, code };
+}
+
+function naVlag(args, vlaggen) {
+  const uit = [];
+  for (let k = 0; k < args.length - 1; k++) if (vlaggen.includes(args[k])) uit.push(args[k + 1]);
+  return uit;
 }
 
 // ---------------------------------------------------------------- sessiestart

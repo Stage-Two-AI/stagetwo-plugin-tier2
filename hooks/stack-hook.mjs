@@ -45,7 +45,14 @@ import { join } from "node:path";
 import { andereAppsAchter, repoUitOrigin } from "../lib/andere-apps.mjs";
 import { isCloudflareManifest } from "../lib/manifest.mjs";
 import { haalUpdates, uitgavenTussen } from "../lib/updates.mjs";
-import { beoordeelStart, beoordeelTool, meldingAndereApps, moetControleren, orgStempelNaam, stempelNaam } from "./regels.mjs";
+import {
+  beoordeelStart,
+  beoordeelTool,
+  meldingAndereApps,
+  moetControleren,
+  orgStempelNaam,
+  stempelNaam,
+} from "./regels.mjs";
 import { bronOpAfstand } from "./versie-op-afstand.mjs";
 
 const GIT_TIMEOUT_MS = 2000;
@@ -156,14 +163,7 @@ async function sessieStart(projectmap) {
   if (regels.length > 0) process.stdout.write(`${regels.join("\n\n")}\n`);
 }
 
-function preToolUse(projectmap, manifest, event) {
-  const { weiger, reden, context } = beoordeelTool({
-    projectmap,
-    manifest,
-    toolName: event.tool_name,
-    toolInput: event.tool_input,
-    env: process.env,
-  });
+function schrijfOordeel({ weiger, reden, context }) {
   if (!weiger) {
     // Alleen context, geen permissionDecision: de gewone toestemmingsvraag blijft staan.
     if (context) process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: "PreToolUse", additionalContext: context } }));
@@ -176,6 +176,24 @@ function preToolUse(projectmap, manifest, event) {
         permissionDecision: "deny",
         permissionDecisionReason: reden,
       },
+    }),
+  );
+}
+
+/** De map waarin een Bash-opdracht start: de cwd van de sessie, anders de projectmap. */
+function startmap(event, projectmap) {
+  return typeof event.cwd === "string" && event.cwd ? event.cwd : projectmap;
+}
+
+function preToolUse(projectmap, manifest, event) {
+  schrijfOordeel(
+    beoordeelTool({
+      projectmap,
+      manifest,
+      toolName: event.tool_name,
+      toolInput: event.tool_input,
+      env: process.env,
+      cwd: startmap(event, projectmap),
     }),
   );
 }
