@@ -222,7 +222,7 @@ export const MIGRATIE_CONTEXT = [
   "in zijn geheel en loop die stappen af (stap 0: bezit deze app de database wel?), naast de",
   "route verder-werken. Migraties zijn aanvullend, elke nieuwe tabel krijgt RLS, een grant,",
   "policies en een A/B-test met `controleerAfscherming` (tests/rls/lib/afscherming.ts) in tests/rls/,",
-  "en daarna `pnpm db:types`.",
+  "of staat met een reden in `open_tabellen` van stack.config.json, en daarna `pnpm db:types`.",
 ].join("\n");
 
 /**

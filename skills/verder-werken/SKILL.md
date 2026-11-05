@@ -95,6 +95,12 @@ Wat verder bij deze route hoort, en wat de route zelf ook noemt:
     `controleerAfscherming` uit `tests/rls/lib/afscherming.ts` (`tabel: "<naam>"`): gebruiker
     B ziet, wijzigt en verwijdert de rij van A niet. De Kwaliteitspoort (`guard:rls-tests`)
     zoekt per tabel naar zo'n aanroep.
+  - Mag iedereen die binnen is een tabel helemaal zien (een kalender, een lijst zonder
+    persoonsgegevens)? Dan staat de tabel in `open_tabellen` in `stack.config.json`, met de
+    reden: `"feestdagen": "kalender voor iedereen binnen, geen persoonsgegevens"`. Alleen dan mag
+    een policy `using (true)` hebben, en alleen `to authenticated`; nooit voor `anon` of zonder
+    `to`. Een open tabel hoeft geen A/B-test. Vraag de gebruiker bij twijfel of de tabel echt
+    open mag, en zeg het in de PR-tekst.
 - **Meekijken tijdens het bouwen** gaat in de Claude-app via de preview: die start de app
   op deze computer volgens `.claude/launch.json`, tegen de testdatabase en nooit tegen
   productie. Start geen dev-server in Bash. Opleveren blijft altijd de pull request met
