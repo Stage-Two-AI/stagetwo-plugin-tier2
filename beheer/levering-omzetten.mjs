@@ -39,8 +39,8 @@
  * beheerdersrechten op de app-repo, die de gh-sessie van Stage Two in de projectfase heeft.
  * Lukt het niet, dan zegt het script wat er met de hand moet.
  *
- * Zonder --doe-het verandert er niets. Met GH_TOKEN of GITHUB_TOKEN in de omgeving weigert het,
- * zoals beheerd.mjs: draaien met de eigen gh-sessie van Stage Two, niet met een klanttoken.
+ * Zonder --doe-het verandert er niets. Met GH_TOKEN of GITHUB_TOKEN in de omgeving weigert het:
+ * draaien met de eigen gh-sessie van Stage Two, niet met een klanttoken.
  * Dit script gaat niet mee naar een klant (ALLEEN_IN_BRON in uitleveren.mjs).
  */
 import { execFileSync } from "node:child_process";

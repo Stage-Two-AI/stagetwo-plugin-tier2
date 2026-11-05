@@ -76,7 +76,7 @@ test("overzicht: alleen Cloudflare-template-apps met schrijfrecht (geen Vercel-a
     "api repos/klant/nieuw/contents/.claude/stack-manifest.json": { stdout: CLOUDFLARE_MANIFEST },
     "api repos/klant/vercel-app/contents/.claude/stack-manifest.json": { stdout: { stackVersion: 6 } },
     "api repos/klant/vercel-app/contents/.claude/stack-version": raw(6),
-    "pr list": { stdout: [{ number: 3, headRefName: "stack-sync/v9", url: "https://github.com/klant/portaal/pull/3" }] },
+    "pr list": { stdout: [{ number: 3, headRefName: "stack-bijwerken/v9", url: "https://github.com/klant/portaal/pull/3" }] },
   });
   try {
     const r = w.draai(["--json", "--eigenaar", "klant"]);
