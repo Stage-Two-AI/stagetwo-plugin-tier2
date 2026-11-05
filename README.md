@@ -488,8 +488,8 @@ mag starten; de sleutels staan in de omgeving `beheer` en zijn voor hem niet te 
 
 Een nieuwe versie gaat altijd als **uitgave** via de werkplaats (`Stage-Two-AI/stagetwo-werkplaats`,
 README, "De ronde"; besluit 26-10-2026): meldingen verzamelen, één nummer voor plugins, templates
-en beheer, één ronde pull requests, taggen, eerst de eigen apps, dan uitleveren en het changelog op
-stagetwo.nl/plugin. Daar staat de volgorde van de hele ronde; hieronder alleen wat er per stap in
+en beheer, één ronde pull requests, taggen, uitleveren, het changelog op
+stagetwo.nl/plugin en de lessen vastleggen. Daar staat de volgorde van de hele ronde; hieronder alleen wat er per stap in
 deze repo en de template gebeurt. Een sessie buiten de werkplaats brengt zelf geen versie uit.
 
 Volgorde bij elke release: eerst de plugin, dan de template. Een oude plugin stopt op
@@ -515,14 +515,13 @@ overweg.
 4. Na de merge de tag zetten: `git tag stack-v<n> && git push origin stack-v<n>`. Pas
    dan bestaat de versie voor de melding en de skill. Een tag wordt nooit verplaatst;
    de ruleset op de template weigert dat.
-5. Eerst de eigen apps bijwerken: minstens één eigen app van Stage Two per tier met
-   `/stagetwo-tier2:updaten`, en de pull request moet groen worden (stap 7 van de ronde). Zo
-   past Stage Two elke versie eerst toe op de eigen apps, vóór een abonnee hem krijgt.
-6. Dan Uitleveren aan abonnees: pas als plugin en template op de eigen apps goed werken,
-   start je de workflow **Uitleveren** met de hand: `gh workflow run uitleveren.yml -R
+5. Mag: eerst een eigen app bijwerken met `/stagetwo-tier2:updaten` en kijken of de pull
+   request groen wordt (stap 7 van de ronde). Verplicht is het niet (Christijn 29-10-2026): de
+   eigen apps draaien op de tiers en lopen zo vanzelf tegen echte problemen aan.
+6. Dan Uitleveren aan abonnees: start de workflow **Uitleveren** met de hand: `gh workflow run uitleveren.yml -R
    Stage-Two-AI/stagetwo-plugin-tier2 -f toegepast_versie=<versie> -f toegepast_template=stack-v<n>`,
    of op de pagina van de workflow **Run workflow**. Beide invoeren zijn verplicht: daarmee
-   bevestig je welke pluginversie en welke templatetag op de eigen apps zijn toegepast. De plugin
+   bevestig je welke pluginversie en welke templatetag uitgaan. De plugin
    gaat naar de klant vanaf de tag `v<versie>` uit stap 2, niet vanaf `main`, en heet bij de
    klant ook `v<versie>`. Bestaat die tag niet, heeft `.claude-plugin/plugin.json` op die tag
    een ander versienummer, of is `toegepast_template` geen tag `stack-v<n>`, dan stopt de run met
