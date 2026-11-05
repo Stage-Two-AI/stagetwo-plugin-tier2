@@ -45,7 +45,8 @@ Andere gebruikers zijn op zichzelf geen reden voor een nieuwe app: wie welk onde
 gebruiken, regel je binnen de app.
 
 Past het bij een bestaande app? Zeg bij welke, en dat het een nieuw onderdeel wordt met een
-eigen pad en een tegel. Verwijs naar `/stagetwo-tier2:verder-werken` in de map van die app.
+eigen pad en een tegel. Een nieuw onderdeel krijgt een regel in `src/onderdelen.ts`; de
+browsertest opent het dan vanzelf. Verwijs naar `/stagetwo-tier2:verder-werken` in de map van die app.
 Stop dan hier.
 
 Is een nieuwe superapp nodig? Zeg welke van de drie redenen het is (een andere
