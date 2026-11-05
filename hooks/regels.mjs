@@ -224,7 +224,8 @@ export const MIGRATIE_CONTEXT = [
   "policies en een A/B-test met `controleerAfscherming` (tests/rls/lib/afscherming.ts) in tests/rls/,",
   "of staat met een reden in `open_tabellen` van stack.config.json, en daarna `pnpm db:types`.",
   "Raakt de migratie bestaande rijen (UPDATE of DELETE), zet dan bovenin per tabel één regel",
-  "`-- verwacht: <tabel> <min>-<max> rijen`.",
+  "`-- verwacht: <tabel> <min>-<max> rijen`. Een leesrol van een andere app (`leesrollen` in",
+  "stack.config.json) krijgt alleen select; schrijven gaat via een functie in deze app.",
 ].join("\n");
 
 /**

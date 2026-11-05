@@ -106,6 +106,10 @@ Wat verder bij deze route hoort, en wat de route zelf ook noemt:
     `-- verwacht: orders 0-40 rijen`. De Kwaliteitspoort oefent de migratie op de
     testdatabase en is rood als hij buiten dat bereik valt. Schat het bereik zelf, uit de
     testdatabase of de code; de gebruiker hoeft het niet te beoordelen.
+  - Leest een andere app deze database via een eigen rol (een koppeling, zoals een datalake),
+    dan staat die rol in `leesrollen` in `stack.config.json` en krijgt hij alleen `select`, op
+    de views in `api`. Nooit `grant insert`, `update` of `delete` aan zo'n rol: schrijven gaat
+    via een functie in de app die de database beheert. De Kwaliteitspoort zet zo'n grant rood.
 - **Meekijken tijdens het bouwen** gaat in de Claude-app via de preview: die start de app
   op deze computer volgens `.claude/launch.json`, tegen de testdatabase en nooit tegen
   productie. Start geen dev-server in Bash. Opleveren blijft altijd de pull request met
