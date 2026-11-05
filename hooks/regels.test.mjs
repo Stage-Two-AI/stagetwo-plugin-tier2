@@ -528,6 +528,9 @@ test("tool: schrijven in supabase/migrations/ wordt toegestaan met de databasero
     assert.equal(r.weiger, false);
     assert.equal(r.context, MIGRATIE_CONTEXT);
     assert.match(r.context, /docs\/routes\/databasewijziging\.md/);
+    // Hetzelfde formaat als de poort leest (scripts/lib/verwachting.mjs in de template).
+    assert.match(r.context, /`-- verwachting: <tabel> <min>-<max>`/);
+    assert.doesNotMatch(r.context, /-- verwacht:/);
   }
   const elders = beoordeelTool({ projectmap: PROJECT, manifest: MANIFEST, toolName: "Write", toolInput: { file_path: "supabase/functions/x/index.ts" } });
   assert.deepEqual(elders, TOE, "alleen de migratiemap krijgt de herinnering");
