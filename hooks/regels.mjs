@@ -221,7 +221,8 @@ export const MIGRATIE_CONTEXT = [
   "stack: dit is een databasewijziging. Lees vóór je verder schrijft docs/routes/databasewijziging.md",
   "in zijn geheel en loop die stappen af (stap 0: bezit deze app de database wel?), naast de",
   "route verder-werken. Migraties zijn aanvullend, elke nieuwe tabel krijgt RLS, een grant,",
-  "policies en een test in tests/rls/, en daarna `pnpm db:types`.",
+  "policies en een A/B-test met `controleerAfscherming` (tests/rls/lib/afscherming.ts) in tests/rls/,",
+  "en daarna `pnpm db:types`.",
 ].join("\n");
 
 /**

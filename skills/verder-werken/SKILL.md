@@ -91,6 +91,10 @@ Wat verder bij deze route hoort, en wat de route zelf ook noemt:
 - **Raakt de wijziging de database** (een tabel, kolom, index of policy), lees dan ook
   `docs/routes/databasewijziging.md` in zijn geheel en volg die stappen. De hook van de
   plugin herinnert je eraan zodra je in `supabase/migrations/` schrijft.
+  - Elke nieuwe tabel krijgt een A/B-test in `tests/rls/` met de gedeelde hulp
+    `controleerAfscherming` uit `tests/rls/lib/afscherming.ts` (`tabel: "<naam>"`): gebruiker
+    B ziet, wijzigt en verwijdert de rij van A niet. De Kwaliteitspoort (`guard:rls-tests`)
+    zoekt per tabel naar zo'n aanroep.
 - **Meekijken tijdens het bouwen** gaat in de Claude-app via de preview: die start de app
   op deze computer volgens `.claude/launch.json`, tegen de testdatabase en nooit tegen
   productie. Start geen dev-server in Bash. Opleveren blijft altijd de pull request met
