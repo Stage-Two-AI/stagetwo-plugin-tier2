@@ -427,7 +427,8 @@ test("start: geen toegang tot de template geeft één melding per dag, met de na
     nu: NU,
   });
   assert.match(melding, /Stage-Two-AI\/app-template-tier2/);
-  assert.match(melding, /Stage Two door te geven/);
+  assert.match(melding, /stagetwo-tier2:installatie/);
+  assert.match(melding, /blokkeert niets/);
   assert.deepEqual(nieuweStempel, { versieOpAfstand: null, tijdstip: NU.toISOString() });
   const zelfdeDag = { versieOpAfstand: null, tijdstip: NU.toISOString() };
   assert.deepEqual(beoordeelStart({ versieLokaal: 24, versieOpAfstand: null, bronFout: "geen-toegang", stempel: zelfdeDag, nu: NU }), {

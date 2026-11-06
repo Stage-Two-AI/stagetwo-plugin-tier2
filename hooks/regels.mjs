@@ -203,8 +203,9 @@ function weigerPad(relatief, { viaBash = false } = {}) {
       "",
       "Wil je de nieuwste versie van dit bestand? Draai dan /stagetwo-tier2:updaten: dat brengt",
       "de hele app naar de nieuwste template, als pull request.",
-      "Wil je dat het anders werkt? Dan is dat een vraag aan Stage Two: zij passen het in",
-      "de template aan en iedereen krijgt de verbetering.",
+      "Wil je dat het anders werkt? Los het dan op in de eigen code van de app; dat kan altijd,",
+      "en niemand hoeft erop te wachten. Moet het in een volgende versie van de template voor",
+      "iedereen anders, dan kan de gebruiker dat aan Stage Two doorgeven.",
       "",
       "Omzeil dit niet. Wijzig je het hier toch, dan zet de check guard:template de pull",
       "request rood en zet de volgende bijwerkronde het terug.",
@@ -671,9 +672,10 @@ export function beoordeelStart({ versieLokaal, versieOpAfstand, stempel, nu, bro
     const melding = [
       `stack: de plugin kan de nieuwste versie van de Stage Two-template niet opvragen bij ${bron ?? "de template"}`,
       "(GitHub kent die repo niet of geeft geen toegang). Daardoor komt een nieuwe versie hier niet als melding",
-      "binnen. Zeg dit één keer aan de gebruiker, in gewone taal, en vraag hem dit aan Stage Two door te geven:",
-      "meestal moet deze computer of deze app nog naar de kopie van de werkwijze in de eigen organisatie.",
-      "Voer zelf niets uit.",
+      "binnen. Dit blokkeert niets: de app werkt gewoon door. Zeg dit één keer aan de gebruiker, in gewone taal,",
+      "en bied aan het samen goed te zetten: meestal moet deze computer nog naar de kopie van de werkwijze in de",
+      "eigen organisatie, en dat doet /stagetwo-tier2:installatie (de app volgt met /stagetwo-tier2:updaten).",
+      "Voer zelf niets uit voordat de gebruiker dat wil.",
     ].join("\n");
     return { melding, nieuweStempel: { versieOpAfstand: null, tijdstip: nu.toISOString() } };
   }

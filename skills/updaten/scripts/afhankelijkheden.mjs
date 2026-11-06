@@ -7,6 +7,10 @@
  *   node afhankelijkheden.mjs --json [--repo <eigenaar>/<naam>]
  *
  * Wat het doet, in een tijdelijke kopie (de open map blijft onaangeroerd):
+ *   0. Staat er een pull request van de template open (branch stack-bijwerken/v<n>), dan bouwt
+ *      deze PR daarop voort in plaats van op main. Anders kwam er een nieuwere Biome (binnen de
+ *      grenzen) met de oude biome.json van main, en was Opmaak en lint rood (test van 39). De
+ *      skill draait dit daarom ook pas na de tweede aanroep van bijwerken.mjs.
  *   1. `pnpm update --no-save`: alleen pnpm-lock.yaml verandert, package.json niet. De
  *      grenzen in package.json zijn deels van de template (devDependencies); die
  *      verschuiven hoort bij een nieuwe templateversie, niet hier.
@@ -14,7 +18,7 @@
  *      branch stack-afhankelijkheden en open een pull request. De CI-checks op die PR
  *      zijn de test: groen is veilig om te mergen.
  *   3. Altijd: welke pakketten een nieuwe hoofdversie hebben (die zet een bouwer zelf door
- *      als wijziging aan de app, of Stage Two op verzoek tegen nacalculatie) en welke
+ *      met Claude als wijziging aan de app; uitbesteden aan Stage Two kan, als optie) en welke
  *      Dependabot-PR's er nog openstaan.
  *
  * Uitkomst: één JSON-object met `status`:
@@ -51,6 +55,8 @@ export { vreemdeImporters };
 
 export const BRANCH = "stack-afhankelijkheden";
 export const WERKMAP_PREFIX = "stack-afhankelijkheden-";
+/** De branch van een pull request van de template (bijwerken.mjs). */
+const TEMPLATE_BRANCH = /^stack-bijwerken\/v\d+$/;
 const LOCKFILE = "pnpm-lock.yaml";
 
 export function leesArgumenten(argv) {
@@ -109,14 +115,20 @@ function dependabotPRs(repo) {
   }
 }
 
-export function prTekst({ hoofdversies, dependabot }) {
+export function prTekst({ hoofdversies, dependabot, opTemplate = null }) {
   const regels = [
     "Afhankelijkheden bijgewerkt binnen de versiegrenzen uit `package.json`. Alleen `pnpm-lock.yaml` verandert; `package.json` blijft zoals hij is.",
+    ...(opTemplate
+      ? [
+          "",
+          `**Merge eerst de pull request van de template** (${opTemplate}). Deze bouwt daarop voort, zodat de nieuwe pakketten met de nieuwe instellingen van de template worden getest. Tot die gemerged is, staat de wijziging van de template hier ook in; daarna alleen nog het lockfile.`,
+        ]
+      : []),
     "",
     "Aangemaakt met /stagetwo-tier2:updaten vanuit je eigen Claude Code-sessie. Wacht tot de checks groen zijn en druk dan op Merge. Rood? Zet de check niet uit: los het op met /stagetwo-tier2:verder-werken (een eigen pull request) en draai daarna /stagetwo-tier2:updaten opnieuw.",
   ];
   if (hoofdversies.length > 0) {
-    regels.push("", "**Nieuwe hoofdversies (niet meegenomen).** Zo'n grote stap zet een bouwer zelf door als wijziging aan de app, met hulp van de assistent, of Stage Two doet het op verzoek tegen nacalculatie:", "");
+    regels.push("", "**Nieuwe hoofdversies (niet meegenomen).** Zo'n grote stap zet de bouwer zelf door met Claude, als gewone wijziging via /stagetwo-tier2:verder-werken. Wie dat liever uitbesteedt, kan het op verzoek door Stage Two laten doen (nacalculatie, €120 per uur exclusief btw):", "");
     for (const p of hoofdversies) regels.push(`- \`${p.naam}\`: ${p.huidig} → ${p.nieuwste}`);
   }
   if (dependabot.length > 0) {
@@ -139,8 +151,11 @@ export function afhankelijkheden({ checkout, opAfstand = null }) {
   if (!repo) return mislukt("de origin van deze map staat niet op GitHub");
 
   let open;
+  let template;
   try {
-    open = openPRs(repo).find((pr) => pr.headRefName === BRANCH) ?? null;
+    const lijst = openPRs(repo);
+    open = lijst.find((pr) => pr.headRefName === BRANCH) ?? null;
+    template = lijst.find((pr) => TEMPLATE_BRANCH.test(pr.headRefName ?? "")) ?? null;
   } catch (fout) {
     return mislukt(`de open pull requests van ${repo} zijn niet op te vragen: ${eersteRegel(fout)}`);
   }
@@ -158,7 +173,13 @@ export function afhankelijkheden({ checkout, opAfstand = null }) {
       ruimOp();
       return mislukt(`je hebt geen schrijfrecht op ${repo}; vraag de eigenaar je toe te voegen als medewerker`);
     }
-    maakBranch(kloon, BRANCH);
+    if (template) {
+      // Voortbouwen op de template-PR: zijn package.json, biome.json en workflows gelden ook hier.
+      git(kloon, "fetch", "-q", "origin", template.headRefName);
+      git(kloon, "checkout", "-q", "-B", BRANCH, "FETCH_HEAD");
+    } else {
+      maakBranch(kloon, BRANCH);
+    }
     try {
       sh("pnpm", ["update", "--no-save", "--ignore-scripts"], { cwd: kloon, timeout: 600000 });
     } catch (fout) {
@@ -182,7 +203,7 @@ export function afhankelijkheden({ checkout, opAfstand = null }) {
     }
     if (gewijzigd.length === 0) {
       ruimOp();
-      return { status: "bij", repo, reden: "alle pakketten staan al op de nieuwste versie binnen de grenzen", hoofdversies, dependabot };
+      return { status: "bij", repo, reden: "alle pakketten staan al op de nieuwste versie binnen de grenzen", hoofdversies, dependabot, opTemplate: template?.url ?? null };
     }
 
     const identiteit = gitIdentiteit(checkout ?? kloon);
@@ -193,9 +214,9 @@ export function afhankelijkheden({ checkout, opAfstand = null }) {
     git(kloon, "add", LOCKFILE);
     git(kloon, "-c", `user.name=${identiteit.naam}`, "-c", `user.email=${identiteit.email}`, "commit", "-q", "-m", "chore: afhankelijkheden bijwerken binnen de versiegrenzen");
     push(kloon, BRANCH);
-    const pr = openOfWerkPRBij({ repo, branch: BRANCH, titel: "Afhankelijkheden bijwerken", tekst: prTekst({ hoofdversies, dependabot }) });
+    const pr = openOfWerkPRBij({ repo, branch: BRANCH, titel: "Afhankelijkheden bijwerken", tekst: prTekst({ hoofdversies, dependabot, opTemplate: template?.url ?? null }) });
     ruimOp();
-    return { status: "gepusht", repo, branch: BRANCH, pr, hoofdversies, dependabot };
+    return { status: "gepusht", repo, branch: BRANCH, pr, hoofdversies, dependabot, opTemplate: template?.url ?? null };
   } catch (fout) {
     ruimOp();
     return mislukt(eersteRegel(fout));

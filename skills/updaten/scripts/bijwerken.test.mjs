@@ -323,6 +323,51 @@ test("open voor iedereen: het voorstel van Claude (een nieuwe migratie) zit in d
   }
 });
 
+test("A/B-tests: zegt de bouwer dat iedereen de tabel mag zien, dan komt zijn antwoord in open_tabellen", () => {
+  const w = wereld();
+  try {
+    const d = w.draai(["--droogloop"]);
+    assert.equal(d.status, "klaar", d.reden);
+    const toestand = join(d.werkmap, "toestand.json");
+    const t = JSON.parse(readFileSync(toestand, "utf8"));
+    const config = join(d.werkmap, "app", "stack.config.json");
+    const voor = existsSync(config) ? readFileSync(config, "utf8") : null;
+    t.resultaat.abTests = { tabellen: ["orders"], paden: { orders: "tests/rls/afscherming/orders.test.ts" }, hulp: "tests/rls/lib/afscherming.ts", config: voor };
+    writeFileSync(toestand, JSON.stringify(t));
+    const c = voor ? JSON.parse(voor) : {};
+    c.open_tabellen = { ...(c.open_tabellen ?? {}), orders: "iedereen in het bedrijf mag alle orders zien (Piet, 06-11-2026)" };
+    writeFileSync(config, `${JSON.stringify(c, null, 2)}\n`);
+    const r = w.draai(["--json", "--werkmap", d.werkmap]);
+    assert.equal(r.status, "gepusht", r.reden);
+    assert.deepEqual(r.abTests.open, [{ tabel: "orders", reden: "iedereen in het bedrijf mag alle orders zien (Piet, 06-11-2026)" }]);
+    assert.deepEqual(r.abTests.geschreven, []);
+    assert.match(git(w.klant.origin, "show", "stack-bijwerken/v9:stack.config.json"), /"orders": "iedereen in het bedrijf/);
+    const create = w.nep.aanroepen().find((a) => a[0] === "pr" && a[1] === "create");
+    const body = create[create.indexOf("--body") + 1];
+    assert.match(body, /\*\*Tabellen die iedereen in de app mag zien\*\*/);
+    assert.doesNotMatch(body, /door updaten geschreven/);
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("A/B-tests: een andere wijziging in stack.config.json stopt de run", () => {
+  const w = wereld();
+  try {
+    const d = w.draai(["--droogloop"]);
+    const toestand = join(d.werkmap, "toestand.json");
+    const t = JSON.parse(readFileSync(toestand, "utf8"));
+    t.resultaat.abTests = { tabellen: ["orders"], paden: { orders: "tests/rls/afscherming/orders.test.ts" }, hulp: "tests/rls/lib/afscherming.ts", config: null };
+    writeFileSync(toestand, JSON.stringify(t));
+    writeFileSync(join(d.werkmap, "app", "stack.config.json"), JSON.stringify({ open_tabellen: { klanten: "zomaar" } }));
+    const r = w.draai(["--json", "--werkmap", d.werkmap]);
+    assert.equal(r.status, "gestopt");
+    assert.match(r.reden, /open_tabellen/);
+  } finally {
+    w.opruimen();
+  }
+});
+
 test("A/B-tests: alleen de voorspelde paden; een ander nieuw bestand stopt de run", () => {
   const w = wereld();
   try {
