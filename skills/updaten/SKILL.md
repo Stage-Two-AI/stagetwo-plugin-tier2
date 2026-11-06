@@ -191,13 +191,23 @@ bouwer. Per tabel in `abTests.tabellen` schrijf je één bestand, precies op het
   opmaak zoals de rest van de app (biome: twee spaties, dubbele aanhalingstekens, puntkomma's);
   staat de app op deze computer, dan zet het script de opmaak in 3c zelf recht.
 - Schrijf niets anders en wijzig geen bestaand bestand. Het script laat in 3c alleen deze paden
-  toe en zet ze in de pull request onder een eigen kopje ("A/B-tests voor tabellen die er nog
-  geen hadden"), los van de templatebestanden. Kun je voor een tabel echt geen rij maken (je
-  begrijpt de tabel niet), vraag het de gebruiker dan in één vraag (bijvoorbeeld "wie mag een
-  rij in `<tabel>` maken?"). Weet hij het ook niet, sla de tabel dan over: het script noemt hem
-  in de pull request als waarschuwing "nog zonder test", en `/stagetwo-tier2:verder-werken`
-  schrijft hem met hem mee als hij aan deze app werkt. Dat blokkeert niets. Zet een tabel nooit zelf in
+  toe (en de regels in `open_tabellen` hieronder) en zet ze in de pull request onder een eigen
+  kopje ("A/B-tests voor tabellen die er nog geen hadden"), los van de templatebestanden.
+  Laten de policies iedereen die is ingelogd alle
+  rijen van een tabel zien, of kun je voor een tabel echt geen rij maken (je begrijpt de tabel
+  niet), vraag het de gebruiker dan in één vraag (bijvoorbeeld "mag iedereen die in de app is
+  alle rijen in `<tabel>` zien?", of "wie mag een rij in `<tabel>` maken?").
+- Zegt hij dat iedereen in de app alle rijen van die tabel mag zien, dan schrijf je geen test
+  maar zet je zijn antwoord als reden in `<werkmap>/app/stack.config.json`, onder `open_tabellen`
+  (maak die sleutel aan als hij er niet is): `"<tabel>": "<zijn antwoord in gewone taal, met wie
+  het zei en de datum>"`, bijvoorbeeld `"notities": "iedereen in het bedrijf mag alle notities
+  zien (Piet, 06-11-2026)"`. Alleen voor een tabel uit `abTests.tabellen`, en verder niets in dat
+  bestand veranderen: het script controleert dat in 3c en zet de tabel in de pull request onder
+  "Tabellen die iedereen in de app mag zien". Zonder zijn antwoord zet je nooit een tabel in
   `open_tabellen`: dat is een keuze over wie wat mag zien.
+- Weet hij het niet, sla de tabel dan over: het script noemt hem in de pull request als
+  waarschuwing ("Tabellen nog zonder A/B-test"), en `/stagetwo-tier2:verder-werken` schrijft de
+  test met hem mee als hij aan deze app werkt. Dat blokkeert niets.
 
 Noem dit in deel 6 in één regel; het is geen vraag aan de gebruiker.
 
@@ -297,7 +307,8 @@ Onthoud voor de samenvatting aan het eind (deel 6), in gewone taal:
 1. wat er is bijgewerkt en waarom (een nieuwere versie van de gedeelde werkwijze), en
    wat er niet is bijgewerkt (de bestanden waarvoor hij **eigen** koos); en of er eenmalig
    een eigen bestand bij zat (`projectbestanden`) en wat er in `voorDeBouwer` staat; en
-   voor welke tabellen er een A/B-test bij kwam (`abTests.geschreven`);
+   voor welke tabellen er een A/B-test bij kwam (`abTests.geschreven`) en welke op zijn antwoord in
+   `open_tabellen` kwamen (`abTests.open`);
 2. waar de pull request staat (`pr.url`, of anders `vergelijkUrl` om hem zelf te openen);
 3. wat hij nu doet: de pull request bekijken, wachten tot de checks groen zijn en op
    Merge drukken. Zijn de checks rood, dan voldoet de app niet aan een nieuwe regel.
