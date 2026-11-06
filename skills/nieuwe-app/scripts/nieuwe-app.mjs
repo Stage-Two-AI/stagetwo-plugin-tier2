@@ -386,14 +386,14 @@ export function zetLicentie(map, organisatie) {
 
 /** Foutbewaking staat per app aan, op de app-repo zelf; de beheer-repo geeft geen gedeelde DSN door. */
 export const SENTRY_REGEL =
-  "Foutbewaking (Sentry): niets met de hand. App inrichten geeft deze app een eigen Sentry-project en zet de DSN op de app-repo (VITE_SENTRY_DSN op production en PREVIEW_VITE_SENTRY_DSN voor de preview), zodra Stage Two Sentry één keer heeft gekoppeld; de overdracht controleert het per app.";
+  "Foutbewaking (Sentry): niets met de hand. App inrichten geeft deze app een eigen Sentry-project en zet de DSN op de app-repo (VITE_SENTRY_DSN op production en PREVIEW_VITE_SENTRY_DSN voor de preview), zodra Sentry één keer is gekoppeld (in de projectfase door Stage Two, daarna door de owner); de overdracht controleert het per app.";
 
 /** Wat er na het script nog te doen is, per databasestand en per uitkomst. */
 export function nogTeDoen({ database, ruleset }) {
   const lijst = [];
   if (!ruleset.gelukt) {
     lijst.push(
-      "main is nog niet beschermd (meestal: een privérepo op een gratis GitHub-plan). Regel het plan, of vraag Stage Two.",
+      "main is nog niet beschermd (meestal: een privérepo op een gratis GitHub-plan). De owner zet de organisatie op het plan Team (Settings, Billing and plans); draai daarna dit commando opnieuw.",
     );
   }
   lijst.push(
@@ -591,7 +591,7 @@ export function regelOmgevingen(repo, { api = ghApi } = {}) {
       api("DELETE", `repos/${repo}/environments/proef-beheer`);
       gedaan.push("proef-beheer: weg (leeg)");
     } else {
-      gedaan.push("proef-beheer: blijft (er staan geheimen in; vraag Stage Two)");
+      gedaan.push("proef-beheer: blijft (er staan geheimen in; de owner haalt hem weg onder Settings, Environments als hij niet nodig is)");
     }
   }
   return gedaan;
@@ -663,7 +663,7 @@ export function nogTeDoenNaInrichting({ resultaat }) {
     "De eerste uitrol: maak een kleine wijziging via /stagetwo-tier2:verder-werken en merge de pull request. Tot dan toont het adres \"Deze app wordt ingericht.\", al achter de deur.",
   ];
   if (resultaat?.waarschuwingen?.length) {
-    for (const w of resultaat.waarschuwingen) lijst.push(`Waarschuwing van de inrichting, geef door aan Stage Two: ${w}`);
+    for (const w of resultaat.waarschuwingen) lijst.push(`Waarschuwing van de inrichting (blokkeert niets): ${w}`);
   }
   lijst.push(SENTRY_REGEL);
   return lijst;
@@ -745,7 +745,7 @@ export function richtIn(arg, { cwd = process.cwd(), wachtMs = 5000, maxWachtMinu
   if (!beheer) {
     return {
       status: "geen-beheer",
-      reden: `${arg.eigenaar} heeft geen beheer-repo (${arg.eigenaar}/${BEHEER_REPO}); Stage Two richt de hosting en de database in`,
+      reden: `${arg.eigenaar} heeft geen beheer-repo (${arg.eigenaar}/${BEHEER_REPO}); die komt aan het begin van het project (Stage Two zet hem klaar) en richt daarna hosting en database in`,
     };
   }
   const repo = `${arg.eigenaar}/${arg.naam}`;

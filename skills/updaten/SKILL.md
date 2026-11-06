@@ -347,8 +347,8 @@ Bij `gepusht` en `bij` staan er twee lijsten bij. `hoofdversies`: pakketten met 
 nieuwe hoofdversie, die bewust niet zijn meegenomen; noem ze. Zeg erbij: Dependabot stelt
 in elke app updates van de npm-pakketten voor, ook zonder abonnement (de versies van de
 GitHub-workflows komen met een nieuwe templateversie); een grote versie van een pakket van de app zet de bouwer zelf
-door, met jouw hulp, als een gewone wijziging via `/stagetwo-tier2:verder-werken`, of
-Stage Two doet het op verzoek tegen nacalculatie (€120 per uur exclusief btw). Wijzigingen
+door, met jouw hulp, als een gewone wijziging via `/stagetwo-tier2:verder-werken`; wie het liever uitbesteedt, kan
+het op verzoek door Stage Two laten doen, tegen nacalculatie (€120 per uur exclusief btw). Wijzigingen
 aan apps vallen buiten het abonnement. Begin er niet zelf aan zonder dat de gebruiker
 erom vraagt. `dependabot`: voorstellen van Dependabot die nog openstaan; noem ze en zeg dat de
 gebruiker ze kan mergen als de checks groen zijn.

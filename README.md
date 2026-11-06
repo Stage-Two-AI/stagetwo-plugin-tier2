@@ -31,8 +31,8 @@ versies van template en plugin, die Stage Two eerst op zijn eigen apps toepast, 
 versie als een leverancier iets verandert, een nieuwe versie van de beheer-repo als dat nodig
 is, en vragen en meedenken, tot ongeveer een uur per maand (meer tijd op afspraak). Het abonnement houdt de omgeving niet bij: beheer en werking
 blijven na de overdracht bij je bedrijf. Niet in het abonnement zitten systeembeheer, een garantie op beschikbaarheid en meer
-werk aan je apps; dat laatste doet Stage Two op verzoek, op nacalculatie tegen €120 per uur
-exclusief btw. Dependabot, een dienst van GitHub, stelt in elke app updates van de
+werk aan je apps. Dat werk doen je bouwers zelf met hun assistent; wie er hulp bij wil, kan het
+op verzoek door Stage Two laten doen, op nacalculatie tegen €120 per uur exclusief btw. Dependabot, een dienst van GitHub, stelt in elke app updates van de
 npm-pakketten voor, ook zonder abonnement, als pull request die een bouwer goedkeurt; de versies
 van de GitHub-workflows komen met een nieuwe versie van de template; alleen een
 beveiligingsupdate kan Dependabot tussendoor voorstellen.
@@ -227,10 +227,11 @@ de organisatie dat). Daarna gaat het verder. Je assistent start de workflow en w
 het resultaat. Dat is bewust zo
 gebouwd: de toegang tot Cloudflare en Supabase hoort niet op een werkcomputer te staan.
 GitHub is de enige plek waar de regels worden afgedwongen, en zo blijft dat. Heeft je
-bedrijf nog geen beheer-repo, dan richt Stage Two de hosting en de database in.
+bedrijf nog geen beheer-repo (alleen aan het begin van het project), dan richt Stage Two de
+hosting en de database in.
 
-Laat Stage Two weten dat de app bestaat (de naam en waarvoor hij is), zodat Stage Two bij
-vragen weet over welke app het gaat. Een link naar de repo helpt alleen tijdens het project;
+Wil je Stage Two later over deze app laten meedenken (binnen het abonnement), noem dan de naam
+en waarvoor hij is; dat hoeft niet, en nergens wacht iets op. Een link naar de repo helpt alleen tijdens het project;
 na de overdracht kan Stage Two een privé-repo standaard niet openen. Stage Two heeft geen toegang tot de
 app nodig: nieuwe versies van de werkwijze haal je zelf in de app binnen met
 `/stagetwo-tier2:updaten`.
@@ -263,7 +264,8 @@ Wat er dan gebeurt, in deze volgorde:
    onaangeraakt. Alleen als een bestand van de werkwijze bij jou anders is dan verwacht
    (omdat iemand het ooit heeft aangepast) stelt hij een vraag: de nieuwe versie
    overnemen, of jouw versie houden. Twijfel je? Kies "houden"; dat verandert niets aan
-   wat nu werkt. Stage Two kan er daarna naar kijken: tijdens het project met de link naar
+   wat nu werkt. Daarna kun je er met je assistent naar kijken in `/stagetwo-tier2:verder-werken`.
+   Wil je dat Stage Two meekijkt (binnen het abonnement): tijdens het project met de link naar
    de pull request, na de overdracht met een beschrijving of schermafbeelding (Stage Two kan
    je privé-repo's dan standaard niet openen).
 4. **De pakketten van je app** worden bijgewerkt, binnen de grenzen die in je app
@@ -282,34 +284,37 @@ Wat er dan gebeurt, in deze volgorde:
 Elk voorstel staat op GitHub als pull request, onder jouw naam, met een uitleg in
 gewone taal. Daarna is het aan jou, precies zoals bij elke andere wijziging: open de
 pull request, wacht tot de controles groen zijn en klik op **Merge**. Zijn de controles rood, dan
-voldoet je app niet aan een nieuwe regel. Neem dan contact op met Stage Two en zet de
-controle niet uit. Tijdens het project stuur je de link naar de pull request; na de overdracht
-kan Stage Two je privé-repo's standaard niet openen, dus stuur dan een beschrijving of een
-schermafbeelding van de rode controle.
-Meekijken en meedenken valt binnen het abonnement, tot ongeveer een uur per maand; moet er meer aan je
-app gebeuren, dan doet Stage Two dat op nacalculatie (€120 per uur exclusief btw).
+voldoet je app niet aan een nieuwe regel. Zet de controle niet uit en wacht ook niet: vraag
+je assistent in `/stagetwo-tier2:verder-werken` wat de regel vraagt; hij past je app aan in een
+eigen pull request, en daarna typ je opnieuw `/stagetwo-tier2:updaten`. Wil je dat Stage Two
+meekijkt: dat valt binnen het abonnement, tot ongeveer een uur per maand (tijdens het project
+met de link naar de pull request; na de overdracht kan Stage Two je privé-repo's standaard niet
+openen, dus dan met een beschrijving of een schermafbeelding van de rode controle). Moet er meer
+aan je app gebeuren en wil je dat uitbesteden, dan doet Stage Two dat op verzoek, op
+nacalculatie (€120 per uur exclusief btw).
 
 ## Als iets niet lukt
 
 | Je ziet | Wat er aan de hand is | Wat je doet |
 |---|---|---|
 | "log eerst in bij GitHub met `gh auth login`" | Je computer is niet ingelogd bij GitHub | Typ `gh auth login` in een terminal en volg de stappen |
-| "de template is niet bereikbaar" | Geen internet, GitHub is even niet bereikbaar, of de template staat niet (meer) waar de plugin hem zoekt | Later opnieuw proberen; lukt het dan nog niet, geef de melding door aan Stage Two |
+| "de template is niet bereikbaar" | Geen internet, GitHub is even niet bereikbaar, of de template staat niet (meer) waar de plugin hem zoekt | Later opnieuw proberen; lukt het dan nog niet, typ `/stagetwo-tier2:installatie`: die zet de plugin op deze computer naar de kopie in de GitHub van je organisatie |
 | "je hebt geen schrijfrecht" | Je account mag niet in deze app schrijven | Vraag de eigenaar van de app je toe te voegen |
-| "installeer pnpm" | `pnpm` ontbreekt op je computer | Vraag Stage Two, of installeer het zoals bij de start is uitgelegd |
-| "er staat al een pull request open" | Er ligt al een voorstel voor deze versie | Bekijk die pull request en merge hem, of vraag Stage Two |
-| Je assistent weigert een bestand te wijzigen | Dat bestand hoort bij de gedeelde werkwijze | Wil je de nieuwste versie: `/stagetwo-tier2:updaten`. Wil je het anders: vraag het Stage Two |
+| "installeer pnpm" | `pnpm` ontbreekt op je computer | Typ `/stagetwo-tier2:installatie`; die installeert het |
+| "er staat al een pull request open" | Er ligt al een voorstel voor deze versie | Bekijk die pull request en merge hem, of sluit hem en typ opnieuw `/stagetwo-tier2:updaten` |
+| Je assistent weigert een bestand te wijzigen | Dat bestand hoort bij de gedeelde werkwijze | Wil je de nieuwste versie: `/stagetwo-tier2:updaten`. Wil je het anders: los het met je assistent op in de eigen code van je app (`/stagetwo-tier2:verder-werken`) |
 | "er staat al een voorstel voor de afhankelijkheden open" | De pakketten-PR van een vorige keer is nog niet gemerged | Merge die eerst (als de controles groen zijn), of sluit hem, en typ dan opnieuw `/stagetwo-tier2:updaten` |
 | De preview toont geen gegevens | Deze app heeft nog geen testdatabase ingesteld | Vraag Stage Two; het opleveren via de pull request werkt gewoon |
 | Na installeren zegt `/stagetwo-tier2:installatie` nog steeds dat iets ontbreekt | Claude Code kent het nieuwe programma nog niet | De app helemaal afsluiten (Windows: systeemvak rechtsonder, rechtermuisknop op Claude, Afsluiten), opnieuw openen, het gesprek aanklikken in de linkerzijbalk en **ga verder** typen |
 | `/plugin marketplace add` lukt niet op Windows | Git ontbreekt | Git installeren zoals onder "Installeren", de app afsluiten via het systeemvak en opnieuw openen |
 | `gh auth login` stopt halverwege | Ctrl+C gedrukt om de code te kopiëren; dat breekt het af | Opnieuw `gh auth login` typen en de nieuwe code onthouden in plaats van kopiëren |
 | "de repo bestaat al" bij `/stagetwo-tier2:nieuwe-app` | Er is al een app met die naam | Kies een andere naam |
-| "main is nog niet beschermd" na `/stagetwo-tier2:nieuwe-app` | Het GitHub-account staat op het gratis plan | Vraag Stage Two; de app werkt, alleen de bescherming ontbreekt nog |
+| "main is nog niet beschermd" na `/stagetwo-tier2:nieuwe-app` | Het GitHub-account staat op het gratis plan | De owner zet de organisatie op het plan Team (op GitHub: Settings, Billing and plans) en typt het commando opnieuw; de app werkt, alleen de bescherming ontbreekt nog |
 
-Kom je er niet uit, dan is de vraag altijd welkom bij Stage Two. Vertel wat je typte en
-wat er terugkwam; de melding is bedoeld om door te geven. Vragen en meedenken vallen binnen
-het abonnement, tot ongeveer een uur per maand; meer werk doet Stage Two op nacalculatie (€120 per uur exclusief btw).
+Kom je er niet uit, vraag het dan eerst aan je assistent in `/stagetwo-tier2:verder-werken`, met
+wat je typte en wat er terugkwam. Een vraag aan Stage Two mag daarnaast altijd: vragen en
+meedenken vallen binnen het abonnement, tot ongeveer een uur per maand; meer werk doet Stage
+Two op verzoek, op nacalculatie (€120 per uur exclusief btw).
 
 ## Voor Stage Two
 
@@ -614,8 +619,8 @@ bronrepo.
   waarschuwt. Het draait met de eigen gh-sessie van Stage Two en gaat niet mee naar een klant.
 - Kan de melding bij sessiestart de template niet lezen omdat GitHub de repo weigert of niet
   kent (na het afschermen van de bronrepo: een app of computer die nog niet is omgezet), dan
-  zegt de assistent dat één keer per dag en vraagt hij de gebruiker het aan Stage Two door te
-  geven (`hooks/versie-op-afstand.mjs`). Zonder netwerk blijft hij stil.
+  zegt de assistent dat één keer per dag, zegt dat het niets blokkeert en biedt aan het met
+  `/stagetwo-tier2:installatie` goed te zetten (`hooks/versie-op-afstand.mjs`). Zonder netwerk blijft hij stil.
 - `/nieuwe-app` zet een `LICENSE` op naam van de organisatie (`--organisatie`, anders de naam
   van de org op GitHub); het gebruiksrecht van Stage Two staat in `LICENSE-STAGE-TWO`, dat
   met elke template-versie meekomt (vanaf template versie 26).

@@ -49,9 +49,12 @@ macOS (`os=macos`, `brew=ja`):
 brew install git node gh pnpm
 ```
 
-Ontbreekt winget of brew, dan stop je: vraag de gebruiker contact op te nemen met Stage
-Two, en zeg welk onderdeel ontbreekt. Verzin geen andere installatieweg. Staat Node er
-wel, draai dan vóór je stopt nog stap 5, zodat de plugin zich in elk geval vanzelf bijwerkt.
+Ontbreekt winget of brew, installeer dan zelf niets. Zeg welk onderdeel ontbreekt en wijs de
+gebruiker de officiële weg om het zelf te zetten: op een Mac Homebrew (de opdracht op brew.sh,
+die de gebruiker zelf in de Terminal plakt; hij vraagt om het wachtwoord van de computer), op
+Windows het App-installatieprogramma uit de Microsoft Store (daarin zit winget). Daarna draai
+je deze stap opnieuw. Verzin geen andere installatieweg. Staat Node er wel, draai dan eerst nog
+stap 5, zodat de plugin zich in elk geval vanzelf bijwerkt.
 
 Draai daarna stap 1 opnieuw. Meldt de controle iets nog steeds als `ontbreekt` terwijl
 de installatie is gelukt, dan kent deze sessie het nieuwe programma nog niet. Zeg dan
@@ -140,8 +143,8 @@ marketplace `stagetwo-tier2`, en `autoUpdate` op die marketplace in
 voorgaat en geen `autoUpdate` heeft). De rest van die bestanden blijft staan. De bron van die
 marketplace is de kopie van de plugin die Stage Two bij de start in de GitHub-organisatie
 van de klant klaarzet (uit `levering.json`); alleen daar komen nieuwe versies binnen. Heeft
-de klant die kopie nog niet, dan blijft het de bron die er al staat (of die van Stage Two);
-het omzetten regelt Stage Two.
+de klant die kopie nog niet (alleen aan het begin van het project, voordat Stage Two hem
+klaarzet), dan blijft het de bron die er al staat (of die van Stage Two).
 
 ## Stap 5b: Sentry, zodat de assistent fouten uit productie ziet
 
