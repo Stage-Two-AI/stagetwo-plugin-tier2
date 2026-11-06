@@ -273,6 +273,31 @@ test("A/B-tests en ruleset: de test van Claude komt mee onder een eigen kopje, e
   }
 });
 
+test("testrol: de aanpassing van Claude in global-setup zit in de commit van updaten, dus een volgende updaten stopt niet", () => {
+  const w = wereld();
+  try {
+    const d = w.draai(["--droogloop"]);
+    const pad = join(d.werkmap, "toestand.json");
+    const t = JSON.parse(readFileSync(pad, "utf8"));
+    const voor = "export default async function globalSetup() {}\n";
+    t.resultaat.testrol = { pad: "e2e/global-setup.ts", voor };
+    writeFileSync(pad, JSON.stringify(t));
+    mkdirSync(join(d.werkmap, "app", "e2e"), { recursive: true });
+    writeFileSync(join(d.werkmap, "app", "e2e", "global-setup.ts"), 'export default async function globalSetup() {\n  geefTestrol();\n}\nfunction geefTestrol() { const b = "supabase/testrol.sql"; }\n');
+    const r = w.draai(["--json", "--werkmap", d.werkmap]);
+    assert.equal(r.status, "gepusht", r.reden);
+    assert.deepEqual(r.testrol, { pad: "e2e/global-setup.ts", gedaan: true });
+    assert.match(git(w.klant.origin, "show", "stack-bijwerken/v9:e2e/global-setup.ts"), /geefTestrol\(\)/);
+    const create = w.nep.aanroepen().find((a) => a[0] === "pr" && a[1] === "create");
+    const body = create[create.indexOf("--body") + 1];
+    assert.match(body, /\*\*De testrol in de browsertest\*\*/);
+    const opnieuw = w.draai(["--droogloop"]);
+    assert.equal(opnieuw.status, "klaar", opnieuw.reden);
+  } finally {
+    w.opruimen();
+  }
+});
+
 test("A/B-tests: alleen de voorspelde paden; een ander nieuw bestand stopt de run", () => {
   const w = wereld();
   try {

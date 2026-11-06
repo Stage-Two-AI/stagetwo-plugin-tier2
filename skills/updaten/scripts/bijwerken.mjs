@@ -76,7 +76,7 @@ import {
   vergelijkUrl,
   versieOpAfstand,
 } from "../../../lib/repo.mjs";
-import { zetKoppen } from "../../../lib/projectbestanden.mjs";
+import { controleerOpenTabellen, controleerTestrol, zetKoppen } from "../../../lib/projectbestanden.mjs";
 import { LOCKFILE, MANIFEST_PAD, leesVersie, pasToe } from "../../../lib/toepassen.mjs";
 
 export const WERKMAP_PREFIX = "stack-bijwerken-";
@@ -309,6 +309,10 @@ function uitlegNaDroogloop(resultaat) {
       ...(resultaat.abTests
         ? [`${resultaat.abTests.tabellen.length} tabel(len) zonder A/B-test (${resultaat.abTests.tabellen.join(", ")}); de tests komen in deze pull request.`]
         : []),
+      ...((resultaat.openTabellen?.tabellen ?? []).length > 0
+        ? [`Open tabellen zonder echte reden: ${resultaat.openTabellen.tabellen.join(", ")}; de redenen komen in deze pull request.`]
+        : []),
+      ...(resultaat.testrol ? [`${resultaat.testrol.pad} krijgt de testrol in deze pull request.`] : []),
       "Er is nog niets gepusht.",
     ],
   };
@@ -360,10 +364,18 @@ export function voerUit({ werkmap, losOp, koppen = {}, updates = null }) {
 
     // De A/B-tests die Claude tussen de twee aanroepen schreef: alleen de paden uit de droogloop.
     const ab = controleerAbTests({ map: kloon, node: nodeVoorKern(), abTests: resultaat.abTests ?? null });
-    formatteer({ kloon, checkout, paden: ab.paden });
+    // De redenen in open_tabellen en de testrol in global-setup, ook van Claude: zo zitten ze in
+    // de commit van updaten zelf, en stopt een volgende updaten niet op een vreemde commit.
+    const open = controleerOpenTabellen(kloon, resultaat.openTabellen ?? null);
+    if (open.fout) {
+      verwijderWerkmap(werkmap);
+      return gestopt(open.fout);
+    }
+    const testrol = controleerTestrol(kloon, resultaat.testrol ?? null);
+    formatteer({ kloon, checkout, paden: [...ab.paden, ...(testrol?.gedaan ? [testrol.pad] : [])] });
 
     // De controle op zichzelf, nog een keer: ook na de keuzes mag alleen het manifest geraakt zijn.
-    const magOok = new Set([...toegestaneBestandenVan(manifest), ...resultaat.verwijderd, ...(resultaat.projectbestanden ?? []), ...ab.paden, LOCKFILE]);
+    const magOok = new Set([...toegestaneBestandenVan(manifest), ...resultaat.verwijderd, ...(resultaat.projectbestanden ?? []), ...ab.paden, ...(testrol ? [testrol.pad] : []), LOCKFILE]);
     const buiten = gewijzigdePaden(kloon).filter((pad) => !magOok.has(pad));
     if (buiten.length > 0) {
       verwijderWerkmap(werkmap);
@@ -376,7 +388,16 @@ export function voerUit({ werkmap, losOp, koppen = {}, updates = null }) {
       verwijderWerkmap(werkmap);
       return mislukt("git kent je naam en e-mailadres niet; stel ze in met `git config --global user.name` en `user.email`");
     }
-    const eind = { ...resultaat, overgeslagen: nogOvergeslagen, opgelost, abTests: ab, voorDeBouwer: [...(resultaat.voorDeBouwer ?? [])] };
+    const eind = {
+      ...resultaat,
+      overgeslagen: nogOvergeslagen,
+      opgelost,
+      abTests: ab,
+      openTabellen: open,
+      testrol,
+      projectbestanden: [...(resultaat.projectbestanden ?? []), ...(testrol?.gedaan ? [testrol.pad] : [])],
+      voorDeBouwer: [...(resultaat.voorDeBouwer ?? [])],
+    };
     commit({ map: kloon, identiteit, bericht: `chore: template naar versie ${resultaat.naar}`, versie: resultaat.naar });
 
     // Tussen de droogloop en nu kan iemand op de branch hebben gecommit; ook dan blijven we ervan af.
@@ -415,6 +436,8 @@ export function voerUit({ werkmap, losOp, koppen = {}, updates = null }) {
       projectbestanden: eind.projectbestanden ?? [],
       voorDeBouwer: eind.voorDeBouwer ?? [],
       abTests: ab,
+      openTabellen: open,
+      testrol,
       ruleset,
       samenvatting: uitlegNaPush({ gepusht, pr, repo, branch, resultaat: eind }),
     };

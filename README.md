@@ -101,7 +101,7 @@ Vier commando's, en een bewaker op de achtergrond:
   voorstel (een pull request) dat jij bekijkt en goedkeurt. Daarna vraagt hij of je
   andere apps ook mee moeten. Je eigen werk raakt hij niet aan. Heeft een nieuwe versie
   eenmalig iets in een eigen bestand nodig (zoals de lijst met onderdelen in versie 39), dan
-  staat dat apart in het voorstel, onder **Voor jou**. Ontbreekt bij een tabel de A/B-test (gebruiker B komt niet bij de rij van A), dan schrijft hij die in hetzelfde voorstel, onder een eigen kopje; daar hoef je niets voor te doen. Hij zet ook de verplichte controle "Droogloop migraties" op `main` van je app, en mist de inrichting iets (de sleutels voor die droogloop, of Sentry), dan biedt hij aan App inrichten te starten of zegt hij dat Stage Two het doet.
+  staat dat apart in het voorstel; daar hoef je niets voor te doen. Ontbreekt bij een tabel de A/B-test (gebruiker B komt niet bij de rij van A), dan schrijft hij die in hetzelfde voorstel, onder een eigen kopje; daar hoef je niets voor te doen. Hij zet ook de verplichte controle "Droogloop migraties" op `main` van je app, en mist de inrichting iets (de sleutels voor die droogloop, of Sentry), dan biedt hij aan App inrichten te starten of zegt hij dat Stage Two het doet.
 
 Er komt geen wachtwoord, sleutel of computer van Stage Two aan te pas. Alles loopt via je
 eigen GitHub-account en je eigen computer.
@@ -433,8 +433,11 @@ PATH van elke sessie waarin de plugin aanstaat, ook bij klanten.
   de PR onder "Voor jou"). Bij de overgang naar versie 39 zet hij `src/onderdelen.ts`
   neer als dat ontbreekt (uit de routes van de app; de koppen geeft de skill mee met
   `--kop`), neemt hij met `scripts/open-tabellen-opnemen.mjs` van
-  de template bestaande open policies op in `open_tabellen`, en zegt hij wat er in
-  `e2e/global-setup.ts` moet voor de testrol (dat bestand raakt hij niet).
+  de template bestaande open policies op in `open_tabellen`. De echte reden per tabel en de
+  testrol in `e2e/global-setup.ts` schrijft Claude tussen de twee aanroepen in de werkkopie
+  (`openTabellen` en `testrol` in de uitkomst); de tweede aanroep controleert dat alleen dat is
+  veranderd en zet het in de commit van updaten zelf, onder eigen kopjes in de PR. Zo staat er
+  nooit een vreemde commit op de update-branch, en blijft "Voor jou" leeg op mergen na.
 - A/B-tests (`lib/abtests.mjs`): na de template draait de kern de guard van de template
   (`scripts/guard-rls-tests.mjs`) in de werkkopie; de tabellen zonder test komen in `abTests`, met
   per tabel een pad (`tests/rls/afscherming/<tabel>.test.ts`). Claude schrijft die tests tussen de twee aanroepen
