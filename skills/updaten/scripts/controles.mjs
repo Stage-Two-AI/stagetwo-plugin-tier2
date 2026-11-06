@@ -8,8 +8,9 @@
  * 1. De ruleset van main krijgt de verplichte controle "Droogloop migraties" (meteen, zonder
  *    vraag: het typen van updaten is de toestemming). Zonder beheerrechten: `ruleset.regel`.
  * 2. Mist de inrichting de sleutels voor de droogloop of Sentry, dan zegt `inrichting` of de
- *    bouwer App inrichten zelf kan starten (`kanStarten`, met `opdracht`), of wat Stage Two doet
- *    (`stageTwo`). Starten doet dit script niet: de skill vraagt het eerst.
+ *    bouwer App inrichten zelf kan starten (`kanStarten`, met `opdracht`), of wat de owner doet
+ *    (`owner`, met `ownerOpdracht`), en wat er tot dan niet werkt (`gevolgen`). Niets blokkeert.
+ *    Starten doet dit script niet: de skill vraagt het eerst.
  *
  * Eén JSON-object met `status`: klaar | mislukt (`reden`).
  */

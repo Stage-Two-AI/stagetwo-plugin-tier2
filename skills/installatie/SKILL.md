@@ -149,23 +149,25 @@ Elke app stuurt fouten uit productie naar Sentry, op een account van het bedrijf
 koppeling Sentry in claude.ai kan de assistent die fouten zelf lezen als er iets misgaat.
 Kijk of er tools van Sentry beschikbaar zijn (namen met `sentry` erin). Zo ja, zeg dat het
 goed staat. Zo niet, zeg in twee zinnen: de koppeling staat in claude.ai onder Instellingen,
-Connectors, Sentry; de login van Sentry beheert Stage Two, dus Stage Two zet hem in een kort
-gesprek aan, op het scherm van de gebruiker. Ga daarna gewoon door; zonder koppeling werkt
+Connectors, Sentry; wie de Sentry-login van het bedrijf heeft (in de projectfase Stage Two,
+na de overdracht de owner), zet hem aan, op het scherm van de gebruiker. Ga daarna gewoon door; zonder koppeling werkt
 alles, alleen moet de gebruiker een fout dan zelf doorgeven.
 
-Dat de apps hun fouten naar Sentry sturen, regelt de gebruiker niet zelf: App inrichten geeft
-elke app een eigen Sentry-project en zet de DSN, zodra Stage Two Sentry één keer in de
-beheer-repo heeft gekoppeld. Dat doet Stage Two in de projectfase met
-`scripts/sentry-koppelen.mjs` (naast deze skill), in een eigen terminal, omdat `gh` daar om het
-token vraagt en niemand de waarde ziet, ook jij niet:
+Dat de apps hun fouten naar Sentry sturen, regelt de bouwer niet zelf: App inrichten geeft
+elke app een eigen Sentry-project en zet de DSN, zodra Sentry één keer in de beheer-repo is
+gekoppeld. In de projectfase doet Stage Two dat; na de overdracht de owner van de beheer-repo,
+met zijn eigen Sentry-account. Dat gaat met `scripts/sentry-koppelen.mjs` (naast deze skill), in
+een eigen terminal, omdat `gh` daar om het token vraagt en niemand de waarde ziet, ook jij niet:
 
 ```sh
-node "${CLAUDE_SKILL_DIR}/scripts/sentry-koppelen.mjs" --beheer <org>/stagetwo-beheer-tier2 --sentry-org <slug> --droogloop
+node "${CLAUDE_SKILL_DIR}/scripts/sentry-koppelen.mjs" --beheer <org>/stagetwo-beheer-tier2 --sentry-org <slug>
 ```
 
-Bied dit nooit aan als stap voor de gebruiker. Vraagt Stage Two er zelf om, draai dan alleen de
-`--droogloop` (die vraagt niets) en zeg dat Stage Two de regel zonder `--droogloop` zelf in de
-terminal draait. Daarna start het script App inrichten voor elke app in `toegang.json`.
+Vraagt de owner (of Stage Two) erom, draai dan eerst zelf de `--droogloop` (die vraagt niets) en
+laat hem de regel zonder `--droogloop` in zijn eigen terminal draaien. Het token is een interne
+integratie in zijn Sentry-organisatie (Settings, Custom Integrations, Internal Integration) met
+Project: Write, Team: Read en Issue & Event: Read. Daarna start het script App inrichten voor
+elke app in `toegang.json`.
 
 ## Stap 6: wat wil je doen?
 

@@ -67,8 +67,9 @@ Template-versie 21 en nieuwer; bij een oudere versie geldt wat in de route van d
   en zie je het inlogscherm van Access, vraag de gebruiker dan één keer in te loggen in het
   paneel (de tools `Claude_Browser`; zijn die er niet, dan Claude in Chrome).
 - **Een fout uit productie?** Kijk eerst in Sentry, via de koppeling Sentry in claude.ai. Staat
-  die niet aan, zeg dan dat Stage Two hem in een kort gesprek koppelt, en vraag de gebruiker
-  intussen de foutmelding of een schermafbeelding.
+  die niet aan, zeg dan dat wie de Sentry-login van het bedrijf heeft (in de projectfase Stage
+  Two, daarna de owner) hem in claude.ai aanzet onder Instellingen, Connectors, Sentry, en vraag
+  de gebruiker intussen de foutmelding of een schermafbeelding.
 - **Het testadres.** Draai één keer per app
   `node "${CLAUDE_SKILL_DIR}/scripts/testmail.mjs"`. Geeft dat `leeg`, vraag dan naar welk
   adres de testmails van deze app mogen (stel het adres van de gebruiker voor), zet het met
@@ -100,6 +101,10 @@ Wat verder bij deze route hoort, en wat de route zelf ook noemt:
     `controleerAfscherming` uit `tests/rls/lib/afscherming.ts` (`tabel: "<naam>"`): gebruiker
     B ziet, wijzigt en verwijdert de rij van A niet. De Kwaliteitspoort (`guard:rls-tests`)
     zoekt per tabel naar zo'n aanroep.
+  - Meldt `guard:rls-tests` een bestaande tabel zonder A/B-test (de update-PR noemde hem "nog zonder
+    test"), schrijf die test dan mee in de pull request van dit werk, zonder dat de gebruiker
+    erom vraagt, op dezelfde manier als voor een nieuwe tabel (in `tests/rls/`). Begrijp je niet wie
+    een rij mag maken of zien, vraag het de gebruiker in één vraag. Noem het in de PR-tekst.
   - Mag iedereen die binnen is een tabel helemaal zien (een kalender, een lijst zonder
     persoonsgegevens)? Dan staat de tabel in `open_tabellen` in `stack.config.json`, met de
     reden: `"feestdagen": "kalender voor iedereen binnen, geen persoonsgegevens"`. Alleen dan mag

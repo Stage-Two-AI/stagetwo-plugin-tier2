@@ -113,7 +113,7 @@ export function prTekst({ hoofdversies, dependabot }) {
   const regels = [
     "Afhankelijkheden bijgewerkt binnen de versiegrenzen uit `package.json`. Alleen `pnpm-lock.yaml` verandert; `package.json` blijft zoals hij is.",
     "",
-    "Aangemaakt met /stagetwo-tier2:updaten vanuit je eigen Claude Code-sessie. Wacht tot de checks groen zijn en druk dan op Merge. Rood? Neem contact op met Stage Two en zet de check niet uit.",
+    "Aangemaakt met /stagetwo-tier2:updaten vanuit je eigen Claude Code-sessie. Wacht tot de checks groen zijn en druk dan op Merge. Rood? Zet de check niet uit: los het op met /stagetwo-tier2:verder-werken (een eigen pull request) en draai daarna /stagetwo-tier2:updaten opnieuw.",
   ];
   if (hoofdversies.length > 0) {
     regels.push("", "**Nieuwe hoofdversies (niet meegenomen).** Zo'n grote stap zet een bouwer zelf door als wijziging aan de app, met hulp van de assistent, of Stage Two doet het op verzoek tegen nacalculatie:", "");
@@ -173,12 +173,12 @@ export function afhankelijkheden({ checkout, opAfstand = null }) {
     const buiten = gewijzigd.filter((p) => p !== LOCKFILE);
     if (buiten.length > 0) {
       ruimOp();
-      return { status: "gestopt", reden: "er zou meer wijzigen dan alleen het lockfile; vraag Stage Two ernaar", buiten };
+      return { status: "gestopt", reden: "er zou meer wijzigen dan alleen het lockfile; er is niets gepusht, en de app blijft zoals hij is", buiten };
     }
     const vreemd = gewijzigd.includes(LOCKFILE) ? vreemdeImporters(readFileSync(join(kloon, LOCKFILE), "utf8")) : [];
     if (vreemd.length > 0) {
       ruimOp();
-      return { status: "gestopt", reden: "het lockfile kreeg een app buiten de repo erbij; er is niets gepusht, vraag Stage Two ernaar", vreemd };
+      return { status: "gestopt", reden: "het lockfile kreeg een app buiten de repo erbij; er is niets gepusht, en de app blijft zoals hij is", vreemd };
     }
     if (gewijzigd.length === 0) {
       ruimOp();

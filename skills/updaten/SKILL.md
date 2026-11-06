@@ -183,8 +183,10 @@ bouwer. Per tabel in `abTests.tabellen` schrijf je één bestand, precies op het
 - Schrijf niets anders en wijzig geen bestaand bestand. Het script laat in 3c alleen deze paden
   toe en zet ze in de pull request onder een eigen kopje ("A/B-tests voor tabellen die er nog
   geen hadden"), los van de templatebestanden. Kun je voor een tabel echt geen rij maken (je
-  begrijpt de tabel niet), sla hem dan over: het script noemt hem in de pull request als "nog
-  zonder test", Stage Two kijkt ernaar, en de volgende keer updaten probeert het opnieuw. Zet een tabel nooit zelf in
+  begrijpt de tabel niet), vraag het de gebruiker dan in één vraag (bijvoorbeeld "wie mag een
+  rij in `<tabel>` maken?"). Weet hij het ook niet, sla de tabel dan over: het script noemt hem
+  in de pull request als waarschuwing "nog zonder test", en `/stagetwo-tier2:verder-werken`
+  schrijft hem met hem mee als hij aan deze app werkt. Dat blokkeert niets. Zet een tabel nooit zelf in
   `open_tabellen`: dat is een keuze over wie wat mag zien.
 
 Noem dit in deel 6 in één regel; het is geen vraag aan de gebruiker.
@@ -194,21 +196,43 @@ doe je zelf, zonder te vragen. Lees per tabel in `<werkmap>/app/supabase/migrati
 staat, en in `<werkmap>/app/src/` hoe de app hem gebruikt, en vervang in
 `<werkmap>/app/stack.config.json` bij die tabel de tekst "nog nalopen" door de echte reden in
 één korte zin, bijvoorbeeld "kalender voor iedereen binnen, geen persoonsgegevens". Raak verder
-niets aan in dat bestand (het script controleert dat). Kun je geen reden bedenken, laat de tekst
-dan staan: de pull request noemt die tabel als "nog zonder reden" en Stage Two kijkt ernaar.
+niets aan in dat bestand (het script controleert dat). Kun je geen reden bedenken, vraag het de
+gebruiker dan in één zin ("Waarom mag iedereen die binnen is alles in `<tabel>` zien?") en zet
+zijn antwoord erin. Weet hij het niet, laat de tekst dan staan: de pull request noemt de tabel
+als "nog zonder reden", en dat blokkeert niets.
 Het script zet de lijst onder een eigen kopje in de pull request, zodat de reviewer hem ziet.
 Lijkt een tabel juist níet voor iedereen bedoeld (persoonsgegevens, iets per gebruiker), schrijf
 dat dan als reden ("nog nalopen: bevat adressen per klant") in plaats van iets te verzinnen.
-Policies in `openTabellen.nooit` (open voor iedereen met de openbare sleutel) laat je zoals ze
-zijn: dat raakt de beveiliging. De pull request zegt dan bovenaan in gewone taal "Nog niet
-mergen", welke tabel voor iedereen op internet leesbaar of aan te passen is, en dat Stage Two
-de regel aanpast; zeg in deel 6 precies dat, met de tabelnaam.
+**Dan de regels die open staan voor iedereen op internet** (alleen als `openTabellen.nooit`
+niet leeg is: een policy voor `anon` of `public` met `true`, dus leesbaar of aan te passen ook
+zonder in te loggen). Die houden de kwaliteitspoort rood, dus jij stelt de smallere regel voor,
+in één nieuwe migratie precies op `openTabellen.migratie` (onder `<werkmap>/app/`). Lees eerst
+in de migraties en in `<werkmap>/app/src/` wat de app met die tabel doet, en kies:
+
+- alleen wie is ingelogd: `drop policy` en dezelfde policy opnieuw met `to authenticated`;
+- alleen de eigen rijen: `to authenticated using (<eigenaarkolom> = auth.uid())`;
+- echt iets voor bezoekers zonder account (een publieke pagina): dezelfde policy alleen nog voor
+  `authenticated`, plus een functie voor `anon` (`security definer`, `set search_path = ''`) die
+  alleen de gekozen velden teruggeeft, zoals `docs/WERKWIJZE.md` van de template beschrijft.
+
+Maak na elke `drop policy` direct een `create policy` met dezelfde naam op dezelfde tabel; dan
+ziet `guard:migrations` het niet als een destructieve migratie.
+
+Weet je niet wat de app nodig heeft, vraag het de gebruiker dan in één vraag, bijvoorbeeld
+"Moeten bezoekers zonder account de prijzen zien, of alleen mensen die zijn ingelogd?". Zet
+bovenin de migratie per verandering een regel `-- uitleg: <wat er verandert, in gewone taal>`;
+het script zet die in de pull request onder een eigen kopje. De gebruiker beslist met mergen.
+Schrijf je geen migratie, dan zegt de pull request in gewone taal dat de tabel open staat en
+dat `/stagetwo-tier2:updaten` het opnieuw voorstelt.
 
 **Dan de testrol** (alleen als `testrol` in het antwoord staat). Pas `<werkmap>/app/<testrol.pad>`
 zelf aan, zonder te vragen: neem de functie `geefTestrol` over uit
 `<werkmap>/template/e2e/global-setup.ts` (met de imports die ze nodig heeft) en roep haar aan
 direct na het aanmaken van de e2e-gebruiker. Zonder `supabase/testrol.sql` doet ze niets, dus
-het mag ook in een app zonder rollen. Laat de rest van het bestand zoals het is.
+het mag ook in een app zonder rollen. Laat de rest van het bestand zoals het is. Wijkt het
+bestand zo af dat je niet ziet waar het hoort, los het dan samen met de gebruiker op: laat hem
+in één zin zien wat je wilt toevoegen en waar, en doe het na zijn ja. Lukt het niet, dan zegt de
+pull request alleen wat er dan niet werkt.
 
 Is `overgeslagen` leeg, dan is er niets te kiezen: ga meteen naar 3c. Het typen van
 `/stagetwo-tier2:updaten` was de toestemming voor de pull request; vraag die niet nog een keer.
@@ -224,9 +248,8 @@ Vraag daarna per bestand één keuze:
   komt zo in de pull request te staan.
 
 Weet de gebruiker het niet, dan is **eigen** de veilige keuze: dat verandert niets aan
-wat er nu werkt. Wil de gebruiker dat Stage Two ernaar kijkt: tijdens het project volstaat
-de link naar de pull request; na de overdracht kan Stage Two een privé-repo standaard niet openen, dus
-dan een beschrijving of schermafbeelding.
+wat er nu werkt. Twijfelt de gebruiker, kijk dan samen met hem naar het verschil en wat de
+lokale aanpassing deed; hij hoeft hier op niemand te wachten.
 
 Let op bij een bestand met een projectdeel, zoals `AGENTS.md`. Zegt de `reden` dat de
 markeringen (`stack:begin` en `stack:end`) ontbreken, dan is **template** geen geldige
@@ -267,12 +290,12 @@ Onthoud voor de samenvatting aan het eind (deel 6), in gewone taal:
    voor welke tabellen er een A/B-test bij kwam (`abTests.geschreven`);
 2. waar de pull request staat (`pr.url`, of anders `vergelijkUrl` om hem zelf te openen);
 3. wat hij nu doet: de pull request bekijken, wachten tot de checks groen zijn en op
-   Merge drukken. Zijn de checks rood, dan voldoet de app niet aan een nieuwe regel;
-   dan neemt hij contact op met Stage Two en zet hij de check niet uit (tijdens het project
-   met de link; na de overdracht met een beschrijving of schermafbeelding, want dan kan Stage
-   Two de privé-repo standaard niet openen).
-   Meekijken en meedenken vallen binnen het abonnement, tot ongeveer een uur per maand; meer werk aan de app doet Stage Two
-   op nacalculatie.
+   Merge drukken. Zijn de checks rood, dan voldoet de app niet aan een nieuwe regel.
+   Hij zet de check niet uit, en wacht ook niet: je lost het samen met hem op met
+   `/stagetwo-tier2:verder-werken` (een eigen pull request; zeg welke check rood is en wat die
+   vraagt), en daarna draait hij `/stagetwo-tier2:updaten` opnieuw. Meekijken door Stage Two
+   valt binnen het abonnement (ongeveer een uur per maand); meer werk aan de app doet Stage Two
+   op nacalculatie. Dat is een keuze, geen voorwaarde om door te kunnen.
 
 ### 3e: de controles en de inrichting van deze app
 
@@ -287,18 +310,20 @@ node "${CLAUDE_SKILL_DIR}/scripts/controles.mjs" --json
 `al-goed`, `bijgezet`, `aangemaakt`; bij `geen-rechten` of `onbekend` geef je `ruleset.regel`
 door, er hoeft niemand iets voor te doen). Daarna zegt `inrichting` wat de beheer-repo nog voor
 deze app moet zetten (`redenen`: de sleutels voor de droogloop van migraties in omgeving
-preview, of de foutmeldingen van Sentry):
+preview, of de foutmeldingen van Sentry) en wat er tot dan niet werkt (`gevolgen`). Niets
+hiervan blokkeert de gebruiker:
 
 - `kanStarten: true`: bied het aan, in één vraag: "Zal ik App inrichten starten in
   `<inrichting.beheer>`? Dat zet <redenen>." Dit is een workflow in de beheer-repo die de
   gebruiker zelf mag starten; er komt geen sleutel op deze computer. Bij ja draai je
   `inrichting.opdracht` precies zo (het wacht op de run, een paar minuten) en geef je de uitkomst
-  door zoals in `/stagetwo-tier2:nieuwe-app` (bij `ingericht` in één regel wat er staat, en een
-  waarschuwing uit het resultaat als "geef door aan Stage Two"). Bij nee: zeg dat de
-  kwaliteitspoort tot dan bij een migratie die gegevens omzet rood blijft met die uitleg, en dat
-  hij het later met `/stagetwo-tier2:updaten` alsnog kan starten.
-- `stageTwo` niet leeg: zeg per regel in gewone taal dat Stage Two dat doet. De gebruiker hoeft
-  er niets voor te doen.
+  door zoals in `/stagetwo-tier2:nieuwe-app` (bij `ingericht` in één regel wat er staat; een
+  waarschuwing uit het resultaat leg je in gewone taal uit). Mislukt het starten omdat hij geen
+  rechten heeft, of zegt hij nee: zeg de `gevolgen`, en dat de owner van de beheer-repo het met
+  `inrichting.ownerOpdracht` start (geef die opdracht letterlijk).
+- `owner` niet leeg: zeg per regel de `gevolgen` en wat de owner van de beheer-repo doet, met
+  de opdracht erbij (vul bij `<plugin>` het pad `${CLAUDE_SKILL_DIR}/..` in). Na de overdracht is
+  dat iemand in de eigen organisatie; de gebruiker kan intussen gewoon door.
 - `redenen` leeg: niets zeggen.
 
 ## Deel 4: de afhankelijkheden van deze app
@@ -374,21 +399,22 @@ Sluit af met één overzicht, in gewone taal:
 1. Per app de pull requests (template, afhankelijkheden en de rol uit deel 4b) met hun
    link, en wat er voor de template is bijgewerkt en wat niet (de bestanden waarvoor
    **eigen** is gekozen); in één regel de A/B-tests die erbij kwamen; en uit 3e of de controle
-   op `main` staat en wat App inrichten of Stage Two nog zet.
+   op `main` staat, en wat App inrichten nog zet en wie in de organisatie dat start.
 2. Wat de gebruiker nu doet: per pull request wachten tot de checks groen zijn en op
-   Merge drukken. Zijn de checks rood, dan voldoet de app niet aan een nieuwe regel; dan
-   neemt hij contact op met Stage Two en zet hij de check niet uit (tijdens het project
-   met de link; na de overdracht met een beschrijving of schermafbeelding, want dan kan Stage
-   Two de privé-repo standaard niet openen).
-   Meekijken en meedenken vallen binnen het abonnement, tot ongeveer een uur per maand; meer werk aan de app doet Stage Two
-   op nacalculatie.
+   Merge drukken. Zijn de checks rood, dan voldoet de app niet aan een nieuwe regel.
+   Hij zet de check niet uit, en wacht ook niet: je lost het samen met hem op met
+   `/stagetwo-tier2:verder-werken` (een eigen pull request; zeg welke check rood is en wat die
+   vraagt), en daarna draait hij `/stagetwo-tier2:updaten` opnieuw. Meekijken door Stage Two
+   valt binnen het abonnement (ongeveer een uur per maand); meer werk aan de app doet Stage Two
+   op nacalculatie. Dat is een keuze, geen voorwaarde om door te kunnen.
 3. Is in deel 1 of 2 iets bijgewerkt, zeg dan dat de app opnieuw moet starten, met deze
    uitleg: sluit de Claude-app helemaal af (Windows: rechtsonder in het systeemvak op het
    pijltje **^**, rechtermuisknop op het Claude-icoon, **Afsluiten**; macOS: cmd+Q), open
    hem opnieuw, klik dit gesprek aan in de linkerzijbalk en typ **ga verder**. Is alleen de
    plugin bijgewerkt (deel 2 niet), dan is `/reload-plugins` in dit gesprek ook genoeg.
 4. Staat er iets in `voorDeBouwer`, zeg het in gewone taal; het staat ook in de pull request
-   onder **Voor jou**. Daar staat nooit een opdracht: wat updaten niet zelf kan, doet Stage Two.
+   onder **Voor jou**. Daar staat nooit iets waarop de gebruiker moet wachten: wat updaten niet
+   zelf kan, los je in deze sessie met hem op, of het is een waarschuwing die niets blokkeert.
    Wat je in 3b schreef (A/B-tests, redenen in `open_tabellen`, de testrol) noem je in één
    regel; de gebruiker hoeft er niets mee.
 5. Gaat een app naar template 34 of nieuwer, zeg dan in één zin wat er nieuw is: de
@@ -406,6 +432,6 @@ Sluit af met één overzicht, in gewone taal:
   geen token, geen `pass` of `gpg`. Het script vindt alles zelf.
 - Je merget geen pull request; dat doet de gebruiker zelf.
 - Je zet geen ruleset, secret of variabele met de hand (`gh api .../rulesets`, `gh secret`):
-  dat doen `bijwerken.mjs` en `controles.mjs`, en wat zij niet kunnen, doet App inrichten of
-  Stage Two.
+  dat doen `bijwerken.mjs` en `controles.mjs`, en wat zij niet kunnen, doet App inrichten,
+  gestart door de gebruiker of de owner van de beheer-repo.
 - Je werkt geen andere app bij zonder dat de gebruiker die in deel 5 heeft gekozen.

@@ -298,6 +298,31 @@ test("testrol: de aanpassing van Claude in global-setup zit in de commit van upd
   }
 });
 
+test("open voor iedereen: het voorstel van Claude (een nieuwe migratie) zit in de commit van updaten en staat in de PR", () => {
+  const w = wereld();
+  try {
+    const d = w.draai(["--droogloop"]);
+    const pad = join(d.werkmap, "toestand.json");
+    const t = JSON.parse(readFileSync(pad, "utf8"));
+    const migratie = "supabase/migrations/20261106120000_open_regels_smaller.sql";
+    t.resultaat.openTabellen = { tabellen: [], nooit: ['prijzen (policy "iedereen", anon, for select)'], config: "{}", migratie };
+    writeFileSync(pad, JSON.stringify(t));
+    mkdirSync(join(d.werkmap, "app", "supabase", "migrations"), { recursive: true });
+    writeFileSync(join(d.werkmap, "app", migratie), '-- uitleg: alleen wie is ingelogd ziet de prijzen\ndrop policy "iedereen" on public.prijzen;\n');
+    const r = w.draai(["--json", "--werkmap", d.werkmap]);
+    assert.equal(r.status, "gepusht", r.reden);
+    assert.equal(r.smal.gedaan, true);
+    assert.match(git(w.klant.origin, "show", `stack-bijwerken/v9:${migratie}`), /drop policy/);
+    const create = w.nep.aanroepen().find((a) => a[0] === "pr" && a[1] === "create");
+    const body = create[create.indexOf("--body") + 1];
+    assert.match(body, /\*\*Regels die open stonden voor iedereen op internet\*\*/);
+    assert.match(body, /- alleen wie is ingelogd ziet de prijzen/);
+    assert.doesNotMatch(body, /Nog niet mergen/);
+  } finally {
+    w.opruimen();
+  }
+});
+
 test("A/B-tests: alleen de voorspelde paden; een ander nieuw bestand stopt de run", () => {
   const w = wereld();
   try {

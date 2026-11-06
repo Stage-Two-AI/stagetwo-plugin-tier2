@@ -76,7 +76,7 @@ import {
   vergelijkUrl,
   versieOpAfstand,
 } from "../../../lib/repo.mjs";
-import { controleerOpenTabellen, controleerTestrol, zetKoppen } from "../../../lib/projectbestanden.mjs";
+import { controleerOpenTabellen, controleerSmal, controleerTestrol, zetKoppen } from "../../../lib/projectbestanden.mjs";
 import { LOCKFILE, MANIFEST_PAD, leesVersie, pasToe } from "../../../lib/toepassen.mjs";
 
 export const WERKMAP_PREFIX = "stack-bijwerken-";
@@ -236,7 +236,7 @@ export function droogloop({ checkout, opAfstand = null, env = process.env }) {
       return mislukt(`de open pull requests van ${repo} zijn niet op te vragen: ${eersteRegel(fout)}`);
     }
     if (andere && andere.headRefName !== branch) {
-      return gestopt(`er staat al een pull request open voor versie ${doel}, geopend door Stage Two: ${andere.url}; merge die, of vraag Stage Two hem te sluiten`, { pr: andere });
+      return gestopt(`er staat al een pull request open voor versie ${doel}, geopend door Stage Two: ${andere.url}; merge die, of sluit hem zelf op GitHub (Close pull request) en draai dit opnieuw`, { pr: andere });
     }
   }
 
@@ -372,10 +372,11 @@ export function voerUit({ werkmap, losOp, koppen = {}, updates = null }) {
       return gestopt(open.fout);
     }
     const testrol = controleerTestrol(kloon, resultaat.testrol ?? null);
+    const smal = controleerSmal(kloon, resultaat.openTabellen ?? null);
     formatteer({ kloon, checkout, paden: [...ab.paden, ...(testrol?.gedaan ? [testrol.pad] : [])] });
 
     // De controle op zichzelf, nog een keer: ook na de keuzes mag alleen het manifest geraakt zijn.
-    const magOok = new Set([...toegestaneBestandenVan(manifest), ...resultaat.verwijderd, ...(resultaat.projectbestanden ?? []), ...ab.paden, ...(testrol ? [testrol.pad] : []), LOCKFILE]);
+    const magOok = new Set([...toegestaneBestandenVan(manifest), ...resultaat.verwijderd, ...(resultaat.projectbestanden ?? []), ...ab.paden, ...(testrol ? [testrol.pad] : []), ...(smal?.gedaan ? [smal.pad] : []), LOCKFILE]);
     const buiten = gewijzigdePaden(kloon).filter((pad) => !magOok.has(pad));
     if (buiten.length > 0) {
       verwijderWerkmap(werkmap);
@@ -395,7 +396,8 @@ export function voerUit({ werkmap, losOp, koppen = {}, updates = null }) {
       abTests: ab,
       openTabellen: open,
       testrol,
-      projectbestanden: [...(resultaat.projectbestanden ?? []), ...(testrol?.gedaan ? [testrol.pad] : [])],
+      smal,
+      projectbestanden: [...(resultaat.projectbestanden ?? []), ...(testrol?.gedaan ? [testrol.pad] : []), ...(smal?.gedaan ? [smal.pad] : [])],
       voorDeBouwer: [...(resultaat.voorDeBouwer ?? [])],
     };
     commit({ map: kloon, identiteit, bericht: `chore: template naar versie ${resultaat.naar}`, versie: resultaat.naar });
@@ -438,6 +440,7 @@ export function voerUit({ werkmap, losOp, koppen = {}, updates = null }) {
       abTests: ab,
       openTabellen: open,
       testrol,
+      smal,
       ruleset,
       samenvatting: uitlegNaPush({ gepusht, pr, repo, branch, resultaat: eind }),
     };
@@ -453,7 +456,7 @@ function uitlegNaPush({ gepusht, pr, repo, branch, resultaat }) {
   else if (repo) regels.push(`De branch ${branch} staat op GitHub; open de pull request hier: ${vergelijkUrl(repo, branch)}`);
   else regels.push(`De branch ${branch} staat op je origin.`);
   if (!gepusht) regels.push("De inhoud stond al zo op GitHub; er is niets opnieuw gepusht.");
-  regels.push("Wacht tot de checks groen zijn en druk dan op Merge. Rood? Neem contact op met Stage Two, zet de check niet uit.");
+  regels.push("Wacht tot de checks groen zijn en druk dan op Merge. Rood? Zet de check niet uit: los het op met /stagetwo-tier2:verder-werken (een eigen pull request) en draai daarna /stagetwo-tier2:updaten opnieuw.");
   if (resultaat.overgeslagen.length > 0) {
     regels.push(`${resultaat.overgeslagen.length} bestand(en) zijn niet bijgewerkt omdat ze lokaal afwijken; dat staat in de pull request.`);
   }
