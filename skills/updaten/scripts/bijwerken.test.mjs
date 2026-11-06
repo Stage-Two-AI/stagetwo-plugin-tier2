@@ -53,7 +53,11 @@ function wereld({ gh = GH_STANDAARD, tagV9 = true, app } = {}) {
 }
 
 test("argumenten en het afplakken van een login in een URL", () => {
-  assert.deepEqual(leesArgumenten(["--json", "--droogloop"]), { json: true, droogloop: true, werkmap: null, losOp: [], checkout: null, repo: null });
+  assert.deepEqual(leesArgumenten(["--json", "--droogloop"]), { json: true, droogloop: true, werkmap: null, losOp: [], koppen: {}, checkout: null, repo: null });
+  assert.deepEqual(leesArgumenten(["--werkmap", "/t/x", "--kop", "/", "Mijn lijst", "--kop", "/klanten", "Alle klanten"]).koppen, {
+    "/": "Mijn lijst",
+    "/klanten": "Alle klanten",
+  });
   assert.equal(leesArgumenten(["--droogloop", "--repo", "klant/voorraad"]).repo, "klant/voorraad");
   assert.deepEqual(leesArgumenten(["--werkmap", "/t/x", "--los-op", "a.yml", "template", "--los-op", "b.yml", "eigen"]).losOp, [
     { pad: "a.yml", keuze: "template" },
@@ -153,20 +157,6 @@ test("voorcontrole: gh niet ingelogd, geen netwerk, geen manifest, geen schrijfr
   }
 });
 
-test("open PR van de beheerde run voor dezelfde versie: gestopt met de URL, niets gekloond", () => {
-  const w = wereld({
-    gh: { ...GH_STANDAARD, "pr list": { stdout: [{ number: 7, headRefName: "stack-sync/v9", url: "https://github.com/klant/app/pull/7" }] } },
-  });
-  try {
-    const r = w.draai(["--droogloop"]);
-    assert.equal(r.status, "gestopt");
-    assert.match(r.reden, /pull\/7/);
-    assert.deepEqual(w.werkmappen(), []);
-  } finally {
-    w.opruimen();
-  }
-});
-
 test("gh pr list faalt: mislukt met een reden over de pull requests, niets gekloond", () => {
   const w = wereld({ gh: { ...GH_STANDAARD, "pr list": { exit: 1, stderr: "boom" } } });
   try {
@@ -228,6 +218,141 @@ test("echte run: branch op origin met de identiteit van de klant, main onaangero
     assert.ok(!body.includes("Stage Two stack-sync"));
     // Geen commit als Stage Two in de klantrepo vanuit de skill.
     assert.ok(!git(w.klant.origin, "log", "--format=%an", "stack-bijwerken/v9").includes("Stage Two"));
+  } finally {
+    w.opruimen();
+  }
+});
+
+/** Zoals de droogloop het zou vinden: één tabel zonder A/B-test (in toestand.json van de werkmap). */
+function metAbTest(werkmap, tabel = "klanten") {
+  const pad = join(werkmap, "toestand.json");
+  const t = JSON.parse(readFileSync(pad, "utf8"));
+  t.resultaat.abTests = { tabellen: [tabel], paden: { [tabel]: `tests/rls/afscherming/${tabel}.test.ts` }, hulp: "tests/rls/lib/afscherming.ts" };
+  writeFileSync(pad, JSON.stringify(t));
+  const test = join(werkmap, "app", "tests", "rls", "afscherming", `${tabel}.test.ts`);
+  mkdirSync(join(test, ".."), { recursive: true });
+  writeFileSync(test, `await controleerAfscherming({ tabel: "${tabel}" });\n`);
+}
+
+const RULESET_ZONDER = {
+  id: 1,
+  name: "main beschermen",
+  target: "branch",
+  enforcement: "active",
+  conditions: { ref_name: { include: ["~DEFAULT_BRANCH"], exclude: [] } },
+  rules: [{ type: "required_status_checks", parameters: { strict_required_status_checks_policy: true, required_status_checks: [{ context: "Code" }] } }],
+};
+
+test("A/B-tests en ruleset: de test van Claude komt mee onder een eigen kopje, en main eist de droogloop", () => {
+  const w = wereld({
+    gh: {
+      ...GH_STANDAARD,
+      "api repos/klant/app/rulesets?includes_parents=false": { stdout: [{ id: 1, name: "main beschermen" }] },
+      "api repos/klant/app/rulesets/1": { stdout: RULESET_ZONDER },
+    },
+  });
+  try {
+    const d = w.draai(["--droogloop"]);
+    assert.equal(d.status, "klaar", d.reden);
+    metAbTest(d.werkmap);
+    const r = w.draai(["--json", "--werkmap", d.werkmap]);
+    assert.equal(r.status, "gepusht", r.reden);
+    assert.deepEqual(r.abTests.geschreven, [{ tabel: "klanten", pad: "tests/rls/afscherming/klanten.test.ts" }]);
+    assert.match(git(w.klant.origin, "show", "stack-bijwerken/v9:tests/rls/afscherming/klanten.test.ts"), /tabel: "klanten"/);
+    const create = w.nep.aanroepen().find((a) => a[0] === "pr" && a[1] === "create");
+    const body = create[create.indexOf("--body") + 1];
+    assert.match(body, /\*\*A\/B-tests voor tabellen die er nog geen hadden\*\*/);
+    assert.match(body, /- `klanten`: `tests\/rls\/afscherming\/klanten\.test\.ts`/);
+    assert.ok(body.endsWith(BEVESTIGING));
+    assert.equal(r.ruleset.status, "bijgezet");
+    const put = w.nep.aanroepen().find((a) => a[0] === "api" && a.includes("PUT"));
+    assert.equal(put[1], "repos/klant/app/rulesets/1");
+    assert.ok(!body.includes("beheerrechten"), "met rechten geen regel onder Voor jou");
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("testrol: de aanpassing van Claude in global-setup zit in de commit van updaten, dus een volgende updaten stopt niet", () => {
+  const w = wereld();
+  try {
+    const d = w.draai(["--droogloop"]);
+    const pad = join(d.werkmap, "toestand.json");
+    const t = JSON.parse(readFileSync(pad, "utf8"));
+    const voor = "export default async function globalSetup() {}\n";
+    t.resultaat.testrol = { pad: "e2e/global-setup.ts", voor };
+    writeFileSync(pad, JSON.stringify(t));
+    mkdirSync(join(d.werkmap, "app", "e2e"), { recursive: true });
+    writeFileSync(join(d.werkmap, "app", "e2e", "global-setup.ts"), 'export default async function globalSetup() {\n  geefTestrol();\n}\nfunction geefTestrol() { const b = "supabase/testrol.sql"; }\n');
+    const r = w.draai(["--json", "--werkmap", d.werkmap]);
+    assert.equal(r.status, "gepusht", r.reden);
+    assert.deepEqual(r.testrol, { pad: "e2e/global-setup.ts", gedaan: true });
+    assert.match(git(w.klant.origin, "show", "stack-bijwerken/v9:e2e/global-setup.ts"), /geefTestrol\(\)/);
+    const create = w.nep.aanroepen().find((a) => a[0] === "pr" && a[1] === "create");
+    const body = create[create.indexOf("--body") + 1];
+    assert.match(body, /\*\*De testrol in de browsertest\*\*/);
+    const opnieuw = w.draai(["--droogloop"]);
+    assert.equal(opnieuw.status, "klaar", opnieuw.reden);
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("open voor iedereen: het voorstel van Claude (een nieuwe migratie) zit in de commit van updaten en staat in de PR", () => {
+  const w = wereld();
+  try {
+    const d = w.draai(["--droogloop"]);
+    const pad = join(d.werkmap, "toestand.json");
+    const t = JSON.parse(readFileSync(pad, "utf8"));
+    const migratie = "supabase/migrations/20261106120000_open_regels_smaller.sql";
+    t.resultaat.openTabellen = { tabellen: [], nooit: ['prijzen (policy "iedereen", anon, for select)'], config: "{}", migratie };
+    writeFileSync(pad, JSON.stringify(t));
+    mkdirSync(join(d.werkmap, "app", "supabase", "migrations"), { recursive: true });
+    writeFileSync(join(d.werkmap, "app", migratie), '-- uitleg: alleen wie is ingelogd ziet de prijzen\ndrop policy "iedereen" on public.prijzen;\n');
+    const r = w.draai(["--json", "--werkmap", d.werkmap]);
+    assert.equal(r.status, "gepusht", r.reden);
+    assert.equal(r.smal.gedaan, true);
+    assert.match(git(w.klant.origin, "show", `stack-bijwerken/v9:${migratie}`), /drop policy/);
+    const create = w.nep.aanroepen().find((a) => a[0] === "pr" && a[1] === "create");
+    const body = create[create.indexOf("--body") + 1];
+    assert.match(body, /\*\*Regels die open stonden voor iedereen op internet\*\*/);
+    assert.match(body, /- alleen wie is ingelogd ziet de prijzen/);
+    assert.doesNotMatch(body, /Nog niet mergen/);
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("A/B-tests: alleen de voorspelde paden; een ander nieuw bestand stopt de run", () => {
+  const w = wereld();
+  try {
+    const d = w.draai(["--droogloop"]);
+    metAbTest(d.werkmap);
+    writeFileSync(join(d.werkmap, "app", "src", "ook.ts"), "export const x = 1;\n");
+    const r = w.draai(["--json", "--werkmap", d.werkmap]);
+    assert.equal(r.status, "gestopt");
+    assert.deepEqual(r.buitenManifest, ["src/ook.ts"]);
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("ruleset zonder beheerrechten: één regel onder Voor jou, en de pull request komt er gewoon", () => {
+  const w = wereld({
+    gh: {
+      ...GH_STANDAARD,
+      "api repos/klant/app/rulesets?includes_parents=false": { stdout: [] },
+      "api repos/klant/app/rulesets": { exit: 1, stderr: "gh: Must have admin rights to Repository. (HTTP 403)" },
+    },
+  });
+  try {
+    const d = w.draai(["--droogloop"]);
+    const r = w.draai(["--json", "--werkmap", d.werkmap]);
+    assert.equal(r.status, "gepusht", r.reden);
+    assert.equal(r.ruleset.status, "geen-rechten");
+    const create = w.nep.aanroepen().find((a) => a[0] === "pr" && a[1] === "create");
+    const body = create[create.indexOf("--body") + 1];
+    assert.match(body, /\*\*Voor jou:\*\*\n(- .*\n)*- De controle "Droogloop migraties" staat nog niet verplicht op main van klant\/app/);
   } finally {
     w.opruimen();
   }

@@ -185,10 +185,10 @@ function leesObject(pad) {
   try {
     data = JSON.parse(tekst);
   } catch {
-    return { fout: `${pad} is geen geldige JSON; dat bestand raak ik niet aan. Vraag Stage Two ernaar.` };
+    return { fout: `${pad} is geen geldige JSON; dat bestand raak ik niet aan. Laat Claude het met je herstellen en draai dit opnieuw.` };
   }
   if (data === null || typeof data !== "object" || Array.isArray(data)) {
-    return { fout: `${pad} bevat geen JSON-object; dat bestand raak ik niet aan. Vraag Stage Two ernaar.` };
+    return { fout: `${pad} bevat geen JSON-object; dat bestand raak ik niet aan. Laat Claude het met je herstellen en draai dit opnieuw.` };
   }
   return { data };
 }

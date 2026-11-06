@@ -149,9 +149,25 @@ Elke app stuurt fouten uit productie naar Sentry, op een account van het bedrijf
 koppeling Sentry in claude.ai kan de assistent die fouten zelf lezen als er iets misgaat.
 Kijk of er tools van Sentry beschikbaar zijn (namen met `sentry` erin). Zo ja, zeg dat het
 goed staat. Zo niet, zeg in twee zinnen: de koppeling staat in claude.ai onder Instellingen,
-Connectors, Sentry; de login van Sentry beheert Stage Two, dus Stage Two zet hem in een kort
-gesprek aan, op het scherm van de gebruiker. Ga daarna gewoon door; zonder koppeling werkt
+Connectors, Sentry; wie de Sentry-login van het bedrijf heeft (in de projectfase Stage Two,
+na de overdracht de owner), zet hem aan, op het scherm van de gebruiker. Ga daarna gewoon door; zonder koppeling werkt
 alles, alleen moet de gebruiker een fout dan zelf doorgeven.
+
+Dat de apps hun fouten naar Sentry sturen, regelt de bouwer niet zelf: App inrichten geeft
+elke app een eigen Sentry-project en zet de DSN, zodra Sentry één keer in de beheer-repo is
+gekoppeld. In de projectfase doet Stage Two dat; na de overdracht de owner van de beheer-repo,
+met zijn eigen Sentry-account. Dat gaat met `scripts/sentry-koppelen.mjs` (naast deze skill), in
+een eigen terminal, omdat `gh` daar om het token vraagt en niemand de waarde ziet, ook jij niet:
+
+```sh
+node "${CLAUDE_SKILL_DIR}/scripts/sentry-koppelen.mjs" --beheer <org>/stagetwo-beheer-tier2 --sentry-org <slug>
+```
+
+Vraagt de owner (of Stage Two) erom, draai dan eerst zelf de `--droogloop` (die vraagt niets) en
+laat hem de regel zonder `--droogloop` in zijn eigen terminal draaien. Het token is een interne
+integratie in zijn Sentry-organisatie (Settings, Custom Integrations, Internal Integration) met
+Project: Write, Team: Read en Issue & Event: Read. Daarna start het script App inrichten voor
+elke app in `toegang.json`.
 
 ## Stap 6: wat wil je doen?
 
@@ -164,13 +180,32 @@ Alles staat klaar. Vraag nu, met deze drie keuzes:
    naam halen, toon dan de lijst met `gh repo list <organisatie> --limit 50` (de
    organisatie is meestal het bedrijf van de gebruiker; `gh api user/orgs -q '.[].login'`
    noemt ze). Kloon de app in een eigen map onder de huidige map met
-   `gh repo clone <eigenaar>/<naam>` en draai daarin `pnpm install`. Zeg daarna dat
-   de gebruiker die map in Claude Code moet openen (Bestand, map openen) en daar verder
-   kan met `/stagetwo-tier2:verder-werken`. Werk niet vanuit de huidige map aan die app: de
-   afspraken en de bewaker werken alleen als de map van de app zelf open staat.
+   `gh repo clone <eigenaar>/<naam>` en draai daarin `pnpm install`. Richt daarna de
+   huidige map in als werkmap (stap 7). De gebruiker kan daarna gewoon hier blijven
+   werken met `/stagetwo-tier2:verder-werken`, voor elke app in deze map; de afspraken en
+   de bewaker werken ook vanuit hier. Een app als eigen map openen in Claude Code mag ook.
 3. **Alles bijwerken.** Typ `/stagetwo-tier2:updaten`. Dat werkt de plugin en de programma's op
    deze computer bij, en daarna de apps die de gebruiker kiest, elk als pull request.
    Een app hoeft daarvoor niet op deze computer te staan.
 
 Zeg tot slot dat `/stagetwo-tier2:installatie` altijd opnieuw getypt mag worden, bijvoorbeeld op een
 andere computer of na een herinstallatie: het slaat over wat al goed staat.
+
+## Stap 7: de werkmap van de bouwer
+
+Draai dit in de map waarin de apps staan (meestal de huidige map), ook als je er net een
+hebt gekloond, en ook bij een volgende keer installatie:
+
+```sh
+node "${CLAUDE_SKILL_DIR}/scripts/werkmap.mjs"
+```
+
+- `klaar`: in deze map staan nu een `CLAUDE.md` (welke apps hier staan, en dat elke
+  wijziging via `/stagetwo-tier2:verder-werken` gaat, in de map van de app) en in
+  `.claude/launch.json` per app een preview met de naam van de app. Eigen tekst in
+  `CLAUDE.md` blijft staan; alleen het blok tussen de markeringen schrijft het script. Zeg in
+  één zin dat de gebruiker Claude voortaan in deze map kan starten.
+- `geen-apps`: hier staan (nog) geen apps van tier 2. Zeg niets.
+- `mislukt`: geef `reden` door. Alles werkt gewoon, alleen de werkmap kent zijn apps niet.
+
+Dit is één bestand per bouwer en per computer; het komt niet in git.
