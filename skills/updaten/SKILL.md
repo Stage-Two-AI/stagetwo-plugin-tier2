@@ -349,7 +349,11 @@ hiervan blokkeert de gebruiker:
 
 ## Deel 4: de afhankelijkheden van deze app
 
-Een eigen pull request, los van die van de template (één PR = één onderwerp):
+Een eigen pull request, los van die van de template (één PR = één onderwerp). Pas na deel 3c:
+staat de pull request van de template open, dan bouwt het script daarop voort (met zijn
+`package.json`, `biome.json` en workflows), zodat de nieuwe pakketten niet met de oude
+instellingen van main worden getest. De PR-tekst zegt dan dat de template-PR eerst gemerged
+moet worden (`opTemplate` in het antwoord):
 
 ```sh
 node "${CLAUDE_SKILL_DIR}/scripts/afhankelijkheden.mjs" --json
@@ -402,16 +406,17 @@ update klaarstaat. Laat de app die open staat (`huidige: true`) weg; die is al g
   krijgt die iemand moet nakijken en mergen. Werk nooit apps bij die niet gekozen zijn.
 
 Voor elke gekozen app zonder `openPR`, één voor één: loop deel 3 door met `--repo` erbij
-(de app hoeft niet op deze computer te staan), en daarna deel 4 met `--repo`:
+(de app hoeft niet op deze computer te staan), en pas daarna deel 4 met `--repo`, dus als de
+pull request van de template er staat:
 
 ```sh
 node "${CLAUDE_SKILL_DIR}/scripts/bijwerken.mjs" --json --droogloop --repo "<eigenaar>/<naam>"
+# 3b en 3c zoals bij deze app; de tweede aanroep (--werkmap) heeft geen --repo nodig
 node "${CLAUDE_SKILL_DIR}/scripts/afhankelijkheden.mjs" --json --repo "<eigenaar>/<naam>"
 ```
 
-De tweede aanroep van deel 3 (`--werkmap`) blijft gelijk; `--repo` hoeft daar niet bij.
 Overgeslagen bestanden leg je net zo voor als bij deze app, en de A/B-tests schrijf je net zo
-(de migraties staan in `<werkmap>/app/`). Daarna 3e met `--repo`.
+(de code staat in `<werkmap>/app/`). Daarna 3e met `--repo`.
 
 ## Deel 6: samenvatting
 
