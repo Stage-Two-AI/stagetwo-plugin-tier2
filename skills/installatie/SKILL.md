@@ -153,6 +153,20 @@ Connectors, Sentry; de login van Sentry beheert Stage Two, dus Stage Two zet hem
 gesprek aan, op het scherm van de gebruiker. Ga daarna gewoon door; zonder koppeling werkt
 alles, alleen moet de gebruiker een fout dan zelf doorgeven.
 
+Dat de apps hun fouten naar Sentry sturen, regelt de gebruiker niet zelf: App inrichten geeft
+elke app een eigen Sentry-project en zet de DSN, zodra Stage Two Sentry één keer in de
+beheer-repo heeft gekoppeld. Dat doet Stage Two in de projectfase met
+`scripts/sentry-koppelen.mjs` (naast deze skill), in een eigen terminal, omdat `gh` daar om het
+token vraagt en niemand de waarde ziet, ook jij niet:
+
+```sh
+node "${CLAUDE_SKILL_DIR}/scripts/sentry-koppelen.mjs" --beheer <org>/stagetwo-beheer-tier2 --sentry-org <slug> --droogloop
+```
+
+Bied dit nooit aan als stap voor de gebruiker. Vraagt Stage Two er zelf om, draai dan alleen de
+`--droogloop` (die vraagt niets) en zeg dat Stage Two de regel zonder `--droogloop` zelf in de
+terminal draait. Daarna start het script App inrichten voor elke app in `toegang.json`.
+
 ## Stap 6: wat wil je doen?
 
 Alles staat klaar. Vraag nu, met deze drie keuzes:
