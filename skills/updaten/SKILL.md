@@ -11,8 +11,9 @@ apps) vraag je het wel.
 
 Jij wijzigt zelf niets in de bestanden van een app. Alles wat een app verandert, loopt
 via de scripts hieronder, in een tijdelijke kopie, en komt als pull request bij de
-gebruiker. De uitzonderingen zijn deel 4b (één bestand, als eigen pull request) en, alleen
-als de gebruiker ja zegt, `e2e/global-setup.ts` in deel 6. Mergen doet de gebruiker zelf.
+gebruiker. De uitzonderingen zijn de A/B-tests in 3b (in de tijdelijke kopie, op de paden die
+het script noemt), deel 4b (één bestand, als eigen pull request) en, alleen als de gebruiker
+ja zegt, `e2e/global-setup.ts` in deel 6. Mergen doet de gebruiker zelf.
 
 De gebruiker bouwt zelf; Stage Two richt in en begeleidt. Nieuwe versies komen uit de kopie
 van plugin en template die Stage Two bij de start in de GitHub-organisatie van de klant
@@ -130,11 +131,11 @@ node "${CLAUDE_SKILL_DIR}/scripts/bijwerken.mjs" --json --droogloop
 Het antwoord is één JSON-object met een `status`. Vertel de gebruiker in gewone taal wat
 het betekent, in hooguit drie regels; gebruik daarvoor `samenvatting` als die er is.
 
-- `bij`: de app staat al op de nieuwste versie. Zeg dat en ga door naar deel 4.
+- `bij`: de app staat al op de nieuwste versie. Zeg dat en ga door naar 3e.
 - `geen-template`: deze repo is niet uit de template gebouwd. Zeg dat en ga door naar
   deel 5.
 - `mislukt` of `gestopt`: `reden` is één zin met wat de gebruiker moet doen. Geef die
-  door en ga door naar deel 4. Probeer het niet te omzeilen en verzin geen andere weg.
+  door en ga door naar 3e. Probeer het niet te omzeilen en verzin geen andere weg.
 - `klaar`: de werkkopie staat klaar. Ga door naar 3b.
 
 Het script raakt alleen bestanden van de template, met één uitzondering: een versie die
@@ -160,6 +161,32 @@ wijzigen) welk scherm daar opent en wat zijn h1 is, en geef die in 3c mee met
 uit de gegevens), laat `--kop` voor dat pad dan weg en noem het in deel 6. Bij een andere app
 (deel 5, `--repo`) staat de code niet op deze computer: laat `--kop` dan weg en noem het ook.
 Dit is geen vraag aan de gebruiker.
+
+**Dan de A/B-tests** (alleen als `abTests` in het antwoord staat). Dit doe je zelf, zonder het
+de gebruiker te vragen en zonder het als keuze voor te leggen: het typen van updaten is de
+toestemming, en de bouwer hoeft er niets voor te doen. Een volgende versie maakt een tabel
+zonder A/B-test rood; door ze nu in de update-PR te zetten, vraagt die versie niets van de
+bouwer. Per tabel in `abTests.tabellen` schrijf je één bestand, precies op het pad uit
+`abTests.paden` en onder `<werkmap>/app/` (dus in de tijdelijke kopie, nooit in deze checkout):
+
+- Lees eerst hoe de tabel werkt, in `<werkmap>/app/supabase/migrations/`: de kolommen, welke
+  kolom de eigenaar is (bijvoorbeeld `owner_id` of `user_id`, vaak met default `auth.uid()`),
+  verplichte kolommen en verwijzingen naar andere tabellen, en de policies.
+- Gebruik `controleerAfscherming` uit `abTests.hulp` (vanuit het testbestand:
+  `../lib/afscherming`), zoals het voorbeeld bovenin dat bestand en `tests/rls/items.test.ts`.
+  `maakRijAlsA` voegt als gebruiker A één geldige rij toe (met wat er verplicht is; een rij in
+  een andere tabel die nodig is, maak je eerst ook als A) en geeft zijn id terug.
+- Eén `describe` of `it` per bestand, met in de titel `<tabel>: B ziet de rij van A niet`. De
+  opmaak zoals de rest van de app (biome: twee spaties, dubbele aanhalingstekens, puntkomma's);
+  staat de app op deze computer, dan zet het script de opmaak in 3c zelf recht.
+- Schrijf niets anders en wijzig geen bestaand bestand. Het script laat in 3c alleen deze paden
+  toe en zet ze in de pull request onder een eigen kopje ("A/B-tests voor tabellen die er nog
+  geen hadden"), los van de templatebestanden. Kun je voor een tabel echt geen rij maken (je
+  begrijpt de tabel niet), sla hem dan over: het script noemt hem in de pull request als "nog
+  zonder test", Stage Two kijkt ernaar, en de volgende keer updaten probeert het opnieuw. Zet een tabel nooit zelf in
+  `open_tabellen`: dat is een keuze over wie wat mag zien.
+
+Noem dit in deel 6 in één regel; het is geen vraag aan de gebruiker.
 
 Is `overgeslagen` leeg, dan is er niets te kiezen: ga meteen naar 3c. Het typen van
 `/stagetwo-tier2:updaten` was de toestemming voor de pull request; vraag die niet nog een keer.
@@ -197,12 +224,15 @@ node "${CLAUDE_SKILL_DIR}/scripts/bijwerken.mjs" --json --werkmap "<werkmap uit 
 ```
 
 Met koppen uit 3b komt er per onderdeel `--kop "<pad>" "<kop>"` bij. Zonder keuzes laat je
-`--los-op` weg. Het script commit met de git-naam en het
+`--los-op` weg. De A/B-tests uit 3b hoef je niet te noemen: het script vindt ze op hun pad. Het
+script commit met de git-naam en het
 e-mailadres van de gebruiker, pusht de branch `stack-bijwerken/v<versie>` naar zijn
-eigen GitHub en opent de pull request, of werkt een bestaande bij.
+eigen GitHub, zet de verplichte controle "Droogloop migraties" in de ruleset van `main` (met
+de rechten van de gebruiker; lukt dat niet, dan staat er één regel onder **Voor jou** in de
+pull request en gaat de rest door) en opent de pull request, of werkt een bestaande bij.
 
 Komt hier `mislukt` of `gestopt` terug, dan handel je dat net zo af als in 3a:
-geef `reden` door en ga door naar deel 4. De tijdelijke kopie is dan al opgeruimd; wil
+geef `reden` door en ga door naar 3e. De tijdelijke kopie is dan al opgeruimd; wil
 de gebruiker het opnieuw proberen, dan draait hij later `/stagetwo-tier2:updaten` opnieuw. Ga bij `gepusht` door naar 3d.
 
 ### 3d: wat je onthoudt voor het eind
@@ -211,7 +241,8 @@ Onthoud voor de samenvatting aan het eind (deel 6), in gewone taal:
 
 1. wat er is bijgewerkt en waarom (een nieuwere versie van de gedeelde werkwijze), en
    wat er niet is bijgewerkt (de bestanden waarvoor hij **eigen** koos); en of er eenmalig
-   een eigen bestand bij zat (`projectbestanden`) en wat er in `voorDeBouwer` staat;
+   een eigen bestand bij zat (`projectbestanden`) en wat er in `voorDeBouwer` staat; en
+   voor welke tabellen er een A/B-test bij kwam (`abTests.geschreven`);
 2. waar de pull request staat (`pr.url`, of anders `vergelijkUrl` om hem zelf te openen);
 3. wat hij nu doet: de pull request bekijken, wachten tot de checks groen zijn en op
    Merge drukken. Zijn de checks rood, dan voldoet de app niet aan een nieuwe regel;
@@ -220,6 +251,33 @@ Onthoud voor de samenvatting aan het eind (deel 6), in gewone taal:
    Two de privé-repo standaard niet openen).
    Meekijken en meedenken vallen binnen het abonnement, tot ongeveer een uur per maand; meer werk aan de app doet Stage Two
    op nacalculatie.
+
+### 3e: de controles en de inrichting van deze app
+
+Ook als de app al `bij` was, en zonder het te vragen:
+
+```sh
+node "${CLAUDE_SKILL_DIR}/scripts/controles.mjs" --json
+```
+
+(in deel 5 met `--repo "<eigenaar>/<naam>"` erachter). Het script zet de verplichte controle
+"Droogloop migraties" in de ruleset van `main` als die er nog niet staat (`ruleset.status`:
+`al-goed`, `bijgezet`, `aangemaakt`; bij `geen-rechten` of `onbekend` geef je `ruleset.regel`
+door, er hoeft niemand iets voor te doen). Daarna zegt `inrichting` wat de beheer-repo nog voor
+deze app moet zetten (`redenen`: de sleutels voor de droogloop van migraties in omgeving
+preview, of de foutmeldingen van Sentry):
+
+- `kanStarten: true`: bied het aan, in één vraag: "Zal ik App inrichten starten in
+  `<inrichting.beheer>`? Dat zet <redenen>." Dit is een workflow in de beheer-repo die de
+  gebruiker zelf mag starten; er komt geen sleutel op deze computer. Bij ja draai je
+  `inrichting.opdracht` precies zo (het wacht op de run, een paar minuten) en geef je de uitkomst
+  door zoals in `/stagetwo-tier2:nieuwe-app` (bij `ingericht` in één regel wat er staat, en een
+  waarschuwing uit het resultaat als "geef door aan Stage Two"). Bij nee: zeg dat de
+  kwaliteitspoort tot dan bij een migratie die gegevens omzet rood blijft met die uitleg, en dat
+  hij het later met `/stagetwo-tier2:updaten` alsnog kan starten.
+- `stageTwo` niet leeg: zeg per regel in gewone taal dat Stage Two dat doet. De gebruiker hoeft
+  er niets voor te doen.
+- `redenen` leeg: niets zeggen.
 
 ## Deel 4: de afhankelijkheden van deze app
 
@@ -284,7 +342,8 @@ node "${CLAUDE_SKILL_DIR}/scripts/afhankelijkheden.mjs" --json --repo "<eigenaar
 ```
 
 De tweede aanroep van deel 3 (`--werkmap`) blijft gelijk; `--repo` hoeft daar niet bij.
-Overgeslagen bestanden leg je net zo voor als bij deze app.
+Overgeslagen bestanden leg je net zo voor als bij deze app, en de A/B-tests schrijf je net zo
+(de migraties staan in `<werkmap>/app/`). Daarna 3e met `--repo`.
 
 ## Deel 6: samenvatting
 
@@ -292,7 +351,8 @@ Sluit af met één overzicht, in gewone taal:
 
 1. Per app de pull requests (template, afhankelijkheden en de rol uit deel 4b) met hun
    link, en wat er voor de template is bijgewerkt en wat niet (de bestanden waarvoor
-   **eigen** is gekozen).
+   **eigen** is gekozen); in één regel de A/B-tests die erbij kwamen; en uit 3e of de controle
+   op `main` staat en wat App inrichten of Stage Two nog zet.
 2. Wat de gebruiker nu doet: per pull request wachten tot de checks groen zijn en op
    Merge drukken. Zijn de checks rood, dan voldoet de app niet aan een nieuwe regel; dan
    neemt hij contact op met Stage Two en zet hij de check niet uit (tijdens het project
@@ -326,4 +386,7 @@ Sluit af met één overzicht, in gewone taal:
 - Je voegt niets toe aan de commando's hierboven: geen `cd`, geen omgevingsvariabelen,
   geen token, geen `pass` of `gpg`. Het script vindt alles zelf.
 - Je merget geen pull request; dat doet de gebruiker zelf.
+- Je zet geen ruleset, secret of variabele met de hand (`gh api .../rulesets`, `gh secret`):
+  dat doen `bijwerken.mjs` en `controles.mjs`, en wat zij niet kunnen, doet App inrichten of
+  Stage Two.
 - Je werkt geen andere app bij zonder dat de gebruiker die in deel 5 heeft gekozen.

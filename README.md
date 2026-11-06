@@ -101,7 +101,7 @@ Vier commando's, en een bewaker op de achtergrond:
   voorstel (een pull request) dat jij bekijkt en goedkeurt. Daarna vraagt hij of je
   andere apps ook mee moeten. Je eigen werk raakt hij niet aan. Heeft een nieuwe versie
   eenmalig iets in een eigen bestand nodig (zoals de lijst met onderdelen in versie 39), dan
-  staat dat apart in het voorstel, onder **Voor jou**.
+  staat dat apart in het voorstel, onder **Voor jou**. Ontbreekt bij een tabel de A/B-test (gebruiker B komt niet bij de rij van A), dan schrijft hij die in hetzelfde voorstel, onder een eigen kopje; daar hoef je niets voor te doen. Hij zet ook de verplichte controle "Droogloop migraties" op `main` van je app, en mist de inrichting iets (de sleutels voor die droogloop, of Sentry), dan biedt hij aan App inrichten te starten of zegt hij dat Stage Two het doet.
 
 Er komt geen wachtwoord, sleutel of computer van Stage Two aan te pas. Alles loopt via je
 eigen GitHub-account en je eigen computer.
@@ -435,6 +435,18 @@ PATH van elke sessie waarin de plugin aanstaat, ook bij klanten.
   `--kop`), neemt hij met `scripts/open-tabellen-opnemen.mjs` van
   de template bestaande open policies op in `open_tabellen`, en zegt hij wat er in
   `e2e/global-setup.ts` moet voor de testrol (dat bestand raakt hij niet).
+- A/B-tests (`lib/abtests.mjs`): na de template draait de kern de guard van de template
+  (`scripts/guard-rls-tests.mjs`) in de werkkopie; de tabellen zonder test komen in `abTests`, met
+  per tabel een pad (`tests/rls/afscherming/<tabel>.test.ts`). Claude schrijft die tests tussen de twee aanroepen
+  (de skill zegt hoe, zonder het de bouwer te vragen); de tweede aanroep laat alleen die paden
+  toe, zet ze met de biome van de checkout in opmaak en zet ze in de PR onder een eigen kopje.
+- Controles (`lib/controles.mjs`, `skills/updaten/scripts/controles.mjs`): de ruleset van main
+  krijgt "Droogloop migraties" (met de rechten van de bouwer; zonder rechten één regel onder
+  "Voor jou"), en wat de inrichting mist (droogloop-sleutels in preview, Sentry) wordt een
+  aanbod om App inrichten te starten, of een regel dat Stage Two het doet.
+- Sentry koppelen in de beheer-repo is een stap van Stage Two in de projectfase:
+  `skills/installatie/scripts/sentry-koppelen.mjs` (gh vraagt om het token, niemand ziet de
+  waarde), daarna start het App inrichten voor elke app.
 
 ### Een klant aansluiten (checklist)
 
@@ -443,7 +455,10 @@ accounts van de klant staan (GitHub-organisatie op een betaald plan, Cloudflare 
 Trust, Supabase) en `<klantorg>/stagetwo-beheer-tier2` is ingericht met de tier 2-variant
 (`bin/klant-inrichten.sh --variant cloudflare` in Stage-Two-AI/beheer-template), met minstens
 één groep in `toegang.json`. De klant heeft Write op stagetwo-beheer-tier2, zodat hij de workflow
-mag starten; de sleutels staan in de omgeving `beheer` en zijn voor hem niet te lezen.
+mag starten; de sleutels staan in de omgeving `beheer` en zijn voor hem niet te lezen. Sentry koppelt Stage Two in de beheer-repo vóór de eerste app, in een eigen terminal:
+`node skills/installatie/scripts/sentry-koppelen.mjs --beheer <klantorg>/stagetwo-beheer-tier2 --sentry-org <slug>`
+(gh vraagt om het token; daarna geeft App inrichten elke app vanzelf een Sentry-project). Dat is
+nooit een stap voor de klant.
 
 1. Op Windows eerst Git (`winget install -e --id Git.Git` in PowerShell), dán de
    Claude-app. Plugin installeren zoals hierboven onder "Installeren" (desktop-app: één

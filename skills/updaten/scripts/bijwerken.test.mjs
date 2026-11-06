@@ -223,6 +223,91 @@ test("echte run: branch op origin met de identiteit van de klant, main onaangero
   }
 });
 
+/** Zoals de droogloop het zou vinden: één tabel zonder A/B-test (in toestand.json van de werkmap). */
+function metAbTest(werkmap, tabel = "klanten") {
+  const pad = join(werkmap, "toestand.json");
+  const t = JSON.parse(readFileSync(pad, "utf8"));
+  t.resultaat.abTests = { tabellen: [tabel], paden: { [tabel]: `tests/rls/afscherming/${tabel}.test.ts` }, hulp: "tests/rls/lib/afscherming.ts" };
+  writeFileSync(pad, JSON.stringify(t));
+  const test = join(werkmap, "app", "tests", "rls", "afscherming", `${tabel}.test.ts`);
+  mkdirSync(join(test, ".."), { recursive: true });
+  writeFileSync(test, `await controleerAfscherming({ tabel: "${tabel}" });\n`);
+}
+
+const RULESET_ZONDER = {
+  id: 1,
+  name: "main beschermen",
+  target: "branch",
+  enforcement: "active",
+  conditions: { ref_name: { include: ["~DEFAULT_BRANCH"], exclude: [] } },
+  rules: [{ type: "required_status_checks", parameters: { strict_required_status_checks_policy: true, required_status_checks: [{ context: "Code" }] } }],
+};
+
+test("A/B-tests en ruleset: de test van Claude komt mee onder een eigen kopje, en main eist de droogloop", () => {
+  const w = wereld({
+    gh: {
+      ...GH_STANDAARD,
+      "api repos/klant/app/rulesets?includes_parents=false": { stdout: [{ id: 1, name: "main beschermen" }] },
+      "api repos/klant/app/rulesets/1": { stdout: RULESET_ZONDER },
+    },
+  });
+  try {
+    const d = w.draai(["--droogloop"]);
+    assert.equal(d.status, "klaar", d.reden);
+    metAbTest(d.werkmap);
+    const r = w.draai(["--json", "--werkmap", d.werkmap]);
+    assert.equal(r.status, "gepusht", r.reden);
+    assert.deepEqual(r.abTests.geschreven, [{ tabel: "klanten", pad: "tests/rls/afscherming/klanten.test.ts" }]);
+    assert.match(git(w.klant.origin, "show", "stack-bijwerken/v9:tests/rls/afscherming/klanten.test.ts"), /tabel: "klanten"/);
+    const create = w.nep.aanroepen().find((a) => a[0] === "pr" && a[1] === "create");
+    const body = create[create.indexOf("--body") + 1];
+    assert.match(body, /\*\*A\/B-tests voor tabellen die er nog geen hadden\*\*/);
+    assert.match(body, /- `klanten`: `tests\/rls\/afscherming\/klanten\.test\.ts`/);
+    assert.ok(body.endsWith(BEVESTIGING));
+    assert.equal(r.ruleset.status, "bijgezet");
+    const put = w.nep.aanroepen().find((a) => a[0] === "api" && a.includes("PUT"));
+    assert.equal(put[1], "repos/klant/app/rulesets/1");
+    assert.ok(!body.includes("beheerrechten"), "met rechten geen regel onder Voor jou");
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("A/B-tests: alleen de voorspelde paden; een ander nieuw bestand stopt de run", () => {
+  const w = wereld();
+  try {
+    const d = w.draai(["--droogloop"]);
+    metAbTest(d.werkmap);
+    writeFileSync(join(d.werkmap, "app", "src", "ook.ts"), "export const x = 1;\n");
+    const r = w.draai(["--json", "--werkmap", d.werkmap]);
+    assert.equal(r.status, "gestopt");
+    assert.deepEqual(r.buitenManifest, ["src/ook.ts"]);
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("ruleset zonder beheerrechten: één regel onder Voor jou, en de pull request komt er gewoon", () => {
+  const w = wereld({
+    gh: {
+      ...GH_STANDAARD,
+      "api repos/klant/app/rulesets?includes_parents=false": { stdout: [] },
+      "api repos/klant/app/rulesets": { exit: 1, stderr: "gh: Must have admin rights to Repository. (HTTP 403)" },
+    },
+  });
+  try {
+    const d = w.draai(["--droogloop"]);
+    const r = w.draai(["--json", "--werkmap", d.werkmap]);
+    assert.equal(r.status, "gepusht", r.reden);
+    assert.equal(r.ruleset.status, "geen-rechten");
+    const create = w.nep.aanroepen().find((a) => a[0] === "pr" && a[1] === "create");
+    const body = create[create.indexOf("--body") + 1];
+    assert.match(body, /\*\*Voor jou:\*\*\n(- .*\n)*- De controle "Droogloop migraties" staat nog niet verplicht op main van klant\/app/);
+  } finally {
+    w.opruimen();
+  }
+});
+
 test("--repo: een andere app bijwerken zonder dat die op deze computer staat, met de globale git-naam", () => {
   const w = wereld();
   const leeg = tijdelijkeMap("lege-map-");

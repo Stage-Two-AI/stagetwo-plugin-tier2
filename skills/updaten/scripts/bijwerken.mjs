@@ -11,9 +11,11 @@
  *
  *   node bijwerken.mjs --json --werkmap <map> [--los-op <pad> template|eigen]... [--kop <pad> <kop>]...
  *       keuzes voor overgeslagen bestanden toepassen, de koppen van de onderdelen invullen
- *       (alleen als de droogloop src/onderdelen.ts heeft neergezet), committen met de
- *       identiteit uit de checkout, pushen als de boom verschilt, de pull request openen of
- *       bijwerken.
+ *       (alleen als de droogloop src/onderdelen.ts heeft neergezet), de A/B-tests die Claude
+ *       tussen de twee aanroepen schreef toelaten (alleen de paden uit `abTests` van de
+ *       droogloop; lib/abtests.mjs), committen met de identiteit uit de checkout, pushen als
+ *       de boom verschilt, de verplichte controle "Droogloop migraties" in de ruleset zetten
+ *       (lib/controles.mjs), de pull request openen of bijwerken.
  *
  * Met --repo werkt het script een andere app van de klant bij, zonder dat die op deze
  * computer staat: dezelfde route, alleen komt de kloon dan rechtstreeks van GitHub
@@ -35,6 +37,8 @@
  * De reden bevat nooit een token: een URL met login wordt afgeplakt.
  */
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { controleer as controleerAbTests } from "../../../lib/abtests.mjs";
+import { zetVerplichteControle } from "../../../lib/controles.mjs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -66,6 +70,7 @@ import {
   push,
   pushDroog,
   repoUitUrl,
+  sh,
   sluitOuderePRs,
   templateRepo,
   vergelijkUrl,
@@ -301,6 +306,9 @@ function uitlegNaDroogloop(resultaat) {
       ...(eigen.length > 0
         ? [`Eenmalig voor deze versie ook in je eigen bestanden: ${eigen.join(", ")}.`]
         : []),
+      ...(resultaat.abTests
+        ? [`${resultaat.abTests.tabellen.length} tabel(len) zonder A/B-test (${resultaat.abTests.tabellen.join(", ")}); de tests komen in deze pull request.`]
+        : []),
       "Er is nog niets gepusht.",
     ],
   };
@@ -350,8 +358,12 @@ export function voerUit({ werkmap, losOp, koppen = {}, updates = null }) {
     }
     const nogOvergeslagen = resultaat.overgeslagen.filter((s) => !opgelost.some((o) => o.pad === s.pad)).map(({ verschil: _, ...rest }) => rest);
 
+    // De A/B-tests die Claude tussen de twee aanroepen schreef: alleen de paden uit de droogloop.
+    const ab = controleerAbTests({ map: kloon, node: nodeVoorKern(), abTests: resultaat.abTests ?? null });
+    formatteer({ kloon, checkout, paden: ab.paden });
+
     // De controle op zichzelf, nog een keer: ook na de keuzes mag alleen het manifest geraakt zijn.
-    const magOok = new Set([...toegestaneBestandenVan(manifest), ...resultaat.verwijderd, ...(resultaat.projectbestanden ?? []), LOCKFILE]);
+    const magOok = new Set([...toegestaneBestandenVan(manifest), ...resultaat.verwijderd, ...(resultaat.projectbestanden ?? []), ...ab.paden, LOCKFILE]);
     const buiten = gewijzigdePaden(kloon).filter((pad) => !magOok.has(pad));
     if (buiten.length > 0) {
       verwijderWerkmap(werkmap);
@@ -364,7 +376,7 @@ export function voerUit({ werkmap, losOp, koppen = {}, updates = null }) {
       verwijderWerkmap(werkmap);
       return mislukt("git kent je naam en e-mailadres niet; stel ze in met `git config --global user.name` en `user.email`");
     }
-    const eind = { ...resultaat, overgeslagen: nogOvergeslagen, opgelost };
+    const eind = { ...resultaat, overgeslagen: nogOvergeslagen, opgelost, abTests: ab, voorDeBouwer: [...(resultaat.voorDeBouwer ?? [])] };
     commit({ map: kloon, identiteit, bericht: `chore: template naar versie ${resultaat.naar}`, versie: resultaat.naar });
 
     // Tussen de droogloop en nu kan iemand op de branch hebben gecommit; ook dan blijven we ervan af.
@@ -374,6 +386,11 @@ export function voerUit({ werkmap, losOp, koppen = {}, updates = null }) {
     }
     const gepusht = !alGelijkOpGitHub(kloon, branch);
     if (gepusht) push(kloon, branch);
+
+    // De verplichte controle "Droogloop migraties" op main, met de rechten van de bouwer. De
+    // update-PR zelf krijgt die status van Droogloop aanvragen, ook zolang main hem nog niet heeft.
+    const ruleset = metGh && repo ? zetVerplichteControle(repo, { gh: (args) => sh("gh", args) }) : null;
+    if (ruleset?.regel) eind.voorDeBouwer.push(ruleset.regel);
 
     const uitgaven = uitgavenTussen(updates, { van: resultaat.van, tot: resultaat.naar });
     const tekst = prTekst({ resultaat: eind, uitgaven });
@@ -397,6 +414,8 @@ export function voerUit({ werkmap, losOp, koppen = {}, updates = null }) {
       opgelost,
       projectbestanden: eind.projectbestanden ?? [],
       voorDeBouwer: eind.voorDeBouwer ?? [],
+      abTests: ab,
+      ruleset,
       samenvatting: uitlegNaPush({ gepusht, pr, repo, branch, resultaat: eind }),
     };
   } catch (fout) {
@@ -418,7 +437,26 @@ function uitlegNaPush({ gepusht, pr, repo, branch, resultaat }) {
   if ((resultaat.voorDeBouwer ?? []).length > 0) {
     regels.push("Voor deze versie is er ook iets voor jou om na te lopen; dat staat in de pull request onder Voor jou.");
   }
+  if ((resultaat.abTests?.geschreven ?? []).length > 0) {
+    regels.push(`Voor ${resultaat.abTests.geschreven.length} tabel(len) staat er nu een A/B-test in de pull request; daar hoef je niets voor te doen.`);
+  }
   return regels;
+}
+
+/**
+ * De A/B-tests in de opmaak van de app zetten (biome, zoals pnpm lint), met de biome uit de
+ * open checkout als die er is. Zonder checkout (--repo) of zonder biome gebeurt er niets; dan
+ * moet Claude de opmaak zelf goed hebben (de skill zegt hoe). Een fout stopt niets.
+ */
+function formatteer({ kloon, checkout, paden }) {
+  if (paden.length === 0 || !checkout) return;
+  const biome = join(checkout, "node_modules", "@biomejs", "biome", "bin", "biome");
+  if (!existsSync(biome)) return;
+  try {
+    sh(process.execPath, [biome, "check", "--write", ...paden], { cwd: kloon });
+  } catch {
+    // Een opmaakfout ziet de kwaliteitspoort; het bijwerken gaat door.
+  }
 }
 
 // ---------------------------------------------------------------- draaien
