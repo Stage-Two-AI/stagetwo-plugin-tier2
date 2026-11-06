@@ -37,7 +37,7 @@
  *   gemaakt      (na --doe-het) de app staat op GitHub en op deze computer; zie `nogTeDoen`
  *   ingericht    (na --inrichten) hosting, deur en database staan; zie `resultaat`
  *   wacht-op-toegang (na --inrichten) de app staat nog niet in toegang.json; zie `pr`
- *   geen-beheer  (na --inrichten) deze eigenaar heeft geen beheer-repo; Stage Two koppelt
+ *   geen-beheer  (na --inrichten) deze eigenaar heeft (nog) geen beheer-repo; in de projectfase koppelt Stage Two
  *   mislukt      een voorwaarde ontbreekt of een stap faalde; `reden` is één zin met één
  *                handeling. Was de repo al aangemaakt, dan staat hij in `repo`.
  *

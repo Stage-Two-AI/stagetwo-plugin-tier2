@@ -16,7 +16,7 @@ de redenen in `open_tabellen` en de testrol in `e2e/global-setup.ts`, alleen op 
 het script noemt; het komt in de commit van updaten zelf) en deel 4b (één bestand, als eigen
 pull request). Mergen doet de gebruiker zelf.
 
-De gebruiker bouwt zelf; Stage Two richt in en begeleidt. Nieuwe versies komen uit de kopie
+De gebruiker bouwt zelf; in de projectfase richt Stage Two in en begeleidt het. Nieuwe versies komen uit de kopie
 van plugin en template die Stage Two bij de start in de GitHub-organisatie van de klant
 klaarzet (`levering.json`); Stage Two zet daar nieuwe versies in zolang het abonnement loopt, en past elke versie eerst toe op zijn
 eigen apps. Na de overdracht heeft Stage Two standaard zelf geen toegang tot de apps en zet het daar

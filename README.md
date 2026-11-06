@@ -304,7 +304,7 @@ nacalculatie (€120 per uur exclusief btw).
 | "er staat al een pull request open" | Er ligt al een voorstel voor deze versie | Bekijk die pull request en merge hem, of sluit hem en typ opnieuw `/stagetwo-tier2:updaten` |
 | Je assistent weigert een bestand te wijzigen | Dat bestand hoort bij de gedeelde werkwijze | Wil je de nieuwste versie: `/stagetwo-tier2:updaten`. Wil je het anders: los het met je assistent op in de eigen code van je app (`/stagetwo-tier2:verder-werken`) |
 | "er staat al een voorstel voor de afhankelijkheden open" | De pakketten-PR van een vorige keer is nog niet gemerged | Merge die eerst (als de controles groen zijn), of sluit hem, en typ dan opnieuw `/stagetwo-tier2:updaten` |
-| De preview toont geen gegevens | Deze app heeft nog geen testdatabase ingesteld | Vraag Stage Two; het opleveren via de pull request werkt gewoon |
+| De preview toont geen gegevens | Deze app heeft nog geen testdatabase ingesteld | Vraag de owner van je organisatie App inrichten te starten in de beheer-repo (die maakt de testdatabase); het opleveren via de pull request werkt gewoon |
 | Na installeren zegt `/stagetwo-tier2:installatie` nog steeds dat iets ontbreekt | Claude Code kent het nieuwe programma nog niet | De app helemaal afsluiten (Windows: systeemvak rechtsonder, rechtermuisknop op Claude, Afsluiten), opnieuw openen, het gesprek aanklikken in de linkerzijbalk en **ga verder** typen |
 | `/plugin marketplace add` lukt niet op Windows | Git ontbreekt | Git installeren zoals onder "Installeren", de app afsluiten via het systeemvak en opnieuw openen |
 | `gh auth login` stopt halverwege | Ctrl+C gedrukt om de code te kopiëren; dat breekt het af | Opnieuw `gh auth login` typen en de nieuwe code onthouden in plaats van kopiëren |

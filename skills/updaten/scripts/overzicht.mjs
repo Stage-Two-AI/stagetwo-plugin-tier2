@@ -82,7 +82,7 @@ export function overzicht({ cwd = process.cwd(), eigenaren = [], env = process.e
   if (!ghIngelogd()) return { status: "mislukt", reden: "log eerst in bij GitHub met `gh auth login` (zie /stagetwo-tier2:installatie)" };
 
   const doel = versieOpAfstand(templateRepo(env));
-  if (doel === null) return { status: "mislukt", reden: `de template is niet bereikbaar (${templateRepo(env)}): geen netwerk, nog geen versie-tag, of de repo bestaat niet of is niet openbaar; probeer het later opnieuw, en geef deze melding door aan Stage Two als het dan nog niet lukt` };
+  if (doel === null) return { status: "mislukt", reden: `de template is niet bereikbaar (${templateRepo(env)}): geen netwerk, nog geen versie-tag, of de repo bestaat niet of is niet openbaar; probeer het later opnieuw; lukt het dan nog niet, draai /stagetwo-tier2:installatie (die zet de plugin naar de kopie in de eigen organisatie)` };
 
   const huidige = repoUitUrl(originUrl(cwd));
   let welke = eigenaren;
