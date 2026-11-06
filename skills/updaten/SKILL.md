@@ -144,7 +144,9 @@ eenmalig iets in een bestand van het project nodig heeft, anders is de pull requ
 Die bestanden staan in `projectbestanden`. Bij de overstap naar versie 39 zijn dat:
 
 - `src/onderdelen.ts`, als hij ontbreekt: de lijst met onderdelen die de nieuwe browsertest één
-  voor één opent, gevuld uit de routes van de app (`onderdelen`), of met alleen `/`. Zie 3b.
+  voor één opent, gevuld uit de routes van de app (`onderdelen`) met de zoekregel van de template
+  (`scripts/lib/onderdelen.mjs`: een router, of een keuze op het pad zoals `pathname === "/plugin"`),
+  of met alleen `/`. Zie 3b.
 - `stack.config.json`: tabellen die al een bewust open policy (`using (true)`) hadden, staan dan
   in `open_tabellen` met de reden "nog nalopen" (het script `scripts/open-tabellen-opnemen.mjs`
   van de template). Anders maakt de nieuwe regel in de Kwaliteitspoort de pull request rood.
@@ -156,11 +158,19 @@ Die bestanden staan in `projectbestanden`. Bij de overstap naar versie 39 zijn d
 
 **Eerst de koppen van de onderdelen** (alleen als `onderdelen` in het antwoord staat). De
 browsertest zoekt per onderdeel de kop (h1) van het hoofdscherm, en die kan het script niet
-weten. Zoek per pad in `onderdelen.onderdelen` in de code van de app (alleen lezen, niets
-wijzigen) welk scherm daar opent en wat zijn h1 is, en geef die in 3c mee met
-`--kop "<pad>" "<kop>"`. Is de kop gelijk aan de `naam`, of vind je geen vaste kop (hij komt
-uit de gegevens), laat `--kop` voor dat pad dan weg en noem het in deel 6. Bij een andere app
-(deel 5, `--repo`) staat de code niet op deze computer: laat `--kop` dan weg en noem het ook.
+weten. Zoek per pad in `onderdelen.onderdelen` in de code van de app onder `<werkmap>/app/`
+(alleen lezen, niets wijzigen; zo gaat het ook bij een andere app met `--repo`) welk scherm daar
+opent en wat zijn h1 is, en geef die in 3c mee met `--kop "<pad>" "<kop>"`.
+
+- Komt de kop uit gegevens (een tekst uit de database of een instelling die de gebruiker kan
+  aanpassen), geef dan de standaardtekst mee: wat het scherm toont als er niets is aangepast,
+  zoals de terugvaltekst in de code of de waarde die een migratie of de testgegevens erin zetten.
+  De browsertest draait op een testdatabase zonder aanpassingen en ziet dus die standaardtekst.
+- Is de kop gelijk aan de `naam`, laat `--kop` dan weg.
+- Heeft het scherm echt geen h1, laat `--kop` dan weg en noem het in deel 6: de browsertest van
+  dat onderdeel is dan rood, en Claude zet het met de bouwer recht in
+  `/stagetwo-tier2:verder-werken` (een h1 erbij, of het pad in `GEEN_ONDERDEEL`).
+
 Dit is geen vraag aan de gebruiker.
 
 **Dan de A/B-tests** (alleen als `abTests` in het antwoord staat). Dit doe je zelf, zonder het
