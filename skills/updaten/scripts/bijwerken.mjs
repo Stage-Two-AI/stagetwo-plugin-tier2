@@ -187,7 +187,7 @@ function isTemplateApp(map) {
 
 const ANDER_SPOOR = {
   status: "ander-spoor",
-  reden: "deze app komt uit een oudere template van Stage Two die deze plugin niet bijwerkt; vraag Stage Two hoe deze app bij te werken",
+  reden: "deze app komt uit een oudere template van Stage Two die deze plugin niet bijwerkt; hij blijft werken zoals hij is. Overstappen naar tier 2 is herbouwen: zet het met Claude op een rij in /stagetwo-tier2:verder-werken (wie dat liever uitbesteedt, kan het als betaald werk door Stage Two laten doen)",
 };
 
 function isCloudflareApp(map) {
@@ -224,7 +224,7 @@ export function droogloop({ checkout, opAfstand = null, env = process.env }) {
 
   const tmplRepo = templateRepo(env);
   const doel = versieOpAfstand(tmplRepo);
-  if (doel === null) return mislukt(`de template is niet bereikbaar (${tmplRepo}): geen netwerk, nog geen versie-tag, of de repo bestaat niet of is niet openbaar; probeer het later opnieuw, en geef deze melding door aan Stage Two als het dan nog niet lukt`);
+  if (doel === null) return mislukt(`de template is niet bereikbaar (${tmplRepo}): geen netwerk, nog geen versie-tag, of de repo bestaat niet of is niet openbaar; probeer het later opnieuw; lukt het dan nog niet, draai /stagetwo-tier2:installatie (die zet de plugin naar de kopie in de eigen organisatie)`);
   if (opAfstand === null && leesVersie(checkout) >= doel) return alBij(leesVersie(checkout), doel);
 
   const branch = branchNaam(doel);
