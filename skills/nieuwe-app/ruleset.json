@@ -23,7 +23,8 @@
         "strict_required_status_checks_policy": true,
         "required_status_checks": [
           { "context": "Code" },
-          { "context": "Database en end-to-end" }
+          { "context": "Database en end-to-end" },
+          { "context": "Droogloop migraties" }
         ]
       }
     }
