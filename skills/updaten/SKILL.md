@@ -200,7 +200,9 @@ Het script zet de lijst onder een eigen kopje in de pull request, zodat de revie
 Lijkt een tabel juist níet voor iedereen bedoeld (persoonsgegevens, iets per gebruiker), schrijf
 dat dan als reden ("nog nalopen: bevat adressen per klant") in plaats van iets te verzinnen.
 Policies in `openTabellen.nooit` (open voor iedereen met de openbare sleutel) laat je zoals ze
-zijn: dat raakt de beveiliging, en Stage Two maakt ze smal.
+zijn: dat raakt de beveiliging. De pull request zegt dan bovenaan in gewone taal "Nog niet
+mergen", welke tabel voor iedereen op internet leesbaar of aan te passen is, en dat Stage Two
+de regel aanpast; zeg in deel 6 precies dat, met de tabelnaam.
 
 **Dan de testrol** (alleen als `testrol` in het antwoord staat). Pas `<werkmap>/app/<testrol.pad>`
 zelf aan, zonder te vragen: neem de functie `geefTestrol` over uit
