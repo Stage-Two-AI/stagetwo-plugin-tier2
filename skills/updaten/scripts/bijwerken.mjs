@@ -185,16 +185,26 @@ function isTemplateApp(map) {
   return existsSync(join(map, MANIFEST_PAD)) && leesVersie(map) !== null;
 }
 
-const ANDER_SPOOR = {
-  status: "ander-spoor",
-  reden: "deze app komt uit een oudere template van Stage Two die deze plugin niet bijwerkt; hij blijft werken zoals hij is. Overstappen naar tier 2 is herbouwen: zet het met Claude op een rij in /stagetwo-tier2:verder-werken (wie dat liever uitbesteedt, kan het als betaald werk door Stage Two laten doen)",
-};
+/**
+ * Een app van een ander spoor: zeg welke plugin hem wel bijwerkt. Geen `variant` is het
+ * Vercel-spoor, `"light"` de template voor tier 1 (één Worker met D1 en R2).
+ */
+export function anderSpoor(manifest) {
+  const variant = manifest && typeof manifest === "object" ? manifest.variant : undefined;
+  const reden =
+    variant === "light"
+      ? "deze app komt uit de template voor tier 1 van Stage Two (één Cloudflare Worker met D1 en R2); die werk je bij met /stagetwo-tier1:updaten van de andere Stage Two-plugin, niet met deze"
+      : variant === undefined || variant === null
+        ? "deze app komt uit een oudere template van Stage Two die deze plugin niet bijwerkt; hij blijft werken zoals hij is. Overstappen naar tier 2 is herbouwen: zet het met Claude op een rij in /stagetwo-tier2:verder-werken (wie dat liever uitbesteedt, kan het als betaald werk door Stage Two laten doen)"
+        : `deze app heeft variant ${JSON.stringify(variant)} in .claude/stack-manifest.json en is niet van tier 2; deze plugin werkt alleen apps uit de template voor tier 2 bij`;
+  return { status: "ander-spoor", reden };
+}
 
-function isCloudflareApp(map) {
+function leesManifestRuw(map) {
   try {
-    return isCloudflareManifest(JSON.parse(readFileSync(join(map, MANIFEST_PAD), "utf8")));
+    return JSON.parse(readFileSync(join(map, MANIFEST_PAD), "utf8"));
   } catch {
-    return false;
+    return null;
   }
 }
 
@@ -212,7 +222,7 @@ export function droogloop({ checkout, opAfstand = null, env = process.env }) {
     return mislukt("geef --repo als eigenaar/naam, bijvoorbeeld Mijn-Bedrijf/voorraad");
   }
   if (opAfstand === null && !isTemplateApp(checkout)) return GEEN_TEMPLATE;
-  if (opAfstand === null && !isCloudflareApp(checkout)) return ANDER_SPOOR;
+  if (opAfstand === null && !isCloudflareManifest(leesManifestRuw(checkout))) return anderSpoor(leesManifestRuw(checkout));
 
   const metGh = ghAanwezig();
   if (opAfstand !== null && !metGh) return mislukt("een andere app bijwerken kan alleen met de GitHub-opdrachtregel (gh); draai eerst /stagetwo-tier2:installatie");
@@ -247,6 +257,13 @@ export function droogloop({ checkout, opAfstand = null, env = process.env }) {
       if (!isTemplateApp(kloon)) {
         verwijderWerkmap(werkmap);
         return GEEN_TEMPLATE;
+      }
+      // Ook een andere app moet van dit spoor zijn: nooit bestanden van tier 2 in een app van
+      // tier 1 of van het Vercel-spoor (gevonden bij de test van uitgave 40 op een app van tier 1).
+      if (!isCloudflareManifest(leesManifestRuw(kloon))) {
+        const uit = anderSpoor(leesManifestRuw(kloon));
+        verwijderWerkmap(werkmap);
+        return uit;
       }
       if (leesVersie(kloon) >= doel) {
         verwijderWerkmap(werkmap);
@@ -481,14 +498,36 @@ function uitlegNaPush({ gepusht, pr, repo, branch, resultaat }) {
  * open checkout als die er is. Zonder checkout (--repo) of zonder biome gebeurt er niets; dan
  * moet Claude de opmaak zelf goed hebben (de skill zegt hoe). Een fout stopt niets.
  */
-function formatteer({ kloon, checkout, paden }) {
-  if (paden.length === 0 || !checkout) return;
-  const biome = join(checkout, "node_modules", "@biomejs", "biome", "bin", "biome");
-  if (!existsSync(biome)) return;
+/**
+ * Zet de opmaak van de bestanden die Claude schreef recht met Biome. Staat de app op deze
+ * computer, dan de Biome uit zijn node_modules. Werkt updaten een andere app bij (`--repo`), dan
+ * is die er niet: dan Biome in de versie uit de package.json van de app, via `pnpm dlx`. Zonder
+ * die stap werd de update-PR rood op "Opmaak en lint" (gevonden bij de test van uitgave 40).
+ */
+export function formatteer({ kloon, checkout, paden }) {
+  if (paden.length === 0) return;
+  const biome = checkout ? join(checkout, "node_modules", "@biomejs", "biome", "bin", "biome") : null;
   try {
-    sh(process.execPath, [biome, "check", "--write", ...paden], { cwd: kloon });
+    if (biome && existsSync(biome)) {
+      sh(process.execPath, [biome, "check", "--write", ...paden], { cwd: kloon });
+      return;
+    }
+    const versie = biomeVersie(kloon);
+    if (versie) sh("pnpm", ["dlx", `@biomejs/biome@${versie}`, "check", "--write", ...paden], { cwd: kloon, timeout: 180000 });
   } catch {
     // Een opmaakfout ziet de kwaliteitspoort; het bijwerken gaat door.
+  }
+}
+
+/** De versie van Biome uit de package.json van de app, zonder ^ of ~; null als die er niet is. */
+export function biomeVersie(map) {
+  try {
+    const pkg = JSON.parse(readFileSync(join(map, "package.json"), "utf8"));
+    const ruw = pkg.devDependencies?.["@biomejs/biome"] ?? pkg.dependencies?.["@biomejs/biome"];
+    const versie = typeof ruw === "string" ? ruw.replace(/^[\^~]/, "") : "";
+    return /^\d+\.\d+\.\d+(-[\w.]+)?$/.test(versie) ? versie : null;
+  } catch {
+    return null;
   }
 }
 
