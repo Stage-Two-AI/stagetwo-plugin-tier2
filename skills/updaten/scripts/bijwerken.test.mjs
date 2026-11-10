@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import { alleBestanden, git, insteadOfEnv, maakKlantRepo, maakTemplateRepo, nepGh, nepPnpm_opPad, opruimen, tijdelijkeMap } from "../../../lib/test-hulp.mjs";
-import { BEVESTIGING, WERKMAP_PREFIX, controleerWerkmap, hoofd, leesArgumenten, zonderLogin } from "./bijwerken.mjs";
+import { BEVESTIGING, WERKMAP_PREFIX, biomeVersie, controleerWerkmap, formatteer, hoofd, leesArgumenten, zonderLogin } from "./bijwerken.mjs";
 
 const SCRIPT = fileURLToPath(import.meta.url).replace(/\.test\.mjs$/, ".mjs");
 
@@ -143,6 +143,19 @@ test("voorcontrole: gh niet ingelogd, geen netwerk, geen manifest, geen schrijfr
     assert.deepEqual(v.werkmappen(), []);
   } finally {
     v.opruimen();
+  }
+
+  const l = wereld();
+  try {
+    // Een app van tier 1: variant "light". Die werk je bij met de plugin van tier 1.
+    const pad = join(l.klant.checkout, ".claude", "stack-manifest.json");
+    writeFileSync(pad, JSON.stringify({ ...JSON.parse(readFileSync(pad, "utf8")), variant: "light" }));
+    const r = l.draai(["--droogloop"]);
+    assert.equal(r.status, "ander-spoor");
+    assert.match(r.reden, /\/stagetwo-tier1:updaten/);
+    assert.deepEqual(l.werkmappen(), []);
+  } finally {
+    l.opruimen();
   }
 
   const s = wereld();
@@ -686,5 +699,60 @@ test("het script als opdracht: --json geeft één JSON-object en de exitcode vol
     w.draai(["--werkmap", r.werkmap]);
   } finally {
     w.opruimen();
+  }
+});
+
+test("--repo: een andere app van een ander spoor wordt na het klonen geweigerd, zonder werkmap", () => {
+  for (const [variant, plugin] of [["light", /\/stagetwo-tier1:updaten/], [undefined, /oudere template/]]) {
+    const w = wereld();
+    try {
+      git(w.klant.checkout, "checkout", "-q", "main");
+      const pad = join(w.klant.checkout, ".claude", "stack-manifest.json");
+      const { variant: _weg, ...rest } = JSON.parse(readFileSync(pad, "utf8"));
+      writeFileSync(pad, JSON.stringify(variant ? { ...rest, variant } : rest));
+      git(w.klant.checkout, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qam", "ander spoor");
+      git(w.klant.checkout, "push", "-q", w.klant.origin, "main");
+      const leeg = tijdelijkeMap("lege-map-");
+      const r = w.draai(["--droogloop", "--repo", "klant/app", "--checkout", leeg]);
+      assert.equal(r.status, "ander-spoor", r.reden);
+      assert.match(r.reden, plugin);
+      assert.deepEqual(w.werkmappen(), [], "de kloon is opgeruimd");
+      opruimen(leeg);
+    } finally {
+      w.opruimen();
+    }
+  }
+});
+
+test("biomeVersie: de versie uit package.json, zonder ^ of ~", () => {
+  const map = tijdelijkeMap("biome-versie-");
+  try {
+    writeFileSync(join(map, "package.json"), JSON.stringify({ devDependencies: { "@biomejs/biome": "^2.6.2" } }));
+    assert.equal(biomeVersie(map), "2.6.2");
+    writeFileSync(join(map, "package.json"), JSON.stringify({ devDependencies: { "@biomejs/biome": "latest" } }));
+    assert.equal(biomeVersie(map), null);
+    writeFileSync(join(map, "package.json"), JSON.stringify({}));
+    assert.equal(biomeVersie(map), null);
+  } finally {
+    opruimen(map);
+  }
+});
+
+test("formatteer: zonder Biome op deze computer (--repo) via pnpm dlx in de versie van de app", () => {
+  const kloon = tijdelijkeMap("formatteer-kloon-");
+  const bin = tijdelijkeMap("formatteer-bin-");
+  const pathVoor = process.env.PATH;
+  try {
+    writeFileSync(join(kloon, "package.json"), JSON.stringify({ devDependencies: { "@biomejs/biome": "2.6.2" } }));
+    const log = join(bin, "aanroep.json");
+    writeFileSync(join(bin, "pnpm"), `#!/usr/bin/env node\nrequire("node:fs").writeFileSync(${JSON.stringify(log)}, JSON.stringify(process.argv.slice(2)));\n`);
+    execFileSync("chmod", ["+x", join(bin, "pnpm")]);
+    process.env.PATH = `${bin}:${pathVoor}`;
+    formatteer({ kloon, checkout: null, paden: ["tests/rls/afscherming/deals.test.ts"] });
+    assert.deepEqual(JSON.parse(readFileSync(log, "utf8")), ["dlx", "@biomejs/biome@2.6.2", "check", "--write", "tests/rls/afscherming/deals.test.ts"]);
+  } finally {
+    process.env.PATH = pathVoor;
+    opruimen(kloon);
+    opruimen(bin);
   }
 });

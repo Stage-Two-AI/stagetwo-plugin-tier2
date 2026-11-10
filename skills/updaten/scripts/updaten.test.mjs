@@ -226,6 +226,10 @@ test("afhankelijkheden: staat de template-PR open, dan bouwt deze PR daarop voor
     const create = w.nep.aanroepen().find((a) => a[0] === "pr" && a[1] === "create");
     const body = create[create.indexOf("--body") + 1];
     assert.match(body, /Merge eerst de pull request van de template\*\* \(https:\/\/github\.com\/klant\/app\/pull\/3\)/);
+    // Tot de template-PR gemerged is, raakt deze PR templatebestanden: zonder deze regels is
+    // guard:template rood (gevonden bij de test van uitgave 40, business#127 en stagetwo-site#64).
+    assert.match(body, /^Bevestigd: templatebestanden gewijzigd$/m);
+    assert.match(body, /^Geen tests nodig: \S/m);
   } finally {
     w.opruimen();
   }
@@ -283,4 +287,10 @@ test("afhankelijkheden: een importer buiten de repo in het lockfile stopt hem, e
   } finally {
     w.opruimen();
   }
+});
+
+test("afhankelijkheden: zonder template-PR geen ontsnappingsregels in de PR-tekst", () => {
+  const tekst = prTekst({ hoofdversies: [], dependabot: [] });
+  assert.doesNotMatch(tekst, /Bevestigd:/);
+  assert.doesNotMatch(tekst, /Geen tests nodig:/);
 });

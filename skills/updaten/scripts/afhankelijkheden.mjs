@@ -49,6 +49,7 @@ import {
   repoUitUrl,
   sh,
 } from "../../../lib/repo.mjs";
+import { BEVESTIGING } from "../../../lib/pr-tekst.mjs";
 import { vreemdeImporters } from "../../../lib/toepassen.mjs";
 
 export { vreemdeImporters };
@@ -122,6 +123,11 @@ export function prTekst({ hoofdversies, dependabot, opTemplate = null }) {
       ? [
           "",
           `**Merge eerst de pull request van de template** (${opTemplate}). Deze bouwt daarop voort, zodat de nieuwe pakketten met de nieuwe instellingen van de template worden getest. Tot die gemerged is, staat de wijziging van de template hier ook in; daarna alleen nog het lockfile.`,
+          "",
+          // Tot de template-PR gemerged is, raakt deze PR ook templatebestanden en tests van de
+          // template; zonder deze twee regels houden guard:template en guard:tests hem rood.
+          "Geen tests nodig: deze pull request bouwt voort op de update van de gedeelde template",
+          BEVESTIGING,
         ]
       : []),
     "",
