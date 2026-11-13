@@ -25,7 +25,7 @@
  */
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { LEVERING, TEMPLATE_GEWOON, TEMPLATE_OPENBAAR, manifestTemplate, templateBron } from "../../../lib/levering.mjs";
+import { LEVERING, TEMPLATE_GEWOON, TEMPLATE_OPENBAAR, manifestTemplate, openbaarNietBereikbaar, templateBron } from "../../../lib/levering.mjs";
 import { isCloudflareManifest } from "../../../lib/manifest.mjs";
 import {
   eersteRegel,
@@ -109,7 +109,7 @@ export function overzicht({ cwd = process.cwd(), eigenaren = [], env = process.e
       if (bron.fout) openbaar = { reden: bron.fout };
       else {
         const versie = versieOpAfstand(bron.repo);
-        openbaar = versie === null ? { reden: `de openbare template is niet bereikbaar (${bron.repo}); probeer het later opnieuw` } : { versie };
+        openbaar = versie === null ? { reden: env?.STACK_TEMPLATE_REPO ? `de openbare template is niet bereikbaar (${bron.repo}); probeer het later opnieuw` : openbaarNietBereikbaar(bron.repo) } : { versie };
       }
     }
     return openbaar;

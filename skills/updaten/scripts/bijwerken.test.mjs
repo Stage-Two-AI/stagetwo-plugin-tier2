@@ -1234,3 +1234,23 @@ test("formaat 1 met template app-template-tier2-openbaar (de huidige stand van d
     w.opruimen();
   }
 });
+
+test("twee templates: de openbare template staat in de levering maar is niet bereikbaar: zeggen wat er is en wat de owner doet", () => {
+  const w = wereld({ app: openbareAppBestanden() });
+  try {
+    const weg = join(w.wortel, "bestaat-niet");
+    const levering = { plugin: "klant/stagetwo-plugin-tier2", template: w.template, templateOpenbaar: weg };
+    const r = w.draai(["--json", "--droogloop"], { STACK_TEMPLATE_REPO: "" }, { levering });
+    assert.equal(r.status, "mislukt");
+    assert.match(r.reden, /de openbare template staat in de levering van jullie organisatie \(.*bestaat-niet\), maar is niet bereikbaar/);
+    assert.match(r.reden, /Je kunt gewoon verder bouwen/);
+    assert.match(r.reden, /stagetwo-levering/);
+    assert.doesNotMatch(r.reden, /installatie/, "installatie helpt hier niet");
+    assert.deepEqual(w.werkmappen(), []);
+    // Een gewone app met een onbereikbare template houdt de melding van altijd.
+    const g = w.draai(["--json", "--droogloop"], { STACK_TEMPLATE_REPO: weg });
+    assert.match(g.reden, /^de template is niet bereikbaar/);
+  } finally {
+    w.opruimen();
+  }
+});

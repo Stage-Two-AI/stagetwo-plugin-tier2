@@ -87,7 +87,7 @@ import {
 } from "../../../lib/repo.mjs";
 import { controleerOpenTabellen, controleerSmal, controleerTestrol, zetKoppen } from "../../../lib/projectbestanden.mjs";
 import { LOCKFILE, MANIFEST_PAD, leesVersie, pasToe } from "../../../lib/toepassen.mjs";
-import { LEVERING, TEMPLATE_GEWOON, TEMPLATE_OPENBAAR, manifestTemplate, templateBron, templateOmschrijving, templateVan } from "../../../lib/levering.mjs";
+import { LEVERING, TEMPLATE_GEWOON, TEMPLATE_OPENBAAR, manifestTemplate, openbaarNietBereikbaar, templateBron, templateOmschrijving, templateVan } from "../../../lib/levering.mjs";
 
 export const WERKMAP_PREFIX = "stack-bijwerken-";
 const WERKMAP_MAX_LEEFTIJD_MS = 60 * 60 * 1000;
@@ -358,6 +358,9 @@ export function droogloop({ checkout, opAfstand = null, env = process.env, templ
   let doel;
   if (templateRef === null) {
     doel = versieOpAfstand(tmplRepo);
+    // De openbare template uit de levering die niet bereikbaar is: zeggen wat er aan de hand is
+    // en wat de owner doet (de levering in die repo kan mislukt zijn).
+    if (doel === null && appTemplate === TEMPLATE_OPENBAAR && !env?.STACK_TEMPLATE_REPO) return klaarMet(mislukt(openbaarNietBereikbaar(tmplRepo)));
     if (doel === null) return klaarMet(mislukt(`de template is niet bereikbaar (${tmplRepo}): geen netwerk, nog geen versie-tag, of de repo bestaat niet of is niet openbaar; probeer het later opnieuw; lukt het dan nog niet, draai /stagetwo-tier2:installatie (die zet de plugin naar de kopie in de eigen organisatie)`));
   } else {
     werkmap ??= echtPad(mkdtempSync(join(tmpdir(), WERKMAP_PREFIX)));

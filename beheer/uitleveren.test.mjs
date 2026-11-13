@@ -978,3 +978,30 @@ test("opdrachtregel: openbaar aangezet nadat de versie al geleverd is, zet lever
     assert.equal(git(doelPlugin, "rev-list", "--count", "main"), "3");
   });
 });
+
+test("workflow Uitleveren: zonder token voor de klant geeft de openbare stap de melding voor de owner, niet een fout van gh", () => {
+  const yml = YML();
+  const begin = yml.indexOf("      - name: Uitleveren openbare template");
+  const run = yml.slice(yml.indexOf("        run: |\n", begin) + "        run: |\n".length).split("\n").filter((r) => r.startsWith("          ") || r === "").map((r) => r.slice(10)).join("\n");
+  assert.match(run, /--alleen-openbaar/, "het run-blok van de openbare stap");
+  metMap((map) => {
+    // Een gh die, net als de echte, stopt zonder token; zo zou bash -e vóór de melding stoppen.
+    const bin = join(map, "bin");
+    mkdirSync(bin);
+    writeFileSync(join(bin, "gh"), '#!/bin/sh\nif [ -z "$GH_TOKEN" ]; then echo "gh: geen token" >&2; exit 4; fi\nexit 0\n');
+    execFileSync("chmod", ["+x", join(bin, "gh")]);
+    const draai = (extra) =>
+      spawnSync("bash", ["-e", "-c", run], {
+        cwd: WORTEL_REPO,
+        encoding: "utf8",
+        env: { PATH: `${bin}:${process.env.PATH}`, HOME: map, ORG: "Klant-BV", TOEGEPAST_TEMPLATE: "stack-v43", GITHUB_WORKSPACE: map, GH_TOKEN: "", ...extra },
+      });
+    const klant = draai({ BRON: "success", KLANT: "failure" });
+    assert.equal(klant.status, 1);
+    assert.match(klant.stdout, /^::error::De openbare template kon niet naar Klant-BV\/app-template-tier2-openbaar \(de workflow kreeg geen token voor die repo\)/);
+    assert.doesNotMatch(klant.stderr, /gh: geen token/, "gh auth setup-git draait niet zonder token");
+    const bron = draai({ BRON: "failure", KLANT: "failure" });
+    assert.equal(bron.status, 1);
+    assert.match(bron.stdout, /^::error::De openbare template van Stage Two .* is niet te lezen/);
+  });
+});

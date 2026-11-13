@@ -44,7 +44,7 @@
  * ontsnapping: STACK_ALLOW_DEV=1, voor lokaal kijken voor jezelf.
  */
 import { posix as pad } from "node:path";
-import { NIET_IN_LEVERING, TEMPLATE_GEWOON, templateVan } from "../lib/levering.mjs";
+import { NIET_IN_LEVERING, TEMPLATE_GEWOON, openbaarNietBereikbaar, templateVan } from "../lib/levering.mjs";
 import { actieUit, datumNL, PAGINA_URL } from "../lib/updates.mjs";
 
 /** De gereedschappen die de hook beoordeelt; hooks.json gebruikt dezelfde tekst. */
@@ -676,7 +676,8 @@ function isKleinGetal(n) {
  * kent de repo `bron` niet, zie versie-op-afstand.mjs) volgt wel een melding, met een stempel,
  * dus hooguit één keer per dag. Dat gebeurt als een app na het afschermen van de bronrepo
  * nog niet op de kopie van de klant staat; stil blijven zou betekenen dat er nooit meer een
- * nieuwe versie gemeld wordt zonder dat iemand het merkt.
+ * nieuwe versie gemeld wordt zonder dat iemand het merkt. Met `openbaar` (de app is van de
+ * openbare template uit de levering) zegt die melding wat de owner aan die levering doet.
  *
  * `uitgaven` komt uit het changelog op stagetwo.nl (lib/updates.mjs, uitgavenTussen): de
  * uitgaven tussen de lokale versie en die op afstand, nieuwste eerst. Dan noemt de melding wat
@@ -684,7 +685,7 @@ function isKleinGetal(n) {
  * wanneer, met de vraag het nadrukkelijk aan te bieden. Een lege lijst (site onbereikbaar,
  * onbekend formaat) geeft de melding zonder changelog.
  */
-export function beoordeelStart({ versieLokaal, versieOpAfstand, stempel, nu, bronFout = null, bron = null, manifestFout = null, uitgaven = [] }) {
+export function beoordeelStart({ versieLokaal, versieOpAfstand, stempel, nu, bronFout = null, bron = null, manifestFout = null, openbaar = false, uitgaven = [] }) {
   const niets = { melding: null, nieuweStempel: null };
   if (!isKleinGetal(versieLokaal)) return niets;
   // Het manifest zegt niet eenduidig uit welke template de app komt (sinds versie 43): hooguit
@@ -708,6 +709,15 @@ export function beoordeelStart({ versieLokaal, versieOpAfstand, stempel, nu, bro
   }
   if (!isKleinGetal(versieOpAfstand)) {
     if (bronFout !== "geen-toegang" || !moetControleren({ stempel, nu })) return niets;
+    // De openbare template uit de levering die niet bereikbaar is: installatie helpt dan niet,
+    // de levering in die repo is (nog) niet gelukt. Zeggen wat de owner doet.
+    if (openbaar) {
+      const melding = [
+        `stack: ${openbaarNietBereikbaar(bron ?? "de openbare template")}.`,
+        "Dit blokkeert niets. Zeg het één keer aan de gebruiker, in gewone taal, en voer zelf niets uit.",
+      ].join("\n");
+      return { melding, nieuweStempel: { versieOpAfstand: null, tijdstip: nu.toISOString() } };
+    }
     const melding = [
       `stack: de plugin kan de nieuwste versie van de Stage Two-template niet opvragen bij ${bron ?? "de template"}`,
       "(GitHub kent die repo niet of geeft geen toegang). Daardoor komt een nieuwe versie hier niet als melding",

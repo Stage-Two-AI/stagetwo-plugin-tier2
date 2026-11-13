@@ -187,7 +187,9 @@ jobs:
         run: |
           extra=()
           if [ "$BRON" != "success" ]; then extra=(--geen-toegang bron); elif [ "$KLANT" != "success" ]; then extra=(--geen-toegang klant); fi
-          gh auth setup-git
+          # Zonder token voor de klant geen inlog: gh auth setup-git zou met een leeg token stoppen
+          # (bash -e) voordat de melding voor de owner er staat.
+          if [ "$KLANT" = "success" ]; then gh auth setup-git; fi
           if ! uit=$(node beheer/uitleveren.mjs --org "$ORG" --alleen-openbaar --toegepast-template "$TOEGEPAST_TEMPLATE" --template-openbaar "$GITHUB_WORKSPACE/.bron-template-openbaar" "${extra[@]}" 2>&1); then
             echo "::error::$uit"; exit 1
           fi

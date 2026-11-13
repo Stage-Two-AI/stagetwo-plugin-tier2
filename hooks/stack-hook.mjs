@@ -54,7 +54,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { andereAppsAchter, repoUitOrigin } from "../lib/andere-apps.mjs";
-import { LEVERING, TEMPLATE_GEWOON, manifestTemplate, templateBron, templateVan } from "../lib/levering.mjs";
+import { LEVERING, TEMPLATE_GEWOON, TEMPLATE_OPENBAAR, manifestTemplate, templateBron, templateVan } from "../lib/levering.mjs";
 import { isCloudflareManifest } from "../lib/manifest.mjs";
 import { haalUpdates, uitgavenTussen } from "../lib/updates.mjs";
 import { appsInWerkmap, eigenaarUitOrigin, originVan } from "../lib/werkmap.mjs";
@@ -188,6 +188,7 @@ async function sessieStart(projectmap, manifest) {
     bronFout: opAfstand.fout,
     bron: opAfstand.repo,
     manifestFout: opAfstand.reden ?? null,
+    openbaar: template === TEMPLATE_OPENBAAR && !process.env.STACK_TEMPLATE_REPO,
     stempel,
     nu,
     uitgaven: uitgavenTussen(updates, { van: versieLokaal, tot: doel }),

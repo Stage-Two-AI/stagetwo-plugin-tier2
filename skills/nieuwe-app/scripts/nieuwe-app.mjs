@@ -66,7 +66,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { LEVERING, STAGE_TWO, STAGE_TWO_OPENBAAR } from "../../../lib/levering.mjs";
+import { LEVERING, STAGE_TWO, STAGE_TWO_OPENBAAR, openbaarNietBereikbaar } from "../../../lib/levering.mjs";
 import { SETTINGS_PAD, kiesPluginBron, metPluginBron } from "../../../lib/plugin-bron.mjs";
 import { geldigTestadres, zetTestadres } from "../../../lib/testmail.mjs";
 import { ghAanwezig, ghIngelogd, git, sh } from "../../../lib/repo.mjs";
@@ -1043,7 +1043,7 @@ export function voorcontrole(arg, { cwd = process.cwd(), levering = LEVERING } =
     return {
       status: "mislukt",
       kanTier2: true,
-      reden: `de openbare template staat in de levering, maar ${gekozen.repo} is (nog) niet te vinden of niet te lezen. De owner kijkt of die repo bestaat en de levering erin is gelukt (de workflow Uitleveren zegt wat er mist). Tot dan kan de app op tier 2 zoals altijd`,
+      reden: `${openbaarNietBereikbaar(gekozen.repo)}. Tot dan kan de app op tier 2 zoals altijd (achter de deur); dan werkt hij meteen, en later omzetten kan`,
     };
   }
 

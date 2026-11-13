@@ -1086,3 +1086,17 @@ test("hook: zegt het manifest niet eenduidig uit welke template de app komt, dan
   writeFileSync(join(map, ".claude", "stack-manifest.json"), JSON.stringify({ ...MANIFEST, template: null }));
   assert.match(draaiHook(pre(map, "Edit", { file_path: join(map, ".github/workflows/ci.yml") }), { projectmap: map }).stdout, /"permissionDecision":"deny"/);
 });
+
+test("hook: een openbare app waarvan de template in de levering staat maar niet bereikbaar is, krijgt wat de owner doet", () => {
+  const map = maakProject({ versie: "43" });
+  writeFileSync(join(map, ".claude", "stack-manifest.json"), JSON.stringify(MANIFEST_OPENBAAR));
+  const uit = draaiHook(start(map), { projectmap: map, data: mkdtempSync(join(tmpdir(), "stack-hook-data-")), opAfstand: "geen-toegang", env: { STAGETWO_LEVERING_TEST: JSON.stringify({ templateOpenbaar: "Klant/app-template-tier2-openbaar" }) } });
+  assert.equal(uit.status, 0, uit.stderr);
+  assert.match(uit.stdout, /^stack: de openbare template staat in de levering van jullie organisatie/);
+  assert.match(uit.stdout, /stagetwo-levering/);
+  assert.doesNotMatch(uit.stdout, /installatie/);
+  // Een gewone app houdt precies de melding van altijd.
+  const gewoon = maakProject({ versie: "43" });
+  const g = draaiHook(start(gewoon), { projectmap: gewoon, data: mkdtempSync(join(tmpdir(), "stack-hook-data-")), opAfstand: "geen-toegang" });
+  assert.match(g.stdout, /^stack: de plugin kan de nieuwste versie van de Stage Two-template niet opvragen bij Test\/template/);
+});
