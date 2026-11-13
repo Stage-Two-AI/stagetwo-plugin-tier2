@@ -52,7 +52,7 @@ import { zetVerplichteControle } from "../../../lib/controles.mjs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { isCloudflareManifest, leesManifest, toegestaan as toegestaneBestandenVan } from "../../../lib/manifest.mjs";
+import { isCloudflareManifest, leesManifest, toegestaan as toegestaneBestandenVan, VARIANT } from "../../../lib/manifest.mjs";
 import { BEVESTIGING, branchNaam, prTekst, prTitel, sluitTekst } from "../../../lib/pr-tekst.mjs";
 import { haalUpdates, uitgavenTussen } from "../../../lib/updates.mjs";
 import {
@@ -252,6 +252,11 @@ function kloonTemplateOpBranch({ repo, ref, doel }) {
   git(doel, "checkout", "-q", "--detach", `refs/remotes/origin/${ref}`);
   const versie = leesVersie(doel);
   if (versie === null) return { fout: `de branch ${ref} van de template heeft geen leesbaar .claude/stack-version` };
+  // Een branch van de andere tier (of een kapot manifest) zou bestanden van een ander spoor in deze app zetten.
+  const variant = leesManifestRuw(doel)?.variant;
+  if (variant !== VARIANT) {
+    return { fout: `de branch ${ref} van ${repo} heeft variant ${JSON.stringify(variant ?? null)} in .claude/stack-manifest.json en past dus niet bij deze app (variant ${JSON.stringify(VARIANT)}, tier 2); deze plugin probeert alleen een uitgave van de template voor tier 2 uit. Kies een branch van de template voor tier 2` };
+  }
   if (git(doel, "tag", "--list", `stack-v${versie}`) !== "") {
     return { fout: `versie ${versie} op ${ref} is al uitgebracht (de template heeft de tag stack-v${versie}); werk bij zonder --template-ref` };
   }
@@ -535,7 +540,7 @@ export function voerUit({ werkmap, losOp, koppen = {}, updates = null }) {
     if (ruleset?.regel) eind.voorDeBouwer.push(ruleset.regel);
 
     const uitgaven = uitgavenTussen(updates, { van: resultaat.van, tot: resultaat.naar });
-    const tekst = proef ? `${proefKop({ ref: proef.ref, naar: resultaat.naar })}\n\n${prTekst({ resultaat: eind, uitgaven })}` : prTekst({ resultaat: eind, uitgaven });
+    const tekst = proef ? `${proefKop({ ref: proef.ref, naar: resultaat.naar })}\n\n${prTekst({ resultaat: eind, uitgaven, proef })}` : prTekst({ resultaat: eind, uitgaven });
     let pr = null;
     if (metGh && repo) {
       pr = openOfWerkPRBij({ repo, branch, titel: proef ? proefTitel(resultaat.naar) : prTitel(resultaat.naar), tekst });
