@@ -1,6 +1,6 @@
 ---
 name: nieuwe-app
-description: Een nieuwe app starten op tier 2 van Stage Two, op Cloudflare en Supabase - eerst meedenken over wat de app moet doen, dan de app aanmaken uit de nieuwste template voor tier 2 van Stage Two onder de organisatie van de gebruiker, en hosting, deur en database laten inrichten door de beheer-repo. Gebruik dit als de gebruiker /stagetwo-tier2:nieuwe-app typt of een nieuwe app wil beginnen. Gaat eerst na of het idee als nieuw onderdeel in een bestaande superapp van het bedrijf past; alleen bij een andere gebruikersgroep, een los geheel of een verzamelplek voor gegevens van buiten wordt het een nieuwe superapp.
+description: Een nieuwe app starten op tier 2 van Stage Two, op Cloudflare en Supabase - eerst meedenken over wat de app moet doen, dan de app aanmaken uit de nieuwste template voor tier 2 van Stage Two (de gewone voor een werktuig achter een login, of de openbare voor een app die vindbaar is in Google of die klanten gebruiken) onder de organisatie van de gebruiker, en hosting, deur en database laten inrichten door de beheer-repo. Gebruik dit als de gebruiker /stagetwo-tier2:nieuwe-app typt of een nieuwe app wil beginnen. Gaat eerst na of het idee als nieuw onderdeel in een bestaande superapp van het bedrijf past; alleen bij een andere gebruikersgroep, een los geheel of een verzamelplek voor gegevens van buiten wordt het een nieuwe superapp.
 ---
 
 Je helpt iemand die niet technisch is om een nieuwe app goed te beginnen. Het gesprek
@@ -60,11 +60,25 @@ een eigen beveiligingsopzet die App inrichten niet vanzelf maakt. Zeg dat en sto
 opzet met de gebruiker op een rij in `/stagetwo-tier2:verder-werken`, in de app die de gegevens
 bezit. Wie er hulp bij wil, kan het op verzoek als betaald werk door Stage Two laten doen.
 
-Moet de app **vindbaar zijn in Google** (een website, een webshop, een pagina die mensen
-delen)? Dan past deze template niet: die is voor werk-apps achter een login. Zeg dat, en dat
-zo'n site een eigen opzet vraagt buiten deze template (tier 1 van Stage Two kan het, net als een
-gewone websitebouwer); wie er hulp bij wil, kan het op verzoek door Stage Two laten doen. Stop
-dan hier.
+Stel daarna één vraag, in deze woorden: **"Moet de app vindbaar zijn in Google of door klanten
+gebruikt worden?"** Leg kort uit waarom je het vraagt: tier 2 heeft twee templates.
+
+- **Nee** (een werktuig voor eigen mensen, achter een login): de gewone template van tier 2,
+  zoals altijd. Ga door; laat `--template` hieronder weg.
+- **Ja** (een website, een webshop, een pagina die mensen delen, een portaal voor klanten): de
+  openbare template van tier 2. Daar maakt de server elke pagina, zodat Google, WhatsApp en
+  AI-zoekers hem kunnen lezen, en kunnen klanten zelf inloggen met een code per mail. Vraag
+  dan nog één ding: **moeten klanten kunnen inloggen?** Ja is een klantportaal (stap 5b);
+  nee is een site die alleen bekeken wordt. Geef hieronder `--template openbaar` mee.
+
+Twijfelt de gebruiker? Adviseer de gewone template als alleen eigen mensen de app gebruiken;
+alleen voor mensen van buiten is de openbare nodig. Overstappen kan later, maar is een
+verbouwing.
+
+Zit de openbare template niet in de levering van deze organisatie, dan zegt de droogloop dat
+(stap 5, `kanTier2`). Zeg het eerlijk en bied tier 2 aan: die app werkt meteen, achter de deur.
+Wil het bedrijf de openbare template, dan zet de owner hem aan bij het abonnement; daarna kan
+het met hetzelfde commando. Verzin geen andere weg.
 
 ## Stap 2: het idee scherp
 
@@ -81,9 +95,10 @@ het duurste antwoord.
 
 ## Stap 3: wat de app meekrijgt
 
-Hier is niets te kiezen; zeg het in twee zinnen. Elke app van tier 2 staat achter een
+Hier is niets te kiezen; zeg het in twee zinnen. Elke app van tier 2 staat eerst achter een
 deur: alleen de mensen uit de toegangslijst van het bedrijf komen erin, en ze loggen in
-met hun werkaccount (of met een code per mail). En elke app krijgt een eigen database bij
+met hun werkaccount (of met een code per mail). Bij de openbare template gaat die deur later
+open voor bezoekers en klanten (stap 5b); medewerkers loggen dan nog steeds zo in. En elke app krijgt een eigen database bij
 Supabase, want het inloggen loopt daar doorheen. Supabase kost het bedrijf ongeveer €22 per
 maand, plus ongeveer €9 per maand per database; een app heeft er twee (echt en test). Die
 bedragen staan ook op https://stagetwo.nl/#aanbod.
@@ -117,8 +132,10 @@ aanmaakt (in de projectfase doet Stage Two dat), en stop hier.
 Draai eerst de droogloop, met Bash, precies zo:
 
 ```sh
-node "${CLAUDE_SKILL_DIR}/scripts/nieuwe-app.mjs" --json --droogloop --naam "<naam>" --eigenaar "<eigenaar>" --omschrijving "<omschrijving>" --organisatie "<bedrijfsnaam>" --testmail "<testadres>"
+node "${CLAUDE_SKILL_DIR}/scripts/nieuwe-app.mjs" --json --droogloop --naam "<naam>" --eigenaar "<eigenaar>" --omschrijving "<omschrijving>" --organisatie "<bedrijfsnaam>" --testmail "<testadres>" [--template openbaar]
 ```
+
+`--template openbaar` alleen als het antwoord in stap 1 "ja" was.
 
 `<bedrijfsnaam>` is de naam van het bedrijf waarvoor de app is, zoals je die uit het gesprek of
 de map kent (bijvoorbeeld "Richplant B.V."); die komt in de `LICENSE` van de app. Weet je hem
@@ -127,7 +144,9 @@ niet, laat `--organisatie` dan weg: het script neemt de naam van de organisatie 
 Het antwoord is één JSON-object met een `status`.
 
 - `mislukt`: `reden` is één zin met wat de gebruiker moet doen. Geef die door en stop.
-  Probeer het niet te omzeilen.
+  Probeer het niet te omzeilen. Staat er `kanTier2: true` bij, dan is de openbare template er
+  (nog) niet voor deze organisatie: zeg dat in gewone woorden en vraag of de app op tier 2 mag
+  (dan dezelfde droogloop zonder `--template`).
 - `klaar`: vat `plan` samen in hooguit vier regels: welke repo, waar op deze computer,
   en wie de reviewer is. Staat `githubPlan` op `free` en is de
   eigenaar een organisatie, zeg dan dat main straks niet beschermd kan worden op het
@@ -172,13 +191,29 @@ node "${CLAUDE_SKILL_DIR}/scripts/nieuwe-app.mjs" --json --inrichten --naam "<na
 ```
 
 `--groepen` alleen als de app nog niet in de toegangslijst stond (stap 4). Zeg vooraf dat
-dit tot een kwartier kan duren: een nieuwe database moet opstarten. Het antwoord:
+dit tot een kwartier kan duren: een nieuwe database moet opstarten.
+
+**Een klantportaal** (openbare template, klanten loggen in): dan staat de app in de
+toegangslijst als klantportaal. Daarvoor moet de owner eerst drie dingen regelen: een eigen
+domein voor de app, bij Resend een geverifieerd domein voor de afzender van de inlogmail met de
+sleutel als secret in de beheer-repo, en eventueel Turnstile tegen misbruik. Vraag of dat er al is.
+
+- **Nog niet** (gebruikelijk bij een nieuwe app): richt de app eerst in zoals hierboven, achter
+  de deur. Zo kan er meteen gebouwd en bekeken worden. Is het er later wel, draai dan hetzelfde
+  commando met `--klantportaal` erbij (zie hieronder); dat zet de app om.
+- **Ja**: voeg toe `--klantportaal --afzender "<Naam> <adres>"`, en `--turnstile-sitekey
+  "<openbare sleutel>"` als de app de Turnstile-widget al toont (anders blijft de captcha uit en
+  zegt het antwoord hoe hij later aan kan). Het adres staat op het domein dat bij Resend is
+  geverifieerd; vraag het de gebruiker, verzin het niet.
+
+Het antwoord:
 
 - `kies-groepen`: de app staat nog niet in de toegangslijst en er zijn geen groepen
   meegegeven. Toon `groepen`, laat kiezen, en draai opnieuw met `--groepen`. Is de lijst
   leeg, geef dan `reden` door: de owner maakt de groepen aan (tijdens het project Stage Two).
 - `wacht-op-toegang`: er staat nu een pull request op de beheer-repo (`pr`) die de app
-  aan de toegangslijst toevoegt. Die wijzigt alleen `toegang.json`, dus de controle
+  aan de toegangslijst toevoegt (of, met `klantportaal: true`, als klantportaal neerzet of een
+  bestaande app omzet; loop dan ook `nogTeDoen` langs: dat regelt de owner vóór App inrichten). Die wijzigt alleen `toegang.json`, dus de controle
   Toegang of review wordt vanzelf groen. Zeg dat de gebruiker hem zelf merget als hij in het
   team `toegangsbeheer` zit (anders de owner van de organisatie); zo beslist een mens wie
   bij een app mag. Zeg ook dat je daarna hetzelfde commando nog een keer draait, zonder

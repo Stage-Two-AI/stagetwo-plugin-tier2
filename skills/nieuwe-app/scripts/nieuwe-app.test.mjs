@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { schrijfBestanden, tijdelijkeMap } from "../../../lib/test-hulp.mjs";
+import { nepGh, opruimen, schrijfBestanden, tijdelijkeMap } from "../../../lib/test-hulp.mjs";
 import {
   STAGE_TWO_LOGIN,
   controleerArgumenten,
@@ -31,8 +31,17 @@ import {
   zetLicentie,
   zetPluginBron,
   SENTRY_REGEL,
+  bekendeTemplates,
+  geldigeAfzender,
+  isKlantportaalIn,
+  kiesTemplate,
+  klantportaalVelden,
+  naarKlantportaal,
+  nogTeDoenKlantportaal,
+  richtIn,
+  voorcontrole,
 } from "./nieuwe-app.mjs";
-import { STAGE_TWO } from "../../../lib/levering.mjs";
+import { STAGE_TWO, STAGE_TWO_OPENBAAR } from "../../../lib/levering.mjs";
 
 function verseTemplate() {
   const map = tijdelijkeMap("nieuwe-app-");
@@ -464,4 +473,153 @@ test("testmail: --testmail wordt gelezen en moet een gewoon mailadres zijn", () 
   assert.equal(goed.testmail, "test@richplant.nl");
   assert.equal(controleerArgumenten(goed), null);
   assert.match(controleerArgumenten(leesArgumenten([...basis, "--testmail", "geen-adres"])), /--testmail/);
+});
+
+// ---------------------------------------------------------------- versie 43: de openbare template
+
+const LEVERING_MET = { plugin: "Klant-BV/stagetwo-plugin-tier2", template: "Klant-BV/app-template-tier2", templateOpenbaar: "Klant-BV/app-template-tier2-openbaar" };
+const LEVERING_ZONDER = { ...LEVERING_MET, templateOpenbaar: null };
+
+test("--template: tier2 is de standaard, openbaar mag, iets anders niet", () => {
+  assert.equal(leesArgumenten(["--naam", "x"]).template, "tier2");
+  assert.equal(leesArgumenten(["--template", "openbaar"]).template, "openbaar");
+  const basis = { droogloop: true, naam: "shop", eigenaar: "Org", database: "eigen" };
+  assert.equal(controleerArgumenten({ ...basis, template: "openbaar" }), null);
+  assert.equal(controleerArgumenten({ ...basis, template: "tier2" }), null);
+  assert.match(controleerArgumenten({ ...basis, template: "website" }), /tier2 .* of openbaar/);
+});
+
+test("kiesTemplate: de openbare template uit de levering; zit hij er niet in, dan eerlijk zeggen wat wel kan, zonder te wachten op Stage Two", () => {
+  assert.deepEqual(kiesTemplate("tier2", LEVERING_ZONDER), { repo: "Klant-BV/app-template-tier2" }, "tier 2 zoals altijd");
+  assert.deepEqual(kiesTemplate("openbaar", LEVERING_MET), { repo: "Klant-BV/app-template-tier2-openbaar" });
+  const zonder = kiesTemplate("openbaar", LEVERING_ZONDER);
+  assert.equal(zonder.repo, undefined, "geen terugval op de gewone template");
+  assert.match(zonder.fout, /niet in de levering/);
+  assert.match(zonder.fout, /tier 2 maken zoals altijd/);
+  assert.match(zonder.fout, /owner/);
+  assert.doesNotMatch(zonder.fout, /wacht|Stage Two/);
+  assert.doesNotMatch(zonder.fout, /\u2014/);
+});
+
+test("voorcontrole: zonder de openbare template in de levering stopt de droogloop vóór er iets gebeurt, met tier 2 als uitweg", () => {
+  const r = voorcontrole({ droogloop: true, naam: "shop", eigenaar: "Org", database: "eigen", template: "openbaar" }, { levering: LEVERING_ZONDER });
+  assert.equal(r.status, "mislukt");
+  assert.equal(r.kanTier2, true);
+  assert.match(r.reden, /niet in de levering/);
+});
+
+test("een bestaande repo mag verder als hij uit een van beide templates komt", () => {
+  const bekend = bekendeTemplates(LEVERING_MET);
+  for (const r of ["Klant-BV/app-template-tier2", "Klant-BV/app-template-tier2-openbaar", STAGE_TWO.template, STAGE_TWO_OPENBAAR]) assert.ok(bekend.includes(r.toLowerCase()), r);
+  assert.ok(!bekend.includes("klant-bv/iets-anders"));
+  assert.ok(!bekendeTemplates(LEVERING_ZONDER).includes("klant-bv/app-template-tier2-openbaar"));
+});
+
+test("invullen: in de openbare template staat de naam in src/root.tsx; een gewone template zonder dat bestand blijft gelijk", () => {
+  const map = verseTemplate();
+  try {
+    schrijfBestanden(map, { "src/root.tsx": 'export const meta = () => [{ title: "Stack Template" }];\n<meta name="apple-mobile-web-app-title" content="Stack Template" />\n' });
+    vulIn(map, { naam: "shop", omschrijving: null, reviewer: "bart" });
+    const root = readFileSync(join(map, "src/root.tsx"), "utf8");
+    assert.ok(!root.includes("Stack Template"));
+    assert.equal((root.match(/shop/g) ?? []).length, 2);
+  } finally {
+    opruimen(map);
+  }
+});
+
+test("klantportaal: de velden die beheer verwacht; zonder sleutel uitdrukkelijk zonder captcha", () => {
+  assert.deepEqual(klantportaalVelden({ afzender: "Winco Direct <noreply@wincoapps.com>" }), { klantportaal: true, afzender: "Winco Direct <noreply@wincoapps.com>", captcha: false });
+  assert.deepEqual(klantportaalVelden({ afzender: "noreply@wincoapps.com", turnstileSitekey: "0x4AAAAAAA" }), { klantportaal: true, afzender: "noreply@wincoapps.com", turnstile_sitekey: "0x4AAAAAAA" });
+  for (const goed of ["noreply@wincoapps.com", "Winco Direct <noreply@wincoapps.com>", "Bakker & Zn. (shop) <a@b.nl>"]) assert.ok(geldigeAfzender(goed), goed);
+  for (const fout of ["", "geen adres", "Naam <geen-adres>", "Naam; rm <a@b.nl>", null]) assert.ok(!geldigeAfzender(fout), String(fout));
+});
+
+test("klantportaal: alleen bij --inrichten, met een afzender, en de sleutel is de openbare", () => {
+  const basis = { inrichten: true, naam: "shop", eigenaar: "Org", database: "eigen" };
+  assert.equal(controleerArgumenten({ ...basis, klantportaal: true, afzender: "a@b.nl" }), null);
+  assert.match(controleerArgumenten({ ...basis, klantportaal: true }), /vraagt --afzender/);
+  assert.match(controleerArgumenten({ ...basis, inrichten: false, droogloop: true, klantportaal: true, afzender: "a@b.nl" }), /hoort bij --inrichten/);
+  assert.match(controleerArgumenten({ ...basis, klantportaal: true, afzender: "a@b.nl", turnstileSitekey: "x y" }), /openbare sleutel/);
+  assert.match(controleerArgumenten({ ...basis, afzender: "a@b.nl" }), /horen bij --klantportaal/);
+  const a = leesArgumenten(["--inrichten", "--klantportaal", "--afzender", "Shop <a@b.nl>", "--turnstile-sitekey", "0x4AAA1234"]);
+  assert.equal(a.klantportaal, true);
+  assert.equal(a.afzender, "Shop <a@b.nl>");
+  assert.equal(a.turnstileSitekey, "0x4AAA1234");
+});
+
+test("klantportaal in toegang.json: nieuw in de lange vorm, een bestaande app omgezet, publiek ernaast weigert", () => {
+  const toegang = { groepen: { kantoor: {} }, apps: { intern: ["kantoor"], oud: { groepen: ["kantoor"], publiek: ["/bekijk/*"] } } };
+  const portaal = klantportaalVelden({ afzender: "Shop <noreply@shop.nl>" });
+  const nieuw = voegAppToe(toegang, "shop", ["kantoor"], portaal);
+  assert.deepEqual(nieuw.apps.shop, { groepen: ["kantoor"], klantportaal: true, afzender: "Shop <noreply@shop.nl>", captcha: false });
+  assert.deepEqual(nieuw.apps.intern, ["kantoor"], "de rest blijft precies staan");
+  assert.deepEqual(voegAppToe(toegang, "x", ["kantoor"]).apps.x, ["kantoor"], "zonder klantportaal de korte vorm, zoals altijd");
+  assert.equal(isKlantportaalIn(nieuw, "shop"), true);
+  assert.equal(isKlantportaalIn(nieuw, "intern"), false);
+  const om = naarKlantportaal(toegang, "intern", klantportaalVelden({ afzender: "a@b.nl", turnstileSitekey: "0x4AAA1234" }));
+  assert.deepEqual(om.apps.intern, { groepen: ["kantoor"], klantportaal: true, afzender: "a@b.nl", turnstile_sitekey: "0x4AAA1234" });
+  assert.throws(() => naarKlantportaal(toegang, "oud", portaal), /publiek.*niet samen met een klantportaal/);
+  // Een tweede run ziet een app in de lange vorm als "staat erin" en overschrijft hem niet.
+  assert.deepEqual(controleerToegang(nieuw, "shop"), { staatErin: true, groepen: ["kantoor"] });
+  assert.equal(controleerToegang({ apps: { x: { groepen: [] } } }, "x").staatErin, false);
+});
+
+test("klantportaal: wat de owner regelt, in gewone taal en zonder te wachten op Stage Two", () => {
+  const lijst = nogTeDoenKlantportaal({ naam: "shop", beheer: "Org/stagetwo-beheer-tier2", portaal: klantportaalVelden({ afzender: "Shop <noreply@shop.nl>" }) });
+  const tekst = lijst.join("\n");
+  assert.match(tekst, /Resend het domein shop\.nl/);
+  assert.match(tekst, /SMTP_WACHTWOORD/);
+  assert.match(tekst, /eigen domein in wrangler\.jsonc/);
+  assert.match(tekst, /Captcha: staat uit/);
+  assert.match(tekst, /RLS/);
+  assert.doesNotMatch(tekst, /Stage Two|\u2014/);
+});
+
+test("--inrichten --klantportaal: een gewone app in toegang.json krijgt een pull request die alleen hem omzet; zonder --klantportaal blijft alles zoals het was", () => {
+  const wortel = tijdelijkeMap("inrichten-portaal-");
+  const toegang = { groepen: { kantoor: { domeinen: ["shop.nl"] } }, apps: { shop: ["kantoor"], intern: ["kantoor"] } };
+  const beheer = "Org/stagetwo-beheer-tier2";
+  const nep = nepGh(wortel, {
+    "--version": { stdout: "gh version 2.95.0\n" },
+    "auth status": { stdout: "Logged in\n" },
+    "api users/Org": { stdout: { type: "Organization" } },
+    "repo view": { stdout: { name: "x" } },
+    [`api repos/${beheer}/contents/toegang.json`]: { stdout: { content: Buffer.from(JSON.stringify(toegang)).toString("base64"), sha: "abc" } },
+    [`api repos/${beheer}/contents/toegang.json?ref=toegang/shop-klantportaal`]: { exit: 1, stderr: "HTTP 404" },
+    "pr list": { stdout: [] },
+    [`api repos/${beheer}/git/ref/heads/main`]: { stdout: "sha-main\n" },
+    [`api repos/${beheer}/git/refs`]: { stdout: {} },
+    "pr create": { stdout: "https://github.com/Org/stagetwo-beheer-tier2/pull/7\n" },
+  });
+  const oud = process.env.PATH;
+  process.env.PATH = `${nep.pad}:${oud}`;
+  try {
+    const arg = leesArgumenten(["--inrichten", "--naam", "shop", "--eigenaar", "Org", "--klantportaal", "--afzender", "Shop <noreply@shop.nl>"]);
+    const r = richtIn(arg, { wachtMs: 0 });
+    assert.equal(r.status, "wacht-op-toegang", r.reden);
+    assert.equal(r.klantportaal, true);
+    assert.equal(r.pr, "https://github.com/Org/stagetwo-beheer-tier2/pull/7");
+    assert.ok(r.nogTeDoen.some((x) => /SMTP_WACHTWOORD/.test(x)));
+    const put = nep.aanroepen().find((a) => a[1] === `repos/${beheer}/contents/toegang.json` && a.includes("PUT"));
+    const inhoud = JSON.parse(Buffer.from(put.find((a) => a.startsWith("content=")).slice(8), "base64").toString("utf8"));
+    assert.deepEqual(inhoud.apps.shop, { groepen: ["kantoor"], klantportaal: true, afzender: "Shop <noreply@shop.nl>", captcha: false });
+    assert.deepEqual(inhoud.apps.intern, ["kantoor"]);
+    assert.ok(put.includes("branch=toegang/shop-klantportaal"));
+    const create = nep.aanroepen().find((a) => a[0] === "pr" && a[1] === "create");
+    assert.equal(create[create.indexOf("--title") + 1], "Klantportaal: shop");
+    assert.match(create[create.indexOf("--body") + 1], /Klantportaal\.\*\* De app staat open voor klanten/);
+    assert.doesNotMatch(create[create.indexOf("--body") + 1], /\u2014/);
+
+    // Zonder --klantportaal: de app staat erin, dus de workflow start (hier faalt die nep-aanroep),
+    // en er komt geen pull request.
+    const voor = nep.aanroepen().length;
+    const gewoon = richtIn(leesArgumenten(["--inrichten", "--naam", "shop", "--eigenaar", "Org"]), { wachtMs: 0 });
+    assert.equal(gewoon.status, "mislukt");
+    assert.match(gewoon.reden, /de workflow starten mislukte/);
+    assert.ok(!nep.aanroepen().slice(voor).some((a) => a[0] === "pr" && a[1] === "create"));
+  } finally {
+    process.env.PATH = oud;
+    opruimen(wortel);
+  }
 });

@@ -24,13 +24,25 @@
  *       gebruiksrecht van Stage Two blijft in LICENSE-STAGE-TWO staan. Hosting en database koppelt Stage Two: daar komt bewust geen
  *       toegang voor op de computer van de gebruiker (GitHub blijft de enige poort).
  *
+ *   --template openbaar (sinds versie 43): de app komt uit de openbare template van tier 2
+ *       (app-template-tier2-openbaar uit de levering, de server maakt de pagina's: vindbare sites,
+ *       shops, klantportalen) in plaats van de gewone. Zit die niet in de levering van de klant,
+ *       dan zegt de droogloop dat, met wat er wel kan (tier 2 zoals altijd). Zonder de vlag, of met
+ *       `--template tier2`, is alles zoals het was.
+ *
  *   node nieuwe-app.mjs --json --inrichten --naam <naam> --eigenaar <org> [--groepen a,b]
+ *        [--klantportaal --afzender "Naam <adres>" [--turnstile-sitekey <sleutel>]]
  *       kijkt eerst of de app in toegang.json van <org>/stagetwo-beheer-tier2 staat. Zo niet, dan
  *       opent het een pull request op stagetwo-beheer-tier2 die hem toevoegt met de gekozen groepen
  *       (status `wacht-op-toegang`; wie in team toegangsbeheer zit merget, daarna opnieuw draaien). Staat
  *       hij erin, dan start het de workflow "App inrichten" in <org>/stagetwo-beheer-tier2, wacht tot
  *       hij klaar is en leest het resultaat uit het logboek. Zo komen Cloudflare en Supabase
  *       erbij zonder dat er een Cloudflare- of Supabase-sleutel op deze computer staat.
+ *       Met --klantportaal (sinds versie 43; klanten loggen zelf in per mail) zet de pull request
+ *       de app als klantportaal in toegang.json (`klantportaal`, `afzender`, en `turnstile_sitekey`
+ *       of uitdrukkelijk `"captcha": false`; zie beheer/README.md, "Klantportaal"). Staat de app er
+ *       al in als gewone app, dan zet een eigen pull request hem om. Wat de owner vóór App
+ *       inrichten moet regelen (domein, Resend, eventueel Turnstile) staat in `nogTeDoen`.
  *
  * Elke uitkomst is één JSON-object op stdout met een `status`:
  *   klaar        (na --droogloop) alles staat klaar; zie `plan`
@@ -54,13 +66,15 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { LEVERING, STAGE_TWO } from "../../../lib/levering.mjs";
+import { LEVERING, STAGE_TWO, STAGE_TWO_OPENBAAR } from "../../../lib/levering.mjs";
 import { SETTINGS_PAD, kiesPluginBron, metPluginBron } from "../../../lib/plugin-bron.mjs";
 import { geldigTestadres, zetTestadres } from "../../../lib/testmail.mjs";
 import { ghAanwezig, ghIngelogd, git, sh } from "../../../lib/repo.mjs";
 
 /** De template uit levering.json (een abonnee), anders die van Stage Two; zie lib/levering.mjs. */
 export const TEMPLATE = LEVERING.template;
+/** De twee keuzes voor --template: tier 2 zoals altijd, of de openbare template (sinds versie 43). */
+export const TEMPLATE_KEUZES = ["tier2", "openbaar"];
 export const STAGE_TWO_LOGIN = "StageTwoAI";
 // Op het Cloudflare-spoor heeft elke app een eigen database: het inloggen loopt van de
 // deur van Cloudflare via Supabase (zie beheer-template, inrichten-cloudflare.mjs).
@@ -86,6 +100,10 @@ export function leesArgumenten(argv) {
     gedeeldRef: null,
     map: null,
     groepen: null,
+    template: null,
+    klantportaal: false,
+    afzender: null,
+    turnstileSitekey: null,
   };
   const metWaarde = {
     "--naam": "naam",
@@ -98,6 +116,9 @@ export function leesArgumenten(argv) {
     "--map": "map",
     "--groepen": "groepen",
     "--testmail": "testmail",
+    "--template": "template",
+    "--afzender": "afzender",
+    "--turnstile-sitekey": "turnstileSitekey",
   };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i];
@@ -105,6 +126,7 @@ export function leesArgumenten(argv) {
     else if (a === "--droogloop") uit.droogloop = true;
     else if (a === "--doe-het") uit.doeHet = true;
     else if (a === "--inrichten") uit.inrichten = true;
+    else if (a === "--klantportaal") uit.klantportaal = true;
     else if (a in metWaarde) {
       const waarde = argv[i + 1];
       if (waarde === undefined || waarde.startsWith("--")) throw new Error(`${a} vraagt een waarde`);
@@ -113,6 +135,7 @@ export function leesArgumenten(argv) {
     } else throw new Error(`onbekende optie: ${a}`);
   }
   if (uit.database === null) uit.database = "eigen";
+  if (uit.template === null) uit.template = "tier2";
   if (uit.groepen !== null) uit.groepen = uit.groepen.split(",").map((g) => g.trim()).filter(Boolean);
   return uit;
 }
@@ -145,7 +168,48 @@ export function controleerArgumenten(arg) {
   if (arg.organisatie !== null && arg.organisatie !== undefined && !geldigeOrganisatie(arg.organisatie)) {
     return "--organisatie: de naam van het bedrijf, op één regel en hooguit 100 tekens (bijvoorbeeld \"Richplant B.V.\")";
   }
+  if (arg.template !== undefined && arg.template !== null && !TEMPLATE_KEUZES.includes(arg.template)) {
+    return "--template: tier2 (een app achter de deur, zoals altijd) of openbaar (vindbaar in Google of voor klanten)";
+  }
+  if (arg.klantportaal) {
+    if (!arg.inrichten) return "--klantportaal hoort bij --inrichten: het zet de app als klantportaal in toegang.json van de beheer-repo";
+    if (!geldigeAfzender(arg.afzender)) {
+      return "--klantportaal vraagt --afzender: het adres waar de inlogmail vandaan komt, op een domein dat bij Resend is geverifieerd, bijvoorbeeld \"Winco Direct <noreply@wincoapps.com>\"";
+    }
+    if (arg.turnstileSitekey !== null && arg.turnstileSitekey !== undefined && !/^[A-Za-z0-9_-]{8,100}$/.test(arg.turnstileSitekey)) {
+      return "--turnstile-sitekey: de openbare sleutel van de Turnstile-widget (letters, cijfers, - en _), niet de geheime";
+    }
+  } else if (arg.afzender || arg.turnstileSitekey) {
+    return "--afzender en --turnstile-sitekey horen bij --klantportaal";
+  }
   return null;
+}
+
+/**
+ * De afzender van de inlogmail van een klantportaal: een adres, of "Naam <adres>", met in de naam
+ * dezelfde tekens als beheer toelaat (lib/toegang.mjs in de beheer-repo).
+ */
+export function geldigeAfzender(tekst) {
+  const t = String(tekst ?? "").trim();
+  const adres = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
+  const m = /^([A-Za-z0-9 .&'()-]{1,60}) <([^<>\s]+)>$/.exec(t);
+  return m ? adres.test(m[2]) : adres.test(t);
+}
+
+/**
+ * De template-repo voor `keuze` (tier2 of openbaar) uit de levering: `{ repo }` of `{ fout }`.
+ * Zit de openbare template niet in de levering, dan geen omweg via de gewone: dan zegt de fout
+ * wat er wel kan.
+ */
+export function kiesTemplate(keuze = "tier2", levering = LEVERING) {
+  if (keuze !== "openbaar") return { repo: levering.template };
+  if (levering.templateOpenbaar) return { repo: levering.templateOpenbaar };
+  return {
+    fout:
+      "de openbare template (voor een app die vindbaar is in Google of die klanten gebruiken) zit niet in de levering van deze organisatie. " +
+      "Wat nu kan: de app op tier 2 maken zoals altijd (achter de deur, alleen voor mensen uit de toegangslijst); dan werkt hij meteen, en later omzetten kan. " +
+      "Wil het bedrijf de openbare template, dan zet de owner hem aan bij het abonnement; de levering zet hem dan in <organisatie>/app-template-tier2-openbaar en daarna kan het hier",
+  };
 }
 
 /** Een bedrijfsnaam voor de LICENSE: één regel, 2 tot 100 tekens, geen markeringen. */
@@ -240,7 +304,8 @@ export function vulIn(map, { naam, omschrijving, reviewer }) {
     writeFileSync(codeowners, readFileSync(codeowners, "utf8").replaceAll(`@${STAGE_TWO_LOGIN}`, `@${reviewer}`));
   }
   // De naam in het tabblad en op het beginscherm (de app is installeerbaar sinds templateversie 31).
-  for (const bestand of ["index.html", "public/manifest.webmanifest"]) {
+  // In de openbare template (versie 43) maakt de server de pagina; daar staat de naam in src/root.tsx.
+  for (const bestand of ["index.html", "public/manifest.webmanifest", "src/root.tsx"]) {
     const pad = join(map, bestand);
     if (existsSync(pad)) writeFileSync(pad, readFileSync(pad, "utf8").replaceAll("Stack Template", naam));
   }
@@ -607,10 +672,15 @@ function ghApi(methode, pad, velden = {}) {
   return uit ? JSON.parse(uit) : null;
 }
 
+/** De templates waar een bestaande repo uit mag komen om verder te gaan: beide templates van tier 2. */
+export function bekendeTemplates(levering = LEVERING) {
+  return [levering.template, levering.templateOpenbaar, STAGE_TWO.template, STAGE_TWO_OPENBAAR].filter(Boolean).map((r) => r.toLowerCase());
+}
+
 function uitTemplate(repo) {
   try {
     const bron = ghJson([`repos/${repo}`]).template_repository?.full_name?.toLowerCase();
-    return bron === TEMPLATE.toLowerCase() || bron === STAGE_TWO.template.toLowerCase();
+    return Boolean(bron) && bekendeTemplates().includes(bron);
   } catch {
     return false;
   }
@@ -675,13 +745,69 @@ export function nogTeDoenNaInrichting({ resultaat }) {
  */
 export function controleerToegang(toegang, app) {
   const groepen = Object.keys(toegang?.groepen ?? {});
-  const gekozen = toegang?.apps?.[app];
+  const regel = toegang?.apps?.[app];
+  // De korte vorm (een lijst groepen) of de lange (een object met `groepen`, zoals bij publieke
+  // paden of een klantportaal); anders zou een tweede run de lange vorm overschrijven.
+  const gekozen = Array.isArray(regel) ? regel : regel && typeof regel === "object" ? regel.groepen : null;
   return { staatErin: Array.isArray(gekozen) && gekozen.length > 0, groepen };
 }
 
-/** toegang.json met de app erbij; de rest blijft precies staan. */
-export function voegAppToe(toegang, app, groepen) {
-  return { ...toegang, apps: { ...(toegang.apps ?? {}), [app]: [...groepen] } };
+/**
+ * toegang.json met de app erbij; de rest blijft precies staan. Met `portaal` (de velden uit
+ * klantportaalVelden) in de lange vorm met `groepen`, anders de korte vorm, zoals altijd.
+ */
+export function voegAppToe(toegang, app, groepen, portaal = null) {
+  const regel = portaal ? { groepen: [...groepen], ...portaal } : [...groepen];
+  return { ...toegang, apps: { ...(toegang.apps ?? {}), [app]: regel } };
+}
+
+/**
+ * De velden die beheer bij een klantportaal verwacht (beheer/README.md, "Klantportaal"):
+ * `klantportaal`, `afzender`, en `turnstile_sitekey`, of zonder sleutel uitdrukkelijk
+ * `"captcha": false` (beheer zet de captcha bij een klantportaal standaard aan en weigert
+ * toegang.json zonder sleutel; uit is de stand tot de app de widget toont).
+ */
+export function klantportaalVelden({ afzender, turnstileSitekey = null }) {
+  return {
+    klantportaal: true,
+    afzender: String(afzender).trim(),
+    ...(turnstileSitekey ? { turnstile_sitekey: turnstileSitekey } : { captcha: false }),
+  };
+}
+
+/** Staat de app als klantportaal in toegang.json? */
+export function isKlantportaalIn(toegang, app) {
+  const regel = toegang?.apps?.[app];
+  return Boolean(regel && !Array.isArray(regel) && regel.klantportaal === true);
+}
+
+/**
+ * toegang.json met een bestaande app omgezet naar klantportaal; groepen en andere velden blijven,
+ * een eerdere captcha-keuze maakt plaats voor de nieuwe. Gooit als de app publieke paden heeft:
+ * die kunnen niet naast een klantportaal (dat beslist de gebruiker, niet dit script).
+ */
+export function naarKlantportaal(toegang, app, portaal) {
+  const regel = toegang?.apps?.[app];
+  const huidig = Array.isArray(regel) ? { groepen: [...regel] } : { ...(regel ?? {}) };
+  if (huidig.publiek !== undefined) {
+    throw new Error(`${app} heeft publieke paden (publiek) in toegang.json; die kunnen niet samen met een klantportaal, want dan staat het hele domein al open. Haal publiek weg in een eigen pull request als de app een klantportaal wordt`);
+  }
+  const { captcha: _c, turnstile_sitekey: _t, ...rest } = huidig;
+  return { ...toegang, apps: { ...(toegang.apps ?? {}), [app]: { ...rest, ...portaal } } };
+}
+
+/** Wat de owner regelt voordat App inrichten een klantportaal neerzet, elk punt één zin. */
+export function nogTeDoenKlantportaal({ naam, beheer, portaal }) {
+  const domein = String(portaal.afzender).replace(/^.*</, "").replace(/>.*$/, "").split("@")[1] ?? "het domein van de afzender";
+  return [
+    `Mail: bij Resend het domein ${domein} verifiëren en een sleutel maken met alleen het recht om te versturen; die zet de owner als secret SMTP_WACHTWOORD in de omgeving van ${beheer} (waar ook de andere sleutels van de beheer-repo staan).`,
+    `Domein: een klantportaal vraagt een eigen domein in wrangler.jsonc van ${naam} (routes met custom_domain); op alleen het tijdelijke workers.dev-adres weigert App inrichten het, want dat adres blijft altijd dicht.`,
+    portaal.turnstile_sitekey
+      ? `Captcha: de geheime sleutel van de Turnstile-widget komt als secret TURNSTILE_GEHEIM in de omgeving van ${beheer}, en het inlogscherm van de app moet de widget tonen.`
+      : `Captcha: staat uit ("captcha": false), omdat het inlogscherm nog geen Turnstile-widget heeft. Aanzetten kan later: de widget in de app, de openbare sleutel als turnstile_sitekey in toegang.json en de geheime als secret TURNSTILE_GEHEIM.`,
+    "De regels in de database (RLS) zijn bij een klantportaal de enige grens: elke tabel heeft regels die op de rol letten, en een nieuw account ziet niets tot de app het goedkeurt. Loop dat na in /stagetwo-tier2:verder-werken voordat het portaal opengaat.",
+    `Ontbreekt er iets, dan stopt App inrichten vóór de eerste wijziging met een melding; de deur blijft dan staan. Is alles er, draai dan dit commando opnieuw (zonder --groepen) of start App inrichten in ${beheer}, eerst als droogloop.`,
+  ];
 }
 
 function slaap(ms) {
@@ -698,8 +824,8 @@ function leesToegang(beheer) {
  * alleen toegang.json wijzigt, is de controle Toegang of review groen en merget een lid van
  * team toegangsbeheer (of de owner) hem zelf; zo beslist een mens wie bij een app mag.
  */
-function vraagToegangAan(beheer, arg, toegang, sha) {
-  const branch = `toegang/${arg.naam}`;
+function vraagToegangAan(beheer, arg, toegang, sha, { portaal = null, omzetten = false } = {}) {
+  const branch = omzetten ? `toegang/${arg.naam}-klantportaal` : `toegang/${arg.naam}`;
   const bestaand = JSON.parse(sh("gh", ["pr", "list", "--repo", beheer, "--head", branch, "--state", "open", "--json", "url"]));
   if (bestaand[0]?.url) return bestaand[0].url;
   const mainSha = sh("gh", ["api", `repos/${beheer}/git/ref/heads/main`, "-q", ".object.sha"]);
@@ -708,24 +834,34 @@ function vraagToegangAan(beheer, arg, toegang, sha) {
   } catch {
     // De branch bestaat al van een eerdere poging; dan schrijven we daarop verder.
   }
-  const nieuw = `${JSON.stringify(voegAppToe(toegang, arg.naam, arg.groepen), null, 2)}\n`;
+  const inhoud = omzetten ? naarKlantportaal(toegang, arg.naam, portaal) : voegAppToe(toegang, arg.naam, arg.groepen, portaal);
+  const nieuw = `${JSON.stringify(inhoud, null, 2)}\n`;
   let huidigSha = sha;
   try {
     huidigSha = sh("gh", ["api", `repos/${beheer}/contents/toegang.json?ref=${branch}`, "-q", ".sha"]);
   } catch {
     huidigSha = sha;
   }
+  const bericht = omzetten
+    ? `toegang: ${arg.naam} wordt een klantportaal`
+    : `toegang: ${arg.naam} voor ${arg.groepen.join(", ")}${portaal ? ", als klantportaal" : ""}`;
   sh("gh", [
     "api", `repos/${beheer}/contents/toegang.json`, "-X", "PUT",
-    "-f", `message=toegang: ${arg.naam} voor ${arg.groepen.join(", ")}`,
+    "-f", `message=${bericht}`,
     "-f", `content=${Buffer.from(nieuw).toString("base64")}`,
     "-f", `branch=${branch}`,
     "-f", `sha=${huidigSha}`,
   ]);
+  const portaalTekst = portaal
+    ? `\n\n**Klantportaal.** De app staat open voor klanten: die loggen zelf in per mail, met een code, van \`${portaal.afzender}\`. De groepen zijn dan alleen de medewerkers. Captcha: ${portaal.turnstile_sitekey ? "aan (Turnstile)" : "uit tot het inlogscherm de widget toont"}. Zie "Klantportaal" in beheer/README.md. Wat de owner vóór App inrichten regelt:\n${nogTeDoenKlantportaal({ naam: arg.naam, beheer, portaal }).map((r) => `- ${r}`).join("\n")}`
+    : "";
+  const body = omzetten
+    ? `De app **${arg.naam}** wordt een klantportaal in toegang.json.${portaalTekst}\n\nAangevraagd met /stagetwo-tier2:nieuwe-app. Deze pull request wijzigt alleen toegang.json.`
+    : `De nieuwe app **${arg.naam}** komt in toegang.json, voor de groep(en) ${arg.groepen.map((g) => `\`${g}\``).join(", ")}.${portaalTekst}\n\nAangevraagd met /stagetwo-tier2:nieuwe-app. Deze pull request wijzigt alleen toegang.json; na de merge kan de app worden ingericht.`;
   return sh("gh", [
     "pr", "create", "--repo", beheer, "--base", "main", "--head", branch,
-    "--title", `Toegang: ${arg.naam}`,
-    "--body", `De nieuwe app **${arg.naam}** komt in toegang.json, voor de groep(en) ${arg.groepen.map((g) => `\`${g}\``).join(", ")}.\n\nAangevraagd met /stagetwo-tier2:nieuwe-app. Deze pull request wijzigt alleen toegang.json; na de merge kan de app worden ingericht.`,
+    "--title", omzetten ? `Klantportaal: ${arg.naam}` : `Toegang: ${arg.naam}`,
+    "--body", body,
   ]);
 }
 
@@ -759,6 +895,7 @@ export function richtIn(arg, { cwd = process.cwd(), wachtMs = 5000, maxWachtMinu
     return { status: "mislukt", reden: `toegang.json van ${beheer} is niet te lezen: ${foutTekst(f)}` };
   }
   const { staatErin, groepen } = controleerToegang(toegang, arg.naam);
+  const portaal = arg.klantportaal ? klantportaalVelden(arg) : null;
   if (!staatErin) {
     if (!arg.groepen?.length) {
       return {
@@ -772,12 +909,29 @@ export function richtIn(arg, { cwd = process.cwd(), wachtMs = 5000, maxWachtMinu
     const onbekend = arg.groepen.filter((g) => !groepen.includes(g));
     if (onbekend.length) return { status: "mislukt", reden: `onbekende groep(en) ${onbekend.join(", ")}; kies uit ${groepen.join(", ")}` };
     try {
-      const pr = vraagToegangAan(beheer, arg, toegang, sha);
+      const pr = vraagToegangAan(beheer, arg, toegang, sha, { portaal });
       return {
         status: "wacht-op-toegang",
         repo,
         pr,
         reden: `de app moet eerst in toegang.json; deze pull request wijzigt alleen toegang.json, dus wie in team toegangsbeheer van de organisatie zit (of de owner) merget hem zelf; daarna draai je --inrichten opnieuw`,
+        ...(portaal ? { klantportaal: true, nogTeDoen: nogTeDoenKlantportaal({ naam: arg.naam, beheer, portaal }) } : {}),
+      };
+    } catch (f) {
+      return { status: "mislukt", reden: `de pull request op ${beheer} openen mislukte: ${foutTekst(f)} (heb je Write op ${beheer}?)` };
+    }
+  }
+  // Staat de app er al in als gewone app, dan zet een eigen pull request hem om naar klantportaal.
+  if (portaal && !isKlantportaalIn(toegang, arg.naam)) {
+    try {
+      const pr = vraagToegangAan(beheer, arg, toegang, sha, { portaal, omzetten: true });
+      return {
+        status: "wacht-op-toegang",
+        repo,
+        pr,
+        klantportaal: true,
+        reden: `${arg.naam} staat al in toegang.json als gewone app (achter de deur); deze pull request maakt er een klantportaal van en wijzigt alleen toegang.json. Wie in team toegangsbeheer zit (of de owner) merget hem; daarna regelt de owner de punten hieronder en draai je --inrichten opnieuw`,
+        nogTeDoen: nogTeDoenKlantportaal({ naam: arg.naam, beheer, portaal }),
       };
     } catch (f) {
       return { status: "mislukt", reden: `de pull request op ${beheer} openen mislukte: ${foutTekst(f)} (heb je Write op ${beheer}?)` };
@@ -837,9 +991,11 @@ export function richtIn(arg, { cwd = process.cwd(), wachtMs = 5000, maxWachtMinu
 
 // ---------------------------------------------------------------- de run
 
-export function voorcontrole(arg, { cwd = process.cwd() } = {}) {
+export function voorcontrole(arg, { cwd = process.cwd(), levering = LEVERING } = {}) {
   const fout = controleerArgumenten(arg);
   if (fout) return { status: "mislukt", reden: fout };
+  const gekozen = kiesTemplate(arg.template, levering);
+  if (gekozen.fout) return { status: "mislukt", reden: gekozen.fout, kanTier2: true };
   for (const cli of ["git", "pnpm"]) {
     try {
       sh(cli, ["--version"], { shell: cli === "pnpm" && process.platform === "win32" });
@@ -881,6 +1037,15 @@ export function voorcontrole(arg, { cwd = process.cwd() } = {}) {
   if (arg.database === "gedeeld" && !repoBestaat(arg.gedeeldEigenaar)) {
     return { status: "mislukt", reden: `de app ${arg.gedeeldEigenaar} die de database bezit is niet gevonden op GitHub` };
   }
+  // De openbare template staat in de levering, maar is de repo er ook (de levering kan bij de
+  // eerste keer mislukt zijn)? Anders zou "gh repo create --template" pas halverwege stranden.
+  if (arg.template === "openbaar" && !repoBestaat(gekozen.repo)) {
+    return {
+      status: "mislukt",
+      kanTier2: true,
+      reden: `de openbare template staat in de levering, maar ${gekozen.repo} is (nog) niet te vinden of niet te lezen. De owner kijkt of die repo bestaat en de levering erin is gelukt (de workflow Uitleveren zegt wat er mist). Tot dan kan de app op tier 2 zoals altijd`,
+    };
+  }
 
   return {
     status: "klaar",
@@ -893,7 +1058,7 @@ export function voorcontrole(arg, { cwd = process.cwd() } = {}) {
       gebruiker,
       organisatie: org,
       githubPlan: plan(arg.eigenaar),
-      template: TEMPLATE,
+      template: gekozen.repo,
       pluginBron: kiesPluginBron(null),
       bedrijfsnaam: organisatieNaam(arg.eigenaar, arg.organisatie),
       hervatten: besluit.besluit === "hervat",
@@ -904,7 +1069,7 @@ export function voorcontrole(arg, { cwd = process.cwd() } = {}) {
 export function doeHet(arg, { cwd = process.cwd() } = {}) {
   const controle = voorcontrole(arg, { cwd });
   if (controle.status !== "klaar") return controle;
-  const { repo, map, reviewer, gebruiker, hervatten, bedrijfsnaam } = controle.plan;
+  const { repo, map, reviewer, gebruiker, hervatten, bedrijfsnaam, template } = controle.plan;
   const uitkomst = { status: "mislukt", repo, url: controle.plan.url, hervat: hervatten };
   const opnieuw = " Draai hetzelfde commando nog een keer; het gaat verder waar het stopte. Zet niets met de hand.";
 
@@ -916,7 +1081,7 @@ export function doeHet(arg, { cwd = process.cwd() } = {}) {
         repo,
         "--private",
         "--template",
-        TEMPLATE,
+        template,
         ...(arg.omschrijving ? ["--description", arg.omschrijving] : []),
       ]);
     } catch (fout) {
