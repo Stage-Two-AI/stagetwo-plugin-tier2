@@ -120,6 +120,11 @@ onthoud dat voor deel 6.
 Het script doet het werk in een tijdelijke kopie van de repo; jij wijzigt zelf niets in
 deze checkout.
 
+Tier 2 heeft sinds versie 43 twee templates: de gewone en de openbare (de server maakt de
+pagina's; voor vindbare sites, shops en klantportalen). Het script leest in de app uit welke
+template hij komt (`template` in `.claude/stack-manifest.json`) en werkt hem alleen bij vanuit
+die template. Daar hoef jij niets voor te kiezen of mee te geven.
+
 ### 3a: de droogloop
 
 Draai dit commando precies zo, met Bash, vanuit de map van de app (in deel 5 met
@@ -136,7 +141,9 @@ het betekent, in hooguit drie regels; gebruik daarvoor `samenvatting` als die er
 - `geen-template`: deze repo is niet uit de template gebouwd. Zeg dat en ga door naar
   deel 5.
 - `mislukt` of `gestopt`: `reden` is één zin met wat de gebruiker moet doen. Geef die
-  door en ga door naar 3e. Probeer het niet te omzeilen en verzin geen andere weg.
+  door en ga door naar 3e. Probeer het niet te omzeilen en verzin geen andere weg. Zegt de
+  reden dat de openbare template niet in de levering zit, of dat een template niet bij de app
+  past: werk de app dan nooit bij met de andere template; de app werkt gewoon door.
 - `klaar`: de werkkopie staat klaar. Ga door naar 3b.
 
 Het script raakt alleen bestanden van de template, met één uitzondering: een versie die
@@ -397,7 +404,10 @@ node "${CLAUDE_SKILL_DIR}/scripts/overzicht.mjs" --json
 
 `apps` is de lijst met apps uit de template waar de gebruiker naar mag schrijven, met
 per app de `versie`, of hij `achter` loopt op `doel`, en een `openPR` als er al een
-update klaarstaat. Laat de app die open staat (`huidige: true`) weg; die is al gedaan.
+update klaarstaat. Laat de app die open staat (`huidige: true`) weg; die is al gedaan. Een app
+van de openbare template heeft `template` en zijn eigen `doel` in zijn regel (de nieuwste
+versie van die template); staat er een `reden` bij, dan kan hij nu niet bijgewerkt worden:
+noem dat in één zin en werk hem niet bij.
 
 - Loopt er geen andere app achter, zeg dat in één regel en ga naar deel 6.
 - Anders: toon de achterlopers als korte lijst (naam, van welke versie naar `doel`, en
