@@ -544,7 +544,11 @@ export function voerUit({ werkmap, losOp, koppen = {}, updates = null }) {
     formatteer({ kloon, checkout, paden: [...ab.paden.filter((p) => p !== AB_CONFIG), ...(testrol?.gedaan ? [testrol.pad] : [])] });
 
     // De controle op zichzelf, nog een keer: ook na de keuzes mag alleen het manifest geraakt zijn.
-    const magOok = new Set([...toegestaneBestandenVan(manifest), ...resultaat.verwijderd, ...(resultaat.projectbestanden ?? []), ...ab.paden, ...(testrol ? [testrol.pad] : []), ...(smal?.gedaan ? [smal.pad] : []), LOCKFILE]);
+    // Plus wat de droogloop zelf neerzette omdat het ontbrak (alsHetOntbreekt); die paden staan
+    // niet in het manifest als van de template, maar de droogloop liet ze al toe. Zonder deze
+    // regel stopte elke app die zo'n bestand miste hier (sinds versie 40).
+    const ontbrak = resultaat.bijgewerkt.map((b) => b.pad).filter((pad) => manifest.alsHetOntbreekt.includes(pad));
+    const magOok = new Set([...toegestaneBestandenVan(manifest), ...ontbrak, ...resultaat.verwijderd, ...(resultaat.projectbestanden ?? []), ...ab.paden, ...(testrol ? [testrol.pad] : []), ...(smal?.gedaan ? [smal.pad] : []), LOCKFILE]);
     const buiten = gewijzigdePaden(kloon).filter((pad) => !magOok.has(pad));
     if (buiten.length > 0) {
       verwijderWerkmap(werkmap);

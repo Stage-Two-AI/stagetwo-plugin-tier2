@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, statSyn
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
-import { OPENBAAR, alleBestanden, git, insteadOfEnv, maakKlantRepo, maakTemplateRepo, nepGh, nepPnpm_opPad, openbareAppBestanden, opruimen, tijdelijkeMap } from "../../../lib/test-hulp.mjs";
+import { OPENBAAR, alleBestanden, appBestanden as appBestandenVoorTest, git, insteadOfEnv, maakKlantRepo, maakTemplateRepo, nepGh, nepPnpm_opPad, openbareAppBestanden, opruimen, tijdelijkeMap } from "../../../lib/test-hulp.mjs";
 import { NIET_IN_LEVERING } from "../../../lib/levering.mjs";
 import { BEVESTIGING, WERKMAP_PREFIX, biomeVersie, controleerWerkmap, formatteer, hoofd, leesArgumenten, zonderLogin } from "./bijwerken.mjs";
 
@@ -1375,5 +1375,80 @@ test("variant cloudflare-openbaar: --template-ref vergelijkt de branch met de ap
     assert.deepEqual(g.werkmappen(), []);
   } finally {
     g.opruimen();
+  }
+});
+
+/**
+ * Een template op versie 9 met een bestand in `alsHetOntbreekt` (e2e/test-user.ts), en een app
+ * op 8 die het mist. Zo stond het bij de generale repetitie van uitgave 43: de droogloop zette
+ * het bestand neer en liet het toe, maar de tweede aanroep stopte met "er zou iets buiten het
+ * manifest wijzigen" (sinds versie 40). Optioneel heeft de app al het lockfile dat pnpm uit de
+ * nieuwe package.json zou berekenen.
+ */
+function wereldMetOntbrekendBestand({ lockfileAlBij = false } = {}) {
+  const w = wereld({
+    tagV9: false,
+    ...(lockfileAlBij ? { app: { ...appBestandenVoorTest(), "pnpm-lock.yaml": "lockfileVersion: 9\n# herberekend uit package.json\n" } } : {}),
+  });
+  git(w.template, "checkout", "-q", "-b", "versie-9", "HEAD~1");
+  const pad = join(w.template, ".claude/stack-manifest.json");
+  const m = JSON.parse(readFileSync(pad, "utf8"));
+  m.vanDeTemplate.alsHetOntbreekt = ["e2e/test-user.ts"];
+  writeFileSync(pad, `${JSON.stringify(m, null, 2)}\n`);
+  mkdirSync(join(w.template, "e2e"), { recursive: true });
+  writeFileSync(join(w.template, "e2e/test-user.ts"), 'export const TEST_USER = { email: "t@voorbeeld.nl" };\n');
+  git(w.template, "add", "-A");
+  git(w.template, "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-q", "-m", "versie 9 met alsHetOntbreekt");
+  git(w.template, "tag", "stack-v9");
+  return w;
+}
+
+test("alsHetOntbreekt: een app die zo'n bestand mist komt door de droogloop én de tweede aanroep", () => {
+  const w = wereldMetOntbrekendBestand();
+  try {
+    const d = w.draai(["--json", "--droogloop"]);
+    assert.equal(d.status, "klaar", d.reden);
+    assert.ok(d.bijgewerkt.some((b) => b.pad === "e2e/test-user.ts" && /ontbrak/.test(b.hoe)), "de droogloop zet het neer");
+    const r = w.draai(["--json", "--werkmap", d.werkmap]);
+    assert.equal(r.status, "gepusht", `${r.reden} ${JSON.stringify(r.buitenManifest ?? [])}`);
+    assert.equal(
+      git(w.klant.origin, "show", "stack-bijwerken/v9:e2e/test-user.ts"),
+      'export const TEST_USER = { email: "t@voorbeeld.nl" };',
+    );
+    const create = w.nep.aanroepen().find((a) => a[0] === "pr" && a[1] === "create");
+    assert.match(create[create.indexOf("--body") + 1], /`e2e\/test-user\.ts` neer/);
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("alsHetOntbreekt: alleen wat de droogloop neerzette mag erbij; een eigen wijziging aan zo'n bestand stopt", () => {
+  const w = wereldMetOntbrekendBestand();
+  try {
+    const d = w.draai(["--json", "--droogloop"]);
+    assert.equal(d.status, "klaar", d.reden);
+    // Tussen de twee aanroepen verandert iemand een ander bestand van het project.
+    writeFileSync(join(d.werkmap, "app", "README.md"), "# iets anders\n");
+    const r = w.draai(["--json", "--werkmap", d.werkmap]);
+    assert.equal(r.status, "gestopt");
+    assert.deepEqual(r.buitenManifest, ["README.md"]);
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("lockfile: verandert het niet, dan noemen droogloop en pull request het ook niet", () => {
+  const w = wereldMetOntbrekendBestand({ lockfileAlBij: true });
+  try {
+    const d = w.draai(["--json", "--droogloop"]);
+    assert.equal(d.status, "klaar", d.reden);
+    assert.ok(d.bijgewerkt.some((b) => b.pad === "package.json"), "package.json verandert wel");
+    assert.ok(!d.bijgewerkt.some((b) => b.pad === "pnpm-lock.yaml"), "het lockfile bleef gelijk");
+    const r = w.draai(["--json", "--werkmap", d.werkmap]);
+    assert.equal(r.status, "gepusht", r.reden);
+    const create = w.nep.aanroepen().find((a) => a[0] === "pr" && a[1] === "create");
+    assert.ok(!create[create.indexOf("--body") + 1].includes("pnpm-lock.yaml"));
+  } finally {
+    w.opruimen();
   }
 });
