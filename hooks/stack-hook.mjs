@@ -10,8 +10,9 @@
  * deze tier, dan is dit een werkmap. Bij sessiestart volgt dan één regel (welke apps, en
  * alleen als er een achterloopt ook welke; de versie op afstand hooguit één keer per dag,
  * stempel werkmap_<map>.json), en bij PreToolUse beoordeelt de bewaker elk bestand in de
- * map van zijn app. Geen manifest en geen apps eronder: exit 0 zonder uitvoer (R4, AE7). Staat er in dat manifest geen `variant: "cloudflare"`,
- * dan is het een app van het Vercel-spoor en doet deze plugin ook niets. Kapotte invoer is ook een no-op: een hook die
+ * map van zijn app. Geen manifest en geen apps eronder: exit 0 zonder uitvoer (R4, AE7). Staat er in dat manifest geen variant van tier 2
+ * (`"cloudflare"` of, sinds versie 43, `"cloudflare-openbaar"`; lib/manifest.mjs), dan is het een app van
+ * een ander spoor en doet deze plugin ook niets. Kapotte invoer is ook een no-op: een hook die
  * crasht mag nooit de sessie in de weg zitten.
  *
  * PreToolUse: beoordeelTool weigert templatebestanden en riskante Bash-opdrachten; een

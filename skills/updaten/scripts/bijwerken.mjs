@@ -52,7 +52,7 @@ import { zetVerplichteControle } from "../../../lib/controles.mjs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { isCloudflareManifest, leesManifest, toegestaan as toegestaneBestandenVan, VARIANT } from "../../../lib/manifest.mjs";
+import { isCloudflareManifest, leesManifest, toegestaan as toegestaneBestandenVan } from "../../../lib/manifest.mjs";
 import { BEVESTIGING, branchNaam, prTekst, prTitel, sluitTekst } from "../../../lib/pr-tekst.mjs";
 import { haalUpdates, uitgavenTussen } from "../../../lib/updates.mjs";
 import {
@@ -87,7 +87,7 @@ import {
 } from "../../../lib/repo.mjs";
 import { controleerOpenTabellen, controleerSmal, controleerTestrol, zetKoppen } from "../../../lib/projectbestanden.mjs";
 import { LOCKFILE, MANIFEST_PAD, leesVersie, pasToe } from "../../../lib/toepassen.mjs";
-import { LEVERING, TEMPLATE_GEWOON, TEMPLATE_OPENBAAR, manifestTemplate, openbaarNietBereikbaar, templateBron, templateOmschrijving, templateVan } from "../../../lib/levering.mjs";
+import { LEVERING, TEMPLATE_GEWOON, TEMPLATE_OPENBAAR, manifestTemplate, openbaarNietBereikbaar, templateBron, templateOmschrijving, templateVan, variantVan } from "../../../lib/levering.mjs";
 
 export const WERKMAP_PREFIX = "stack-bijwerken-";
 const WERKMAP_MAX_LEEFTIJD_MS = 60 * 60 * 1000;
@@ -261,9 +261,10 @@ function kloonTemplateOpBranch({ repo, ref, doel, appTemplate = TEMPLATE_GEWOON 
   const versie = leesVersie(doel);
   if (versie === null) return { fout: `de branch ${ref} van de template heeft geen leesbaar .claude/stack-version` };
   // Een branch van de andere tier (of een kapot manifest) zou bestanden van een ander spoor in deze app zetten.
-  const variant = leesManifestRuw(doel)?.variant;
-  if (variant !== VARIANT) {
-    return { fout: `de branch ${ref} van ${repo} heeft variant ${JSON.stringify(variant ?? null)} in .claude/stack-manifest.json en past dus niet bij deze app (variant ${JSON.stringify(VARIANT)}, tier 2); deze plugin probeert alleen een uitgave van de template voor tier 2 uit. Kies een branch van de template voor tier 2` };
+  // Beide varianten van tier 2 komen hier door; welke van de twee bij de app past, toetst andereTemplate.
+  const daar = leesManifestRuw(doel);
+  if (!isCloudflareManifest(daar)) {
+    return { fout: `de branch ${ref} van ${repo} heeft variant ${JSON.stringify(daar?.variant ?? null)} in .claude/stack-manifest.json en past dus niet bij deze app (variant ${JSON.stringify(variantVan(appTemplate))}, tier 2); deze plugin probeert alleen een uitgave van de template voor tier 2 uit. Kies een branch van de template voor tier 2` };
   }
   // Ook de goede template van tier 2: een branch van de openbare template hoort niet in een gewone app, en andersom.
   const anders = andereTemplate({ tmplMap: doel, tmplRepo: `de branch ${ref} van ${repo}`, appTemplate });
@@ -443,8 +444,9 @@ export function droogloop({ checkout, opAfstand = null, env = process.env, templ
 export function andereTemplate({ tmplMap, tmplRepo, appTemplate }) {
   const ruw = leesManifestRuw(tmplMap);
   const daar = templateVan(ruw);
-  if (ruw?.variant === VARIANT && daar !== null && daar === appTemplate) return null;
-  const wat = ruw?.variant === VARIANT ? templateOmschrijving(daar) : `variant ${JSON.stringify(ruw?.variant ?? null)}`;
+  const vanTier2 = isCloudflareManifest(ruw);
+  if (vanTier2 && daar !== null && daar === appTemplate) return null;
+  const wat = vanTier2 ? templateOmschrijving(daar) : `variant ${JSON.stringify(ruw?.variant ?? null)}`;
   return `${tmplRepo} is ${wat}, maar deze app komt uit ${templateOmschrijving(appTemplate)}; bijwerken met de verkeerde template zet er bestanden in die niet bij deze app horen, dus er gebeurt niets. Werk de app bij vanuit zijn eigen template`;
 }
 

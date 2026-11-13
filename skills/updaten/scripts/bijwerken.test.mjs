@@ -1254,3 +1254,126 @@ test("twee templates: de openbare template staat in de levering maar is niet ber
     w.opruimen();
   }
 });
+
+// ---------------------------------------------------------------- variant cloudflare-openbaar (versie 43)
+
+/** Het manifest van de openbare template na deze uitgave: een eigen variant, zodat plugin 42 stopt. */
+const NIEUWE_VARIANT = { variant: "cloudflare-openbaar", manifestFormaat: 2, template: "app-template-tier2-openbaar" };
+const nieuweApp = () => metManifest(openbareAppBestanden(), (m) => Object.assign(m, NIEUWE_VARIANT));
+
+test("variant cloudflare-openbaar: de app gaat met zijn eigen template, gewoon en met --repo, en houdt zijn variant", () => {
+  const w = wereld({ app: nieuweApp() });
+  const nieuw = maakTemplateRepo(w.wortel, { extraManifest: NIEUWE_VARIANT, naam: "template-openbaar-nieuw" });
+  const leeg = tijdelijkeMap("lege-map-");
+  try {
+    const d = w.draai(["--json", "--droogloop"], { STACK_TEMPLATE_REPO: nieuw });
+    assert.equal(d.status, "klaar", d.reden);
+    const r = w.draai(["--json", "--werkmap", d.werkmap], { STACK_TEMPLATE_REPO: nieuw });
+    assert.equal(r.status, "gepusht", r.reden);
+    const manifest = JSON.parse(git(w.klant.origin, "show", "stack-bijwerken/v9:.claude/stack-manifest.json"));
+    assert.equal(manifest.variant, "cloudflare-openbaar");
+    assert.equal(manifest.template, "app-template-tier2-openbaar");
+
+    git(w.klant.origin, "branch", "-D", "stack-bijwerken/v9");
+    const a = w.draai(["--json", "--droogloop", "--repo", "klant/app", "--checkout", leeg], { STACK_TEMPLATE_REPO: nieuw });
+    assert.equal(a.status, "klaar", a.reden);
+    w.draai(["--werkmap", a.werkmap]);
+
+    // Met de gewone template: geweigerd, gewoon en met --repo, zonder werkmap.
+    const fout = w.draai(["--json", "--droogloop"]);
+    assert.equal(fout.status, "mislukt");
+    assert.match(fout.reden, /is de gewone template van tier 2 \(app-template-tier2\), maar deze app komt uit de openbare template/);
+    const foutOpAfstand = w.draai(["--json", "--droogloop", "--repo", "klant/app", "--checkout", leeg]);
+    assert.equal(foutOpAfstand.status, "mislukt");
+    assert.match(foutOpAfstand.reden, /maar deze app komt uit de openbare template/);
+    assert.deepEqual(w.werkmappen(), []);
+  } finally {
+    opruimen(leeg);
+    w.opruimen();
+  }
+});
+
+test("variant cloudflare-openbaar: de tussenstand (variant cloudflare met template openbaar) en de nieuwe variant werken met elkaar", () => {
+  // Een app op de tussenstand, bijgewerkt met een template die al de nieuwe variant heeft: krijgt de nieuwe variant.
+  const w = wereld({ app: openbareAppBestanden() });
+  const nieuw = maakTemplateRepo(w.wortel, { extraManifest: NIEUWE_VARIANT, naam: "template-openbaar-nieuw" });
+  try {
+    const d = w.draai(["--json", "--droogloop"], { STACK_TEMPLATE_REPO: nieuw });
+    assert.equal(d.status, "klaar", d.reden);
+    // In deze test heeft de template ook op versie 8 al de nieuwe variant, dus het manifest van de
+    // app wijkt af van stack-v8 en telt als lokaal aangepast; de bouwer kiest dan de template.
+    assert.ok(d.overgeslagen.some((o) => o.pad === ".claude/stack-manifest.json"), JSON.stringify(d.overgeslagen));
+    const r = w.draai(["--json", "--werkmap", d.werkmap, "--los-op", ".claude/stack-manifest.json", "template"], { STACK_TEMPLATE_REPO: nieuw });
+    assert.equal(r.status, "gepusht", r.reden);
+    assert.equal(JSON.parse(git(w.klant.origin, "show", "stack-bijwerken/v9:.claude/stack-manifest.json")).variant, "cloudflare-openbaar");
+  } finally {
+    w.opruimen();
+  }
+  // Een app met de nieuwe variant en een template die nog op de tussenstand staat (w.openbaar).
+  const t = wereld({ app: nieuweApp() });
+  try {
+    const d = t.draai(["--json", "--droogloop"], { STACK_TEMPLATE_REPO: t.openbaar });
+    assert.equal(d.status, "klaar", d.reden);
+    t.draai(["--werkmap", d.werkmap]);
+  } finally {
+    t.opruimen();
+  }
+});
+
+test("variant cloudflare-openbaar: variant en template die elkaar tegenspreken stoppen vóór het klonen, ook met --repo", () => {
+  const w = wereld({ app: metManifest(openbareAppBestanden(), (m) => Object.assign(m, NIEUWE_VARIANT, { template: "app-template-tier2" })) });
+  const leeg = tijdelijkeMap("lege-map-");
+  try {
+    for (const repo of [w.template, w.openbaar]) {
+      const r = w.draai(["--json", "--droogloop"], { STACK_TEMPLATE_REPO: repo });
+      assert.equal(r.status, "mislukt");
+      assert.match(r.reden, /"variant": "cloudflare-openbaar" maar "template": "app-template-tier2", en die twee spreken elkaar tegen/);
+      const a = w.draai(["--json", "--droogloop", "--repo", "klant/app", "--checkout", leeg], { STACK_TEMPLATE_REPO: repo });
+      assert.equal(a.status, "mislukt");
+      assert.match(a.reden, /spreken elkaar tegen/);
+    }
+    assert.deepEqual(w.werkmappen(), []);
+    assert.equal(git(w.klant.origin, "branch", "--list", "stack-bijwerken/*"), "");
+  } finally {
+    opruimen(leeg);
+    w.opruimen();
+  }
+});
+
+test("variant cloudflare-openbaar: --template-ref vergelijkt de branch met de app", () => {
+  const w = wereld({ tagV9: false, app: nieuweApp() });
+  const nieuw = maakTemplateRepo(w.wortel, { tagV9: false, extraManifest: NIEUWE_VARIANT, naam: "template-openbaar-nieuw" });
+  try {
+    git(nieuw, "branch", "uitgave/9", "HEAD~1");
+    git(w.template, "branch", "uitgave/9", "HEAD~1");
+    git(w.openbaar, "branch", "uitgave/9", "HEAD~1");
+    // Een branch met de nieuwe variant past bij een app met de nieuwe variant.
+    const goed = w.draai(["--droogloop", "--template-ref", "uitgave/9"], { STACK_TEMPLATE_REPO: nieuw });
+    assert.equal(goed.status, "klaar", goed.reden);
+    w.draai(["--werkmap", goed.werkmap]);
+    // Ook een branch op de tussenstand (variant cloudflare met template openbaar).
+    git(w.klant.origin, "branch", "-D", "stack-proef/v9");
+    const tussen = w.draai(["--droogloop", "--template-ref", "uitgave/9"], { STACK_TEMPLATE_REPO: w.openbaar });
+    assert.equal(tussen.status, "klaar", tussen.reden);
+    w.draai(["--werkmap", tussen.werkmap]);
+    // Een branch van de gewone template niet.
+    const fout = w.draai(["--droogloop", "--template-ref", "uitgave/9"]);
+    assert.equal(fout.status, "mislukt");
+    assert.match(fout.reden, /de branch uitgave\/9 van .* is de gewone template/);
+    assert.deepEqual(w.werkmappen(), []);
+  } finally {
+    w.opruimen();
+  }
+  // Andersom: een gewone app en een branch met de nieuwe variant.
+  const g = wereld({ tagV9: false });
+  const nieuw2 = maakTemplateRepo(g.wortel, { tagV9: false, extraManifest: NIEUWE_VARIANT, naam: "template-openbaar-nieuw" });
+  try {
+    git(nieuw2, "branch", "uitgave/9", "HEAD~1");
+    const r = g.draai(["--droogloop", "--template-ref", "uitgave/9"], { STACK_TEMPLATE_REPO: nieuw2 });
+    assert.equal(r.status, "mislukt");
+    assert.match(r.reden, /is de openbare template van tier 2 .*, maar deze app komt uit de gewone template/);
+    assert.deepEqual(g.werkmappen(), []);
+  } finally {
+    g.opruimen();
+  }
+});

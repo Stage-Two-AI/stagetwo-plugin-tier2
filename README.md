@@ -364,6 +364,19 @@ manifest van de template zelf nog een keer, ook bij `--repo`, `--template-ref` e
 `templateOpenbaar` in `levering.json`), dan geeft de plugin een melding en valt nooit terug op
 de gewone template.
 
+De openbare template heeft ook een eigen variant: `"variant": "cloudflare-openbaar"` (de gewone
+blijft `"cloudflare"`). De reden: een oudere plugin (versie 42 en eerder, bij klanten die niet
+automatisch bijwerken) kent het veld `template` niet en kijkt alleen naar `variant`. Met
+`cloudflare` in een openbare app zou zo'n plugin hem bijwerken met de gewone template, en dan
+komen er bestanden in die niet bij de app horen. Met een eigen variant ziet de oudere plugin een
+app van een ander spoor: updaten stopt zonder iets te veranderen en de hook zegt niets. Deze
+plugin behandelt beide varianten als tier 2 en controleert dat variant en template bij elkaar
+horen; een manifest waarin ze elkaar tegenspreken is een fout met uitleg. Tijdens uitgave 43
+werkt ook nog de tussenstand `"variant": "cloudflare"` met `"template": "app-template-tier2-openbaar"`
+(zo stond de openbare template eerst); die tak in `manifestTemplate` is als tijdelijk gemarkeerd.
+`test/v42-stopt.test.mjs` bewijst met de echte code van v42 (de tag `v42.0.0`) dat die plugin op
+een app met de nieuwe variant stopt.
+
 Tot 15-10-2026 heette deze plugin `stack-cloudflare` (repo `stack-plugin-cloudflare`,
 marketplace `stagetwo-cloudflare`). Die repo blijft bevroren staan zodat computers die nog
 niet zijn omgezet blijven werken; `installatie` en `updaten` halen de oude plugin weg.
@@ -373,7 +386,8 @@ Wat deze plugin anders doet dan die van tier 1:
 - de templates zijn `Stage-Two-AI/app-template-tier2` en `Stage-Two-AI/app-template-tier2-openbaar`
   (melding, updaten, nieuwe-app met `--template openbaar`);
 - de hook, `updaten` en het overzicht doen alleen iets bij een app met
-  `"variant": "cloudflare"` in `.claude/stack-manifest.json` (interne naam, blijft zo);
+  `"variant": "cloudflare"` of `"variant": "cloudflare-openbaar"` in `.claude/stack-manifest.json`
+  (interne namen, blijven zo);
 - `nieuwe-app` haalt de paden uit `nietMeenemen` weg, zet de Worker-naam in
   `wrangler.jsonc` op de appnaam, geeft elke app een eigen database, en `--inrichten`
   controleert eerst `toegang.json` van `<org>/stagetwo-beheer-tier2` (oude namen

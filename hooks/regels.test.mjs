@@ -1100,3 +1100,47 @@ test("hook: een openbare app waarvan de template in de levering staat maar niet 
   const g = draaiHook(start(gewoon), { projectmap: gewoon, data: mkdtempSync(join(tmpdir(), "stack-hook-data-")), opAfstand: "geen-toegang" });
   assert.match(g.stdout, /^stack: de plugin kan de nieuwste versie van de Stage Two-template niet opvragen bij Test\/template/);
 });
+
+// ---------------------------------------------------------------- uitgave 43: variant cloudflare-openbaar
+
+/** Het manifest van de openbare template na deze uitgave: een eigen variant, zodat plugin 42 stopt. */
+const MANIFEST_NIEUWE_VARIANT = { ...MANIFEST_OPENBAAR, manifestFormaat: 2, variant: "cloudflare-openbaar" };
+
+test("hook: een app met variant cloudflare-openbaar wordt bewaakt en meldt de versie van zijn eigen template", () => {
+  const map = maakProject({ versie: "42" });
+  writeFileSync(join(map, ".claude", "stack-manifest.json"), JSON.stringify(MANIFEST_NIEUWE_VARIANT));
+  const levering = { STAGETWO_LEVERING_TEST: JSON.stringify({ templateOpenbaar: "Klant/app-template-tier2-openbaar" }) };
+  const uit = draaiHook(start(map), { projectmap: map, data: mkdtempSync(join(tmpdir(), "stack-hook-data-")), opAfstand: 43, env: levering });
+  assert.equal(uit.status, 0, uit.stderr);
+  assert.match(uit.stdout, /versie 42,\n?.*versie 43/s);
+  const zonder = draaiHook(start(map), { projectmap: map, data: mkdtempSync(join(tmpdir(), "stack-hook-data-")), opAfstand: 99, env: { STAGETWO_LEVERING_TEST: JSON.stringify({ templateOpenbaar: null }) } });
+  assert.match(zonder.stdout, /niet in de levering/);
+  assert.doesNotMatch(zonder.stdout, /99/);
+  const deny = JSON.parse(draaiHook(pre(map, "Edit", { file_path: join(map, "workers/app.ts") }), { projectmap: map }).stdout).hookSpecificOutput;
+  assert.equal(deny.permissionDecision, "deny");
+  assert.match(deny.permissionDecisionReason, /Bestand: workers\/app\.ts/);
+  assert.equal(draaiHook(pre(map, "Edit", { file_path: join(map, "src/routes/product.tsx") }), { projectmap: map }).stdout, "", "de eigen code blijft vrij");
+});
+
+test("hook: variant cloudflare-openbaar met de gewone template is een tegenspraak: één melding per dag, geen versievergelijking", () => {
+  const map = maakProject({ versie: "42" });
+  writeFileSync(join(map, ".claude", "stack-manifest.json"), JSON.stringify({ ...MANIFEST_NIEUWE_VARIANT, template: "app-template-tier2" }));
+  const data = mkdtempSync(join(tmpdir(), "stack-hook-data-"));
+  const uit = draaiHook(start(map), { projectmap: map, data, opAfstand: 99 });
+  assert.equal(uit.status, 0, uit.stderr);
+  assert.match(uit.stdout, /spreken elkaar tegen/);
+  assert.doesNotMatch(uit.stdout, /99/);
+  assert.equal(draaiHook(start(map), { projectmap: map, data, opAfstand: 99 }).stdout, "", "hooguit één keer per dag");
+});
+
+test("hook: een werkmap met een app met variant cloudflare-openbaar telt die app mee en bewaakt hem", () => {
+  const werkmap = maakWerkmap();
+  mkdirSync(join(werkmap, "shop", ".claude"), { recursive: true });
+  writeFileSync(join(werkmap, "shop", ".claude", "stack-manifest.json"), JSON.stringify(MANIFEST_NIEUWE_VARIANT));
+  writeFileSync(join(werkmap, "shop", ".claude", "stack-version"), "38\n");
+  const uit = draaiHook(start(werkmap), { projectmap: werkmap, data: mkdtempSync(join(tmpdir(), "stack-hook-data-")), opAfstand: 39 });
+  assert.equal(uit.status, 0, uit.stderr);
+  assert.match(uit.stdout, /je staat boven de apps: crm, intern en shop;/);
+  const deny = draaiHook(pre(werkmap, "Edit", { file_path: join(werkmap, "shop", "workers/app.ts") }), { projectmap: werkmap });
+  assert.equal(JSON.parse(deny.stdout).hookSpecificOutput.permissionDecision, "deny");
+});

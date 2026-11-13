@@ -99,6 +99,36 @@ test("overzicht: alleen Cloudflare-template-apps met schrijfrecht (geen Vercel-a
   }
 });
 
+test("overzicht: een app met variant cloudflare-openbaar telt mee bij zijn eigen template; tegenspraak geeft een reden", () => {
+  const NIEUW = { ...CLOUDFLARE_MANIFEST, variant: "cloudflare-openbaar", manifestFormaat: 2, template: "app-template-tier2-openbaar" };
+  const gh = {
+    "repo list": {
+      stdout: [
+        { nameWithOwner: "klant/shop", viewerPermission: "WRITE" },
+        { nameWithOwner: "klant/raar", viewerPermission: "WRITE" },
+      ],
+    },
+    "api repos/klant/shop/contents/.claude/stack-version": raw(8),
+    "api repos/klant/raar/contents/.claude/stack-version": raw(8),
+    "api repos/klant/shop/contents/.claude/stack-manifest.json": { stdout: NIEUW },
+    "api repos/klant/raar/contents/.claude/stack-manifest.json": { stdout: { ...NIEUW, template: "app-template-tier2" } },
+    "pr list": { stdout: [] },
+  };
+  const w = overzichtWereld(gh, {
+    levering: ({ wortel, template }) => ({ plugin: "klant/p", template, templateOpenbaar: maakTemplateRepo(wortel, { extraManifest: NIEUW, naam: "openbaar" }) }),
+  });
+  try {
+    const r = w.draai(["--json", "--eigenaar", "klant"]);
+    assert.equal(r.status, "ok", r.reden);
+    assert.deepEqual(r.apps.find((a) => a.repo === "klant/shop"), { repo: "klant/shop", versie: 8, achter: true, openPR: null, huidige: false, template: "app-template-tier2-openbaar", doel: 9 });
+    const raar = r.apps.find((a) => a.repo === "klant/raar");
+    assert.equal(raar.achter, false);
+    assert.match(raar.reden, /spreken elkaar tegen/);
+  } finally {
+    w.opruimen();
+  }
+});
+
 test("overzicht: een app van de openbare template meet zich aan die template; zonder die template in de levering niet achter, met een reden", () => {
   const OPENBAAR_MANIFEST = { ...CLOUDFLARE_MANIFEST, template: "app-template-tier2-openbaar" };
   const gh = {
