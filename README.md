@@ -685,24 +685,33 @@ Sinds versie 43. Een abonnee krijgt de openbare template alleen met `"openbaar":
 "harde eis", draait de code van `v42.0.0` ernaast). Met het veld:
 
 ```json
-{ "org": "Winco-Holland-B-V", "klant": "Winco", "openbaar": true }
+{ "org": "Klant-BV", "klant": "Voorbeeld B.V.", "openbaar": true }
 ```
 
 krijgt `levering.json` van die klant een derde veld:
 
 ```json
 {
-  "plugin": "Winco-Holland-B-V/stagetwo-plugin-tier2",
-  "template": "Winco-Holland-B-V/app-template-tier2",
-  "templateOpenbaar": "Winco-Holland-B-V/app-template-tier2-openbaar"
+  "plugin": "Klant-BV/stagetwo-plugin-tier2",
+  "template": "Klant-BV/app-template-tier2",
+  "templateOpenbaar": "Klant-BV/app-template-tier2-openbaar"
 }
 ```
 
 en levert Uitleveren in een eigen stap elke tag `stack-v<n>` van
-`Stage-Two-AI/app-template-tier2-openbaar` tot en met `toegepast_template` (die template begint
-bij `stack-v43`) naar `<klantorg>/app-template-tier2-openbaar`, op dezelfde manier als de gewone
-template: één commit per versie, getagd, nooit geforceerd, met de bron van de plugin in de eigen
-org. Die stap heeft eigen tokens met `continue-on-error`. Bestaat de repo bij de klant nog
+`Stage-Two-AI/app-template-tier2-openbaar` tot en met `toegepast_template` naar
+`<klantorg>/app-template-tier2-openbaar`, op dezelfde manier als de gewone template: één commit
+per versie, getagd, nooit geforceerd, met de bron van de plugin in de eigen org. Alleen tags
+waarvan het manifest op die tag de openbare template noemt, gaan mee: die template is als kopie
+van de gewone begonnen en draagt diens oude tags (tot en met `stack-v42`) nog mee, en die gaan
+nooit naar een klant (`openbareVersies`).
+
+Gaat `"openbaar": true` aan nadat de pluginversie al bij de klant staat, dan zet Uitleveren
+`levering.json` op zijn main goed met één extra commit van Stage Two (geen nieuwe tag, nooit
+geforceerd); anders zou het veld pas bij de volgende pluginversie komen. Hetzelfde als de
+openbare template weer uitgaat: zet dan `"openbaar": false` (niet het veld weghalen), dan gaat
+`templateOpenbaar` er met één commit weer uit. Een abonnee zonder het veld `openbaar` krijgt
+precies wat hij op 42 kreeg, dus ook geen herstel. Die stap heeft eigen tokens met `continue-on-error`. Bestaat de repo bij de klant nog
 niet, mag de App er niet schrijven, of kan de App de bron in Stage-Two-AI niet lezen, dan is
 alleen die stap rood, met een melding wat er moet gebeuren; plugin en gewone template zijn dan
 al geleverd en de andere abonnees lopen gewoon door.

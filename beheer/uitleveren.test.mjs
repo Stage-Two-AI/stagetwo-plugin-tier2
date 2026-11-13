@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { test } from "node:test";
 import { STAGE_TWO } from "../lib/levering.mjs";
 import { pluginBron } from "../lib/plugin-bron.mjs";
-import { ALLEEN_IN_BRON, controleerToegepast, hoogstePluginVersie, leesAbonnees, leesAbonneesMetKeuzes, leesOptiesOpenbaar, leesToegepastTemplate, leesOpties, leveringVoor, leverUit, meldingBron, meldingKlant, openbaarVoor, pluginVersies, templateVersies, uitleverenAanKlant, uitleverenOpenbaar } from "./uitleveren.mjs";
+import { ALLEEN_IN_BRON, controleerToegepast, herstelLevering, openbaarKeuze, openbareVersies, hoogstePluginVersie, leesAbonnees, leesAbonneesMetKeuzes, leesOptiesOpenbaar, leesToegepastTemplate, leesOpties, leveringVoor, leverUit, meldingBron, meldingKlant, openbaarVoor, pluginVersies, templateVersies, uitleverenAanKlant, uitleverenOpenbaar } from "./uitleveren.mjs";
 
 const git = (map, ...args) => execFileSync("git", ["-C", map, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 
@@ -479,7 +479,9 @@ test("leveringVoor: met openbaar een derde repo; zonder precies de twee van vers
   });
 });
 
-/** Een wereld met plugin (v26.0.0), gewone template en openbare template (stack-v1 en stack-v2). */
+const MANIFEST_OPENBAAR = `${JSON.stringify({ variant: "cloudflare", manifestFormaat: 2, template: "app-template-tier2-openbaar" }, null, 2)}\n`;
+
+/** Een wereld met plugin (v26.0.0), gewone template (stack-v1 en stack-v2) en openbare template (stack-v2). */
 function openbareWereld(map, { klantRepo = true } = {}) {
   const bron = repo(join(map, "bron"), { ".claude-plugin/plugin.json": JSON.stringify({ version: "26.0.0" }), "abonnees.json": "{}" });
   git(bron, "tag", "v26.0.0");
@@ -487,7 +489,7 @@ function openbareWereld(map, { klantRepo = true } = {}) {
   git(tmpl, "tag", "stack-v1");
   commitAlles(tmpl, { "README.md": "gewoon v2\n" }, "stack-v2");
   const settings = `${JSON.stringify({ extraKnownMarketplaces: { "stagetwo-tier2": { source: { source: "github", repo: STAGE_TWO.plugin } } } }, null, 2)}\n`;
-  const openbaar = repo(join(map, "openbaar"), { "README.md": "openbaar v2\n", ".claude/settings.json": settings });
+  const openbaar = repo(join(map, "openbaar"), { "README.md": "openbaar v2\n", ".claude/settings.json": settings, ".claude/stack-manifest.json": MANIFEST_OPENBAAR });
   git(openbaar, "tag", "stack-v2");
   kaal(join(map, "Klant-BV", "stagetwo-plugin-tier2"));
   kaal(join(map, "Klant-BV", "app-template-tier2"));
@@ -531,6 +533,95 @@ test("openbaar: geen repo bij de klant, geen schrijfrecht of geen bron geeft een
     assert.throws(() => uitleverenOpenbaar({ org: "Klant-BV", toegepastTemplate: "stack-v2", geenToegang: "bron", url: w.url }), (f) => f.message === meldingBron("de workflow kreeg geen token voor die repo"));
     // Een toegepaste tag van vóór de openbare template (die begint bij 43, hier bij 2): ook alleen dit onderdeel.
     assert.throws(() => uitleverenOpenbaar({ org: "Klant-BV", toegepastTemplate: "stack-v1", templateOpenbaarUrl: w.openbaar, url: w.url }), /^Error: openbare template: toegepast_template is stack-v1, maar die tag bestaat niet/);
+  });
+});
+
+test("openbaar later aangezet: levering.json op main komt goed met één extra commit, zonder nieuwe tag en zonder forceren", () => {
+  metMap((map) => {
+    const w = openbareWereld(map);
+    const doelPlugin = join(map, "Klant-BV", "stagetwo-plugin-tier2");
+    const basis = { org: "Klant-BV", toegepastVersie: "26.0.0", toegepastTemplate: "stack-v2", pluginMap: w.bron, templateUrl: w.tmpl, url: w.url };
+    uitleverenAanKlant(basis);
+    const mainVoor = git(doelPlugin, "rev-parse", "main");
+    assert.deepEqual(JSON.parse(toon(doelPlugin, "main", "levering.json")), leveringVoor("Klant-BV"));
+
+    // Droog: zegt wat er zou gebeuren, er verandert niets.
+    const droog = uitleverenAanKlant({ ...basis, openbaar: true, herstel: true, droog: true });
+    assert.equal(droog.levering.status, "zou-herstellen");
+    assert.equal(git(doelPlugin, "rev-parse", "main"), mainVoor);
+
+    const r = uitleverenAanKlant({ ...basis, openbaar: true, herstel: true });
+    assert.equal(r.plugin.status, "al-bij", "de pluginversie staat er al");
+    assert.equal(r.levering.status, "hersteld");
+    assert.deepEqual(JSON.parse(toon(doelPlugin, "main", "levering.json")), leveringVoor("Klant-BV", { openbaar: true }));
+    assert.equal(git(doelPlugin, "rev-parse", "main^"), mainVoor, "bovenop de main van de klant, niet geforceerd");
+    assert.equal(git(doelPlugin, "tag", "--list"), "v26.0.0", "geen nieuwe tag");
+    assert.equal(git(doelPlugin, "rev-parse", "v26.0.0^{commit}"), mainVoor, "de tag blijft waar hij stond");
+    assert.equal(git(doelPlugin, "log", "-1", "--format=%an <%ae>|%s", "main"), "Stage Two <info@stagetwo.nl>|Levering: de openbare template erbij");
+    assert.deepEqual(git(doelPlugin, "diff", "--name-only", "main^", "main"), "levering.json", "alleen levering.json");
+
+    // Een tweede run doet niets meer.
+    assert.deepEqual(Object.keys(uitleverenAanKlant({ ...basis, openbaar: true, herstel: true })), ["org", "plugin", "template"]);
+    assert.equal(git(doelPlugin, "rev-list", "--count", "main"), "2");
+
+    // Weer uit ("openbaar": false): het veld gaat er met één commit weer uit.
+    const uit = uitleverenAanKlant({ ...basis, openbaar: false, herstel: true });
+    assert.equal(uit.levering.status, "hersteld");
+    assert.deepEqual(JSON.parse(toon(doelPlugin, "main", "levering.json")), leveringVoor("Klant-BV"));
+    assert.equal(git(doelPlugin, "log", "-1", "--format=%s", "main"), "Levering: zonder de openbare template");
+
+    // Zonder herstel (een abonnee zonder het veld openbaar) gebeurt er niets met levering.json, zoals op 42.
+    const zonder = uitleverenAanKlant({ ...basis, openbaar: true });
+    assert.equal(zonder.levering, undefined);
+    assert.deepEqual(JSON.parse(toon(doelPlugin, "main", "levering.json")), leveringVoor("Klant-BV"));
+  });
+});
+
+test("openbaar later aangezet: een geweigerde push (iemand zette zelf iets op main) geeft een fout, niets geforceerd", () => {
+  metMap((map) => {
+    const w = openbareWereld(map);
+    const doelPlugin = join(map, "Klant-BV", "stagetwo-plugin-tier2");
+    const basis = { org: "Klant-BV", toegepastVersie: "26.0.0", toegepastTemplate: "stack-v2", pluginMap: w.bron, templateUrl: w.tmpl, url: w.url };
+    uitleverenAanKlant(basis);
+    const mainVoor = git(doelPlugin, "rev-parse", "main");
+    writeFileSync(join(doelPlugin, "hooks", "pre-receive"), "#!/bin/sh\necho geweigerd >&2\nexit 1\n");
+    execFileSync("chmod", ["+x", join(doelPlugin, "hooks", "pre-receive")]);
+    assert.throws(() => uitleverenAanKlant({ ...basis, openbaar: true, herstel: true }), /geweigerd|rejected/);
+    assert.equal(git(doelPlugin, "rev-parse", "main"), mainVoor);
+    // Een lege leveringsrepo (nog niets geleverd): niets te herstellen.
+    assert.deepEqual(herstelLevering({ bronMap: w.bron, doelUrl: kaal(join(map, "Leeg-BV", "stagetwo-plugin-tier2")), inhoud: "{}\n" }).status, "geen-main");
+  });
+});
+
+test("openbaarKeuze: true, false (had hem) of null (veld ontbreekt: precies als op 42)", () => {
+  metMap((map) => {
+    writeFileSync(join(map, "abonnees.json"), JSON.stringify({ abonnees: ["Oud-BV", { org: "Aan-BV", openbaar: true }, { org: "Uit-BV", openbaar: false }, { org: "Nooit-BV" }] }));
+    assert.equal(openbaarKeuze("aan-bv", map), true);
+    assert.equal(openbaarKeuze("Uit-BV", map), false);
+    assert.equal(openbaarKeuze("Nooit-BV", map), null);
+    assert.equal(openbaarKeuze("Oud-BV", map), null);
+    assert.equal(openbaarKeuze("Onbekend", map), null);
+  });
+});
+
+test("openbare template: geërfde tags van de gewone template (zonder template in het manifest) gaan nooit naar een klant", () => {
+  metMap((map) => {
+    // Zoals de echte openbare template: begonnen als kopie van de gewone, met diens oude tags.
+    const bron = repo(join(map, "openbaar"), { "README.md": "gewoon v41\n", ".claude/stack-manifest.json": `${JSON.stringify({ variant: "cloudflare" })}\n` });
+    git(bron, "tag", "stack-v41");
+    commitAlles(bron, { "README.md": "gewoon v42\n", ".claude/stack-manifest.json": `${JSON.stringify({ variant: "cloudflare", template: "app-template-tier2" })}\n` }, "stack-v42");
+    commitAlles(bron, { "README.md": "openbaar v43\n", ".claude/stack-manifest.json": MANIFEST_OPENBAAR }, "stack-v43");
+    commitAlles(bron, { "README.md": "openbaar v44\n" }, "stack-v44");
+    assert.deepEqual(openbareVersies(bron, 44).map((v) => v.tag), ["stack-v43", "stack-v44"]);
+    assert.throws(() => openbareVersies(bron, 42), /stack-v42, maar het manifest op die tag noemt niet de openbare template/);
+    const doel = kaal(join(map, "Klant-BV", "app-template-tier2-openbaar"));
+    const droog = uitleverenOpenbaar({ org: "Klant-BV", toegepastTemplate: "stack-v44", templateOpenbaarUrl: bron, url: (r) => join(map, r), droog: true });
+    assert.deepEqual(droog.templateOpenbaar.tags, ["stack-v43", "stack-v44"]);
+    const r = uitleverenOpenbaar({ org: "Klant-BV", toegepastTemplate: "stack-v44", templateOpenbaarUrl: bron, url: (r) => join(map, r) });
+    assert.deepEqual(r.templateOpenbaar.tags, ["stack-v43", "stack-v44"]);
+    assert.equal(git(doel, "tag", "--list"), "stack-v43\nstack-v44");
+    assert.equal(git(doel, "log", "--format=%s", "main"), "Versie 44\nVersie 43", "geen geschiedenis van de gewone template");
+    assert.throws(() => uitleverenOpenbaar({ org: "Klant-BV", toegepastTemplate: "stack-v42", templateOpenbaarUrl: bron, url: (r) => join(map, r) }), /^Error: openbare template: toegepast_template is stack-v42, maar het manifest/);
   });
 });
 
@@ -679,4 +770,211 @@ test("harde eis: een abonnee zonder openbaar krijgt bij Uitleveren exact wat hij
     Object.assign(process.env, oud);
     rmSync(map, { recursive: true, force: true });
   }
+});
+
+/**
+ * Dezelfde harde eis voor de scenario's die de criticus naspeelde, via de bibliotheek én via de
+ * opdrachtregel (zoals de workflow hem draait): een eerste levering met meerdere templateversies,
+ * een droge run, een tweede run, een achterloper die versies overslaat, een oudere versie over
+ * een nieuwere, een geweigerde push, een ontbrekende repo en een niet-bestaande tag.
+ *
+ * Via de opdrachtregel is de bronrepo de code zelf (de workflow levert de checkout waarin het
+ * script staat), dus de plugin die bij de klant komt verschilt tussen 42 en nu. Daar vergelijken
+ * we de git-aanroepen met elke sha vervangen door <sha>, de uitvoer en exitcodes, de template bij
+ * de klant (precies), en van de plugin de refs, levering.json en dat elke geleverde tag precies
+ * de bron op die tag is, zonder ALLEEN_IN_BRON en met levering.json.
+ */
+const ORGS = ["Klant-BV", "Achter-BV", "Botst-BV"];
+
+/** Een kopie van de code (`code`) als bronrepo met tag v42.0.0, zoals de checkout in de workflow. */
+function codeAlsBron(code, doel, git) {
+  cpSync(code, doel, { recursive: true, filter: (pad) => !/[\\/](\.git|node_modules|levering\.json)$/.test(pad) });
+  writeFileSync(join(doel, ".claude-plugin", "plugin.json"), `${JSON.stringify({ name: "stagetwo-tier2", version: "42.0.0" })}\n`);
+  writeFileSync(join(doel, "abonnees.json"), `${JSON.stringify({ abonnees: ORGS.map((org) => ({ org, klant: org })) })}\n`);
+  git(doel, "init", "-q", "-b", "main");
+  git(doel, "add", "-A");
+  git(doel, "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-q", "-m", "code");
+  git(doel, "tag", "v42.0.0");
+  return doel;
+}
+
+/** Het uitgebreide scenario in één wereld: met `moduleUrl` via de bibliotheek, met `code` via de opdrachtregel. */
+async function scenarioUitgebreid(wereldMap, { moduleUrl = null, code = null }, git) {
+  const settings = `${JSON.stringify({ extraKnownMarketplaces: { "stagetwo-tier2": { source: { source: "github", repo: STAGE_TWO.plugin } } } }, null, 2)}\n`;
+  const bron = code
+    ? codeAlsBron(code, join(wereldMap, "bron"), git)
+    : (() => {
+        const b = repo(join(wereldMap, "bron"), { ".claude-plugin/plugin.json": JSON.stringify({ version: "42.0.0" }), "abonnees.json": "{}", "beheer/uitleveren.mjs": "//\n", "lib/x.mjs": "1\n" });
+        git(b, "tag", "v42.0.0");
+        return b;
+      })();
+  const tmpl = repo(join(wereldMap, "tmpl"), { "README.md": "v40\n" });
+  git(tmpl, "tag", "stack-v40");
+  commitAlles(tmpl, { "README.md": "v41\n" }, "stack-v41");
+  commitAlles(tmpl, { "README.md": "v42\n", ".claude/settings.json": settings }, "stack-v42");
+  const doelen = ORGS.flatMap((org) => ["stagetwo-plugin-tier2", "app-template-tier2"].map((r) => kaal(join(wereldMap, org, `${r}.git`))));
+  const doel = (org, r) => join(wereldMap, org, `${r}.git`);
+
+  let lever;
+  if (code) {
+    // Het echte pad: op macOS is de tijdelijke map een symlink, en het script draait alleen als argv[1] klopt.
+    const script = realpathSync(join(bron, "beheer", "uitleveren.mjs"));
+    const env = { ...process.env, GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: `url.${wereldMap}/.insteadOf`, GIT_CONFIG_VALUE_0: "https://github.com/" };
+    lever = (o) => {
+      const args = [script, "--org", o.org, "--toegepast", o.toegepastVersie, "--toegepast-template", o.toegepastTemplate, "--template", tmpl, ...(o.droog ? ["--droog"] : [])];
+      const uit = spawnSync(process.execPath, args, { encoding: "utf8", env, cwd: wereldMap });
+      return { code: uit.status, stdout: uit.stdout, stderr: uit.stderr };
+    };
+  } else {
+    const { uitleverenAanKlant: bib } = await import(moduleUrl);
+    lever = (o) => {
+      try {
+        return bib({ ...o, pluginMap: bron, templateUrl: tmpl, url: (r) => `${join(wereldMap, r)}.git` });
+      } catch (fout) {
+        return { fout: String(fout?.stderr || fout?.message || fout).trim() };
+      }
+    };
+  }
+
+  writeFileSync(git.log, "");
+  const uitkomsten = [];
+  const stap = (org, toegepastVersie, toegepastTemplate, droog = false) => uitkomsten.push(lever({ org, toegepastVersie, toegepastTemplate, droog }));
+  stap("Klant-BV", "42.0.0", "stack-v42", true); // droog, eerste levering met drie templateversies
+  stap("Klant-BV", "42.0.0", "stack-v42"); // eerste levering
+  stap("Klant-BV", "42.0.0", "stack-v42"); // tweede run: niets te doen
+  stap("Achter-BV", "42.0.0", "stack-v40"); // de achterloper krijgt eerst alleen stack-v40
+  stap("Botst-BV", "42.0.0", "stack-v41");
+  writeFileSync(join(doel("Botst-BV", "app-template-tier2"), "hooks", "pre-receive"), "#!/bin/sh\necho geweigerd >&2\nexit 1\n");
+  execFileSync("chmod", ["+x", join(doel("Botst-BV", "app-template-tier2"), "hooks", "pre-receive")]);
+  stap("Klant-BV", "42.0.0", "stack-v99"); // niet-bestaande tag: er gaat niets naar de klant
+  stap("Weg-BV", "42.0.0", "stack-v42"); // de repo's bestaan niet
+  // Een nieuwe versie van plugin en template.
+  writeFileSync(join(bron, ".claude-plugin", "plugin.json"), `${JSON.stringify({ name: "stagetwo-tier2", version: "42.1.0" })}\n`);
+  git(bron, "add", "-A");
+  git(bron, "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-q", "-m", "42.1.0");
+  git(bron, "tag", "v42.1.0");
+  commitAlles(tmpl, { "README.md": "v43\n" }, "stack-v43");
+  stap("Klant-BV", "42.1.0", "stack-v43"); // erbovenop
+  stap("Achter-BV", "42.1.0", "stack-v43", true); // droog: de achterloper slaat versies over
+  stap("Achter-BV", "42.1.0", "stack-v43");
+  stap("Achter-BV", "42.0.0", "stack-v43"); // een oudere versie over een nieuwere: geweigerd
+  stap("Botst-BV", "42.1.0", "stack-v43"); // de push van de template wordt geweigerd
+
+  const aanroepen = readFileSync(git.log, "utf8").split("\x1e").filter(Boolean).map((r) => r.split("\x1f").slice(0, -1));
+  const toonOp = (map, ref, pad) => {
+    try {
+      return git(map, "show", `${ref}:${pad}`);
+    } catch {
+      return null;
+    }
+  };
+  const templates = ORGS.map((org) => git(doel(org, "app-template-tier2"), "for-each-ref", "--format=%(refname) %(objectname)"));
+  const plugins = ORGS.map((org) => {
+    const d = doel(org, "stagetwo-plugin-tier2");
+    const refs = git(d, "for-each-ref", "--format=%(refname)").split("\n").filter(Boolean);
+    const tags = refs.filter((r) => r.startsWith("refs/tags/v")).map((r) => r.slice("refs/tags/".length));
+    // Elke geleverde tag is de bron op die tag, zonder ALLEEN_IN_BRON en met levering.json.
+    const klopt = tags.map((tag) => {
+      const bij = git(d, "ls-tree", "-r", "--name-only", tag).split("\n").sort();
+      const verwacht = [...git(bron, "ls-tree", "-r", "--name-only", tag).split("\n").filter((p) => !ALLEEN_IN_BRON.includes(p)), "levering.json"].sort();
+      return JSON.stringify(bij) === JSON.stringify(verwacht);
+    });
+    return { refs, klopt, levering: toonOp(d, "main", "levering.json"), commits: refs.includes("refs/heads/main") ? git(d, "log", "--format=%an <%ae>|%s", "main") : null };
+  });
+  return { uitkomsten, aanroepen, templates, plugins };
+}
+
+async function vergelijkMet42(cli) {
+  const map = mkdtempSync(join(tmpdir(), "uitleveren-42-"));
+  const oud = { ...process.env };
+  try {
+    const code42 = codeVan42(map);
+    const meeschrijver = meeschrijvendeGit(map);
+    Object.assign(process.env, {
+      PATH: `${meeschrijver.bin}:${process.env.PATH}`,
+      GIT_AUTHOR_DATE: "2026-11-13T12:00:00+01:00",
+      GIT_COMMITTER_DATE: "2026-11-13T12:00:00+01:00",
+    });
+    const metLog = Object.assign((...a) => git(...a), { log: meeschrijver.log });
+    const wereld42 = join(map, "w42");
+    const wereldNu = join(map, "wnu");
+    const op42 = await scenarioUitgebreid(wereld42, cli ? { code: code42 } : { moduleUrl: pathToFileURL(join(code42, "beheer", "uitleveren.mjs")).href }, metLog);
+    const nu = await scenarioUitgebreid(wereldNu, cli ? { code: WORTEL_REPO } : { moduleUrl: pathToFileURL(join(HIER, "uitleveren.mjs")).href }, metLog);
+    const tmp = tmpdir().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const gelijk = (waarde, wereld) =>
+      JSON.parse(
+        JSON.stringify(waarde)
+          .replaceAll(wereld, "<wereld>")
+          .replace(new RegExp(`(?:/private)?${tmp}/?uitleveren-(?:template-)?[A-Za-z0-9]{6}`, "g"), "<tmp>")
+          .replace(cli ? /\b[0-9a-f]{40}\b/g : /$^/g, "<sha>"),
+      );
+    return { op42, nu, gelijk, wereld42, wereldNu };
+  } finally {
+    for (const k of Object.keys(process.env)) if (!(k in oud)) delete process.env[k];
+    Object.assign(process.env, oud);
+    rmSync(map, { recursive: true, force: true });
+  }
+}
+
+for (const cli of [false, true]) {
+  test(`harde eis, alle scenario's (${cli ? "opdrachtregel" : "bibliotheek"}): zonder openbaar precies versie 42`, { skip: !heeftV42 && `de tag ${V42} ontbreekt in deze kloon` }, async () => {
+    const { op42, nu, gelijk, wereld42, wereldNu } = await vergelijkMet42(cli);
+    assert.ok(op42.aanroepen.length > 50, "de meeschrijvende git zag de aanroepen");
+    assert.deepEqual(gelijk(nu.aanroepen, wereldNu), gelijk(op42.aanroepen, wereld42), "dezelfde git-aanroepen, in dezelfde volgorde");
+    assert.deepEqual(gelijk(nu.uitkomsten, wereldNu), gelijk(op42.uitkomsten, wereld42), "dezelfde uitkomsten, meldingen en exitcodes");
+    assert.deepEqual(nu.templates, op42.templates, "dezelfde template bij elke klant, tot op de sha");
+    if (cli) {
+      assert.deepEqual(nu.plugins.map((p) => ({ ...p, klopt: undefined })), op42.plugins.map((p) => ({ ...p, klopt: undefined })), "dezelfde refs, commits en levering.json");
+      for (const p of [...nu.plugins, ...op42.plugins]) assert.ok(p.klopt.every(Boolean), "elke geleverde tag is de bron op die tag");
+    } else {
+      assert.deepEqual(nu.plugins, op42.plugins);
+    }
+    // De scenario's deden wat ze moesten doen (anders bewijst de vergelijking weinig).
+    const u = gelijk(nu.uitkomsten, wereldNu);
+    const fout = (i) => (cli ? (u[i].code === 1 ? u[i].stderr : null) : u[i].fout);
+    const ok = (i) => (cli ? JSON.parse(u[i].stdout) : u[i]);
+    assert.equal(ok(0).template.status, "zou-leveren");
+    assert.deepEqual(ok(1).template.tags, ["stack-v40", "stack-v41", "stack-v42"]);
+    assert.equal(ok(2).plugin.status, "al-bij");
+    assert.match(fout(5), /stack-v99, maar die tag bestaat niet/);
+    assert.ok(fout(6), "ontbrekende repo is een fout");
+    assert.deepEqual(ok(8).template.tags, ["stack-v41", "stack-v42", "stack-v43"], "de achterloper krijgt de overgeslagen versies");
+    assert.match(fout(10), /Een oudere versie gaat nooit over een nieuwere heen/);
+    assert.match(fout(11), /geweigerd|rejected/);
+    assert.deepEqual(JSON.parse(nu.plugins[0].levering), { plugin: "Klant-BV/stagetwo-plugin-tier2", template: "Klant-BV/app-template-tier2" });
+  });
+}
+
+test("opdrachtregel: openbaar aangezet nadat de versie al geleverd is, zet levering.json op main goed; weer uit ook", () => {
+  metMap((map) => {
+    const bron = codeAlsBron(WORTEL_REPO, join(map, "bron"), git);
+    const tmpl = repo(join(map, "tmpl"), { "README.md": "v42\n" });
+    git(tmpl, "tag", "stack-v42");
+    for (const r of ["stagetwo-plugin-tier2", "app-template-tier2"]) kaal(join(map, "Klant-BV", `${r}.git`));
+    const doelPlugin = join(map, "Klant-BV", "stagetwo-plugin-tier2.git");
+    const script = realpathSync(join(bron, "beheer", "uitleveren.mjs"));
+    const env = { ...process.env, GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: `url.${map}/.insteadOf`, GIT_CONFIG_VALUE_0: "https://github.com/" };
+    const draai = (...extra) => spawnSync(process.execPath, [script, "--org", "Klant-BV", "--toegepast", "42.0.0", "--toegepast-template", "stack-v42", "--template", tmpl, ...extra], { encoding: "utf8", env });
+    const abonnees = (keuze) => writeFileSync(join(bron, "abonnees.json"), JSON.stringify({ abonnees: [{ org: "Klant-BV", ...(keuze === undefined ? {} : { openbaar: keuze }) }] }));
+
+    assert.equal(draai().status, 0);
+    assert.deepEqual(JSON.parse(toon(doelPlugin, "main", "levering.json")), leveringVoor("Klant-BV"));
+    abonnees(true);
+    const droog = draai("--droog");
+    assert.equal(JSON.parse(droog.stdout).levering.status, "zou-herstellen");
+    assert.equal(git(doelPlugin, "rev-list", "--count", "main"), "1");
+    const aan = draai();
+    assert.equal(aan.status, 0, aan.stderr);
+    assert.equal(JSON.parse(aan.stdout).levering.status, "hersteld");
+    assert.deepEqual(JSON.parse(toon(doelPlugin, "main", "levering.json")), leveringVoor("Klant-BV", { openbaar: true }));
+    assert.equal(git(doelPlugin, "tag", "--list"), "v42.0.0");
+    assert.equal(JSON.parse(draai().stdout).levering, undefined, "een tweede run doet niets");
+    abonnees(false);
+    assert.equal(JSON.parse(draai().stdout).levering.status, "hersteld");
+    assert.deepEqual(JSON.parse(toon(doelPlugin, "main", "levering.json")), leveringVoor("Klant-BV"));
+    // Veld weg: precies als op 42, dus ook geen herstel (daarom staat "uit" als false in abonnees.json).
+    abonnees(undefined);
+    assert.equal(JSON.parse(draai().stdout).levering, undefined);
+    assert.equal(git(doelPlugin, "rev-list", "--count", "main"), "3");
+  });
 });

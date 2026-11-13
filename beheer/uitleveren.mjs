@@ -48,8 +48,11 @@
  *       die melding.
  *
  * Een abonnee met `"openbaar": true` krijgt in levering.json één veld erbij,
- * `templateOpenbaar`; verder krijgt elke abonnee precies wat hij op versie 42 kreeg (zelfde
- * aanroepen, zelfde bestanden, zelfde levering.json). Een abonnee zonder dat veld merkt niets.
+ * `templateOpenbaar`. Gaat "openbaar" aan (of op false) nadat de pluginversie al geleverd is, dan
+ * zet één extra commit op main levering.json goed (geen nieuwe tag, nooit geforceerd). Een
+ * abonnee zonder het veld "openbaar" krijgt precies wat hij op versie 42 kreeg (zelfde
+ * aanroepen, zelfde bestanden, zelfde levering.json) en merkt niets. Van de openbare template
+ * gaan alleen tags mee waarvan het manifest die template noemt (openbareVersies).
  *
  * --template: waar de template van Stage Two vandaan komt (standaard de openbare https-url).
  * De workflow geeft een eigen checkout mee, zodat het ook werkt als de bronrepo is afgeschermd.
@@ -62,7 +65,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { STAGE_TWO, STAGE_TWO_OPENBAAR } from "../lib/levering.mjs";
+import { STAGE_TWO, STAGE_TWO_OPENBAAR, TEMPLATE_OPENBAAR } from "../lib/levering.mjs";
 import { SETTINGS_PAD, metPluginBron } from "../lib/plugin-bron.mjs";
 
 const WORTEL = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -108,6 +111,18 @@ export function leesAbonneesMetKeuzes(wortel = WORTEL) {
     }
     return { org: orgs[i], openbaar: openbaar === true };
   });
+}
+
+/**
+ * De keuze in abonnees.json voor deze org: true (krijgt de openbare template), false (had hem en
+ * heeft hem niet meer: zet "openbaar" dan op false in plaats van het veld weg te halen), of null
+ * (het veld staat er niet: dan gaat alles precies zoals op versie 42).
+ */
+export function openbaarKeuze(org, wortel = WORTEL) {
+  const data = JSON.parse(readFileSync(join(wortel, "abonnees.json"), "utf8"));
+  leesAbonneesMetKeuzes(wortel);
+  const regel = (data.abonnees ?? []).find((a) => typeof a === "object" && a !== null && String(a.org ?? "").toLowerCase() === String(org ?? "").toLowerCase());
+  return typeof regel?.openbaar === "boolean" ? regel.openbaar : null;
 }
 
 /** Krijgt deze org ook de openbare template? Alleen met `"openbaar": true` in abonnees.json. */
@@ -354,7 +369,33 @@ export function templateVersies(bronMap, totEnMet) {
     .map((n) => ({ ref: `stack-v${n}`, tag: `stack-v${n}`, bericht: `Versie ${n}` }));
 }
 
-export function uitleverenAanKlant({ org, toegepastVersie, toegepastTemplate, pluginMap = WORTEL, templateUrl = `https://github.com/${STAGE_TWO.template}`, droog = false, url = (repo) => `https://github.com/${repo}.git`, openbaar = false }) {
+/**
+ * Zet levering.json op de main van de leveringsrepo goed als die afwijkt van `inhoud`: één commit
+ * van Stage Two bovenop de main van de klant, geen nieuwe tag, nooit geforceerd. Nodig als
+ * "openbaar" aan- of uitgaat nadat de pluginversie al geleverd is: leverUit slaat een versie die
+ * er al staat over, en levering.json zou dan pas bij de volgende versie kloppen.
+ */
+export function herstelLevering({ bronMap, doelUrl, inhoud, droog = false }) {
+  const tip = refsOpAfstand(bronMap, doelUrl).get("refs/heads/main") ?? null;
+  if (!tip) return { status: "geen-main", repo: doelUrl };
+  gitIn(bronMap, ["fetch", "-q", "--no-tags", doelUrl, "+refs/heads/main:refs/uitleveren/main"]);
+  if (bestandOp(bronMap, tip, "levering.json") === inhoud) return { status: "al-bij", repo: doelUrl };
+  const openbaar = Boolean(JSON.parse(inhoud).templateOpenbaar);
+  const bericht = openbaar
+    ? `Levering: de openbare template erbij\n\nlevering.json noemt nu ook ${JSON.parse(inhoud).templateOpenbaar}.`
+    : "Levering: zonder de openbare template\n\nlevering.json noemt de openbare template niet meer.";
+  const commit = maakCommit(bronMap, maakBoom(bronMap, tip, { extra: { "levering.json": inhoud } }), tip, bericht);
+  if (!droog) gitIn(bronMap, ["push", "-q", doelUrl, `${commit}:refs/heads/main`]);
+  return { status: droog ? "zou-herstellen" : "hersteld", repo: doelUrl };
+}
+
+/**
+ * Levert plugin en gewone template aan `org`. `openbaar`: levering.json noemt ook de openbare
+ * template. `herstelLevering` (alleen als de abonnee "openbaar" heeft of had, zie openbaarKeuze):
+ * staat de pluginversie er al, dan wordt levering.json op main zo nodig goedgezet
+ * (herstelLevering). Zonder die vlag gebeurt precies wat er op versie 42 gebeurde.
+ */
+export function uitleverenAanKlant({ org, toegepastVersie, toegepastTemplate, pluginMap = WORTEL, templateUrl = `https://github.com/${STAGE_TWO.template}`, droog = false, url = (repo) => `https://github.com/${repo}.git`, openbaar = false, herstel = false }) {
   if (!ORG_VORM.test(org ?? "")) throw new Error(`geen geldige GitHub-org: ${org}`);
   // Eerst alles controleren wat lokaal kan: de toegepaste pluginversie (tag in de bronrepo) en
   // de vorm van de templatetag. Klopt er iets niet, dan gaat er niets naar de klant.
@@ -389,6 +430,10 @@ export function uitleverenAanKlant({ org, toegepastVersie, toegepastTemplate, pl
       bewerk: templateBewerkingen(org),
       droog,
     });
+    if (herstel && plugin.status === "al-bij") {
+      const levering = herstelLevering({ bronMap: pluginMap, doelUrl: url(doel.plugin), inhoud: leveringJson(org, { openbaar }), droog });
+      if (levering.status !== "al-bij") return { org, plugin, template, levering };
+    }
     return { org, plugin, template };
   } finally {
     rmSync(kloon, { recursive: true, force: true });
@@ -418,6 +463,30 @@ export function meldingBron(detail = null) {
   );
 }
 
+/**
+ * De tags van de openbare template die naar een klant mogen: alleen een stack-v<n> waarvan het
+ * manifest op die tag zelf de openbare template noemt. De openbare template is als kopie van de
+ * gewone begonnen en draagt diens oude tags (stack-v12 tot en met v42) nog mee; die gaan nooit
+ * naar een klant. Noemt de toegepaste tag zelf de openbare template niet, dan een fout.
+ */
+export function openbareVersies(bronMap, totEnMet) {
+  const isOpenbaar = (tag) => {
+    try {
+      return JSON.parse(bestandOp(bronMap, tag, ".claude/stack-manifest.json") ?? "null")?.template === TEMPLATE_OPENBAAR;
+    } catch {
+      return false;
+    }
+  };
+  const versies = templateVersies(bronMap, totEnMet).filter((v) => isOpenbaar(v.tag));
+  if (totEnMet !== undefined && !versies.some((v) => v.tag === `stack-v${totEnMet}`)) {
+    throw new Error(
+      `toegepast_template is stack-v${totEnMet}, maar het manifest op die tag noemt niet de openbare template (${TEMPLATE_OPENBAAR}). ` +
+        "Er gaat niets naar de klant; kijk of de tag op de goede commit staat.",
+    );
+  }
+  return versies;
+}
+
 const eersteGitRegel = (fout) => String(fout?.stderr || fout?.message || fout).trim().split("\n").find((r) => r.trim()) ?? "";
 
 /**
@@ -441,7 +510,7 @@ export function uitleverenOpenbaar({ org, toegepastTemplate, templateOpenbaarUrl
     }
     let versies;
     try {
-      versies = templateVersies(kloon, tot);
+      versies = openbareVersies(kloon, tot);
     } catch (fout) {
       // De openbare template begint bij stack-v43; een oudere toegepaste tag heeft hij niet.
       throw new Error(`openbare template: ${fout.message}`);
@@ -517,8 +586,10 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       process.stdout.write(`plugin ${versie} (tag v${versie}) en template tot en met stack-v${tot} bevestigd: toegepast op de eigen apps van Stage Two\n`);
     } else {
       const opties = leesOpties(argv);
-      // Alleen bij "openbaar": true komt templateOpenbaar in levering.json; zonder is alles als op 42.
-      const uitkomst = uitleverenAanKlant(openbaarVoor(opties.org) ? { ...opties, openbaar: true } : opties);
+      // Alleen een abonnee met "openbaar" (true of false) krijgt templateOpenbaar in levering.json
+      // en het herstel daarvan; zonder dat veld is alles precies als op 42.
+      const keuze = openbaarKeuze(opties.org);
+      const uitkomst = uitleverenAanKlant(keuze === null ? opties : { ...opties, openbaar: keuze, herstel: true });
       process.stdout.write(`${JSON.stringify(uitkomst, null, 2)}\n`);
     }
   } catch (fout) {
