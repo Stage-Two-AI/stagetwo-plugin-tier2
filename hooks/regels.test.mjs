@@ -325,10 +325,10 @@ test("start: binnen 24 uur na de vorige controle: geen melding en geen nieuwe st
 // ---------------------------------------------------------------- stempelNaam
 
 test("stempel: eigenaar en repo uit de origin-URL, https en ssh", () => {
-  assert.equal(stempelNaam({ origin: "https://github.com/Winco-Holland-B-V/plantas.git", projectmap: PROJECT }), "Winco-Holland-B-V_plantas");
-  assert.equal(stempelNaam({ origin: "https://github.com/Richplant/app", projectmap: PROJECT }), "Richplant_app");
-  assert.equal(stempelNaam({ origin: "git@github.com:Richplant/app.git", projectmap: PROJECT }), "Richplant_app");
-  assert.equal(stempelNaam({ origin: "ssh://git@github.com/Richplant/app.git\n", projectmap: PROJECT }), "Richplant_app");
+  assert.equal(stempelNaam({ origin: "https://github.com/Klant-BV/voorraad.git", projectmap: PROJECT }), "Klant-BV_voorraad");
+  assert.equal(stempelNaam({ origin: "https://github.com/Klant/app", projectmap: PROJECT }), "Klant_app");
+  assert.equal(stempelNaam({ origin: "git@github.com:Klant/app.git", projectmap: PROJECT }), "Klant_app");
+  assert.equal(stempelNaam({ origin: "ssh://git@github.com/Klant/app.git\n", projectmap: PROJECT }), "Klant_app");
 });
 
 test("stempel: zonder bruikbare origin een veilige naam uit de projectmap", () => {

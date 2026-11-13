@@ -77,8 +77,12 @@ verbouwing.
 
 Zit de openbare template niet in de levering van deze organisatie, dan zegt de droogloop dat
 (stap 5, `kanTier2`). Zeg het eerlijk en bied tier 2 aan: die app werkt meteen, achter de deur.
-Wil het bedrijf de openbare template, dan zet de owner hem aan bij het abonnement; daarna kan
-het met hetzelfde commando. Verzin geen andere weg.
+Wil het bedrijf de openbare template, dan doet de owner van de organisatie op GitHub drie
+dingen: een lege, openbare repo `app-template-tier2-openbaar` maken in de eigen organisatie, bij
+die repo het vinkje Template repository aanzetten, en de GitHub App `stagetwo-levering` toegang
+geven tot die repo. Daarna laat hij het Stage Two weten, en Stage Two zet de openbare template in
+de levering; dan kan het met hetzelfde commando. Tot die tijd kan de bouwer gewoon verder met
+tier 2. Verzin geen andere weg.
 
 ## Stap 2: het idee scherp
 
@@ -138,7 +142,7 @@ node "${CLAUDE_SKILL_DIR}/scripts/nieuwe-app.mjs" --json --droogloop --naam "<na
 `--template openbaar` alleen als het antwoord in stap 1 "ja" was.
 
 `<bedrijfsnaam>` is de naam van het bedrijf waarvoor de app is, zoals je die uit het gesprek of
-de map kent (bijvoorbeeld "Richplant B.V."); die komt in de `LICENSE` van de app. Weet je hem
+de map kent (bijvoorbeeld "Voorbeeld B.V."); die komt in de `LICENSE` van de app. Weet je hem
 niet, laat `--organisatie` dan weg: het script neemt de naam van de organisatie op GitHub.
 
 Het antwoord is één JSON-object met een `status`.

@@ -213,15 +213,19 @@ daar zijn achteraf duur om te veranderen.
    template, een werktuig achter de deur, zoals altijd. Ja: de openbare template, waarin de
    server elke pagina maakt (zodat Google en WhatsApp hem lezen), met daarna de vraag of
    klanten moeten kunnen inloggen (een klantportaal, met een code per mail). Zit de openbare
-   template niet in de levering van je bedrijf, dan zegt je assistent dat en kan de app op de
-   gewone template; de owner zet de openbare aan bij het abonnement.
+   template niet in de levering van je bedrijf, dan zegt je assistent dat en kan de app gewoon
+   op de gewone template. Wil je bedrijf de openbare, dan maakt de owner in jullie organisatie
+   op GitHub een lege, openbare repo `app-template-tier2-openbaar`, vinkt bij die repo Template
+   repository aan, geeft de GitHub App `stagetwo-levering` toegang tot die repo en laat het
+   Stage Two weten; Stage Two zet de openbare template dan in de levering.
 4. Een naam, de plek (onder het GitHub-account van je bedrijf, in een nieuwe map op je
    computer) en wie erbij mag (een of meer groepen uit de toegangslijst van je bedrijf).
 
 Elke app krijgt eerst een deur (alleen wie op de toegangslijst staat komt erin) en een eigen
 database bij Supabase, want het inloggen loopt daar doorheen. Daar hoef je niets voor te
 kiezen. Een klantportaal gaat later open voor klanten: daarvoor regelt de owner een eigen
-domein en de mail (Resend), en zet je assistent de app met een pull request als klantportaal
+domein, de mail (Resend) en de captcha (Turnstile, de standaard: zonder kan één persoon het
+inlogformulier platleggen), en zet je assistent de app met een pull request als klantportaal
 in de toegangslijst.
 
 Daarna maakt je assistent de app aan uit de nieuwste template, zet de eerste versie op

@@ -70,7 +70,7 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { LEVERING, STAGE_TWO, STAGE_TWO_OPENBAAR, openbaarNietBereikbaar } from "../../../lib/levering.mjs";
+import { LEVERING, STAGE_TWO, STAGE_TWO_OPENBAAR, openbaarAanvragen, openbaarNietBereikbaar } from "../../../lib/levering.mjs";
 import { SETTINGS_PAD, kiesPluginBron, metPluginBron } from "../../../lib/plugin-bron.mjs";
 import { geldigTestadres, zetTestadres } from "../../../lib/testmail.mjs";
 import { ghAanwezig, ghIngelogd, git, sh } from "../../../lib/repo.mjs";
@@ -247,7 +247,7 @@ export function kiesTemplate(keuze = "tier2", levering = LEVERING) {
     fout:
       "de openbare template (voor een app die vindbaar is in Google of die klanten gebruiken) zit niet in de levering van deze organisatie. " +
       "Wat nu kan: de app op tier 2 maken zoals altijd (achter de deur, alleen voor mensen uit de toegangslijst); dan werkt hij meteen, en later omzetten kan. " +
-      "Wil het bedrijf de openbare template, dan zet de owner hem aan bij het abonnement; de levering zet hem dan in <organisatie>/app-template-tier2-openbaar en daarna kan het hier",
+      openbaarAanvragen("Daarna kan het hier met hetzelfde commando; tot die tijd kan de bouwer gewoon verder met tier 2"),
   };
 }
 
