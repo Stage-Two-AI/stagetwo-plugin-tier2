@@ -959,3 +959,91 @@ test("hook: een map zonder manifest en zonder apps eronder blijft stil", () => {
   assert.deepEqual(draaiHook(start(leeg), { projectmap: leeg, data, opAfstand: 39 }), { status: 0, stdout: "", stderr: "" });
   assert.deepEqual(readdirSync(data), []);
 });
+
+// ---------------------------------------------------------------- uitgave 43: de openbare template
+
+// Een verkleinde kopie van het manifest van app-template-tier2-openbaar: de servercode (src/,
+// workers/) is van het project, de scripts die de Worker bouwen zijn van de template.
+const MANIFEST_OPENBAAR = {
+  manifestFormaat: 1,
+  stackVersion: 43,
+  variant: "cloudflare",
+  template: "app-template-tier2-openbaar",
+  vanDeTemplate: {
+    vervangen: [
+      ".claude/settings.json",
+      ".claude/stack-manifest.json",
+      ".claude/stack-version",
+      ".github/workflows/uitrollen.yml",
+      "scripts/bouwen.mjs",
+      "scripts/dev.mjs",
+      "scripts/lib/onderdelen.mjs",
+      "scripts/lib/cloudflare-config.mjs",
+      "docs/routes/verder-werken.md",
+    ],
+    sleutelsSamenvoegen: { "package.json": ["scripts", "devDependencies"] },
+    tussenMarkeringen: { "AGENTS.md": "stack" },
+  },
+  vanHetProject: ["src/**", "workers/**", "react-router.config.ts", "vite.config.ts", "wrangler.jsonc", ".github/CODEOWNERS"],
+};
+
+test("openbare template: de bestanden van de template zijn even goed bewaakt, de servercode van het project niet", () => {
+  const openbaar = (file_path, toolName = "Edit") => beoordeelTool({ projectmap: PROJECT, manifest: MANIFEST_OPENBAAR, toolName, toolInput: { file_path } });
+  for (const p of ["scripts/bouwen.mjs", "scripts/lib/cloudflare-config.mjs", ".github/workflows/uitrollen.yml", ".github/workflows/nieuw.yml", ".claude/stack-manifest.json", ".github/CODEOWNERS"]) {
+    geweigerd(openbaar(p), `Bestand: ${p}`);
+  }
+  for (const p of ["src/lib/server/sessie.ts", "src/routes/product.tsx", "workers/app.ts", "react-router.config.ts", "wrangler.jsonc", "src/entry.server.tsx"]) {
+    assert.deepEqual(openbaar(p), TOE, p);
+  }
+  // Ook via Bash, met hetzelfde manifest.
+  geweigerd(beoordeelTool({ projectmap: PROJECT, manifest: MANIFEST_OPENBAAR, toolName: "Bash", toolInput: { command: "sed -i 's/a/b/' scripts/bouwen.mjs" } }), "Bestand: scripts/bouwen.mjs");
+  assert.deepEqual(beoordeelTool({ projectmap: PROJECT, manifest: MANIFEST_OPENBAAR, toolName: "Bash", toolInput: { command: "echo x > workers/app.ts" } }), TOE);
+});
+
+test("openbare template: ook de dev-server van React Router zelf is geen preview, met dezelfde ontsnapping", () => {
+  geweigerd(bash("pnpm exec react-router dev"), "Geen dev-server");
+  geweigerd(bash("npx react-router dev --port 5173"), "Geen dev-server");
+  assert.deepEqual(bash("STACK_ALLOW_DEV=1 pnpm exec react-router dev"), TOE);
+  assert.deepEqual(bash("pnpm exec react-router typegen"), TOE, "andere opdrachten van react-router mogen");
+  assert.deepEqual(bash("pnpm exec react-router build"), TOE);
+});
+
+test("werkmap: elke app tegen de nieuwste versie van zijn eigen template", () => {
+  const apps = [
+    { naam: "intern", map: "/w/intern", versie: 42, manifest: MANIFEST },
+    { naam: "shop", map: "/w/shop", versie: 43, manifest: MANIFEST_OPENBAAR },
+  ];
+  const regel = meldingWerkmap({ apps, versies: { "app-template-tier2": 43, "app-template-tier2-openbaar": 43 } });
+  assert.match(regel, /Achter op de nieuwste template \(versie 43\): intern \(versie 42\);/);
+  assert.doesNotMatch(regel, /shop \(versie/);
+  const anders = meldingWerkmap({ apps, versies: { "app-template-tier2": 43, "app-template-tier2-openbaar": 44 } });
+  assert.match(anders, /intern \(versie 42, nieuwste 43\) en shop \(versie 43, nieuwste 44\)/);
+  const zonderOpenbaar = meldingWerkmap({ apps, versies: { "app-template-tier2": 41 } });
+  assert.doesNotMatch(zonderOpenbaar, /Achter/, "een openbare app wordt nooit aan de gewone template gemeten");
+});
+
+test("sessiestart: een openbare app zonder die template in de levering krijgt één keer per dag een melding, zonder netwerk", () => {
+  const { melding, nieuweStempel } = beoordeelStart({ versieLokaal: 43, versieOpAfstand: null, bronFout: "niet-in-levering", stempel: null, nu: NU });
+  assert.match(melding, /^stack: deze app komt uit de openbare template/);
+  assert.match(melding, /niet in de levering/);
+  assert.match(melding, /blokkeert niets/);
+  assert.doesNotMatch(melding, /—/);
+  assert.equal(nieuweStempel.versieOpAfstand, null);
+  assert.deepEqual(beoordeelStart({ versieLokaal: 43, versieOpAfstand: null, bronFout: "niet-in-levering", stempel: nieuweStempel, nu: NU }), { melding: null, nieuweStempel: null });
+});
+
+test("hook: een openbare app meldt de versie van zijn eigen template, of dat die niet in de levering zit", () => {
+  const map = maakProject({ versie: "42" });
+  writeFileSync(join(map, ".claude", "stack-manifest.json"), JSON.stringify(MANIFEST_OPENBAAR));
+  const metLevering = draaiHook(start(map), { projectmap: map, data: mkdtempSync(join(tmpdir(), "stack-hook-data-")), opAfstand: 43, env: { STAGETWO_LEVERING_TEST: JSON.stringify({ templateOpenbaar: "Klant/app-template-tier2-openbaar" }) } });
+  assert.match(metLevering.stdout, /versie 42,\n?.*versie 43/s);
+  const zonder = draaiHook(start(map), { projectmap: map, data: mkdtempSync(join(tmpdir(), "stack-hook-data-")), opAfstand: 99, env: { STAGETWO_LEVERING_TEST: JSON.stringify({ templateOpenbaar: null }) } });
+  assert.equal(zonder.status, 0, zonder.stderr);
+  assert.match(zonder.stdout, /niet in de levering/);
+  assert.doesNotMatch(zonder.stdout, /99/, "geen vergelijking met een andere template");
+  // Een gewone app merkt niets van de levering van de openbare template.
+  const gewoon = maakProject({ versie: "42" });
+  const g = draaiHook(start(gewoon), { projectmap: gewoon, data: mkdtempSync(join(tmpdir(), "stack-hook-data-")), opAfstand: 43, env: { STAGETWO_LEVERING_TEST: JSON.stringify({ templateOpenbaar: null }) } });
+  assert.match(g.stdout, /versie 43/);
+  assert.doesNotMatch(g.stdout, /levering/);
+});
