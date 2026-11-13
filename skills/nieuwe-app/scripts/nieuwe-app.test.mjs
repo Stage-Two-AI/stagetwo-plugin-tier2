@@ -38,6 +38,9 @@ import {
   klantportaalVelden,
   naarKlantportaal,
   nogTeDoenKlantportaal,
+  klantportaalAnders,
+  SITEKEY_MAX,
+  ZONDER_CAPTCHA,
   richtIn,
   voorcontrole,
 } from "./nieuwe-app.mjs";
@@ -528,24 +531,65 @@ test("invullen: in de openbare template staat de naam in src/root.tsx; een gewon
   }
 });
 
+const SITEKEY_VB = "0x4AAAAAAAabcdefgh";
+
 test("klantportaal: de velden die beheer verwacht; zonder sleutel uitdrukkelijk zonder captcha", () => {
-  assert.deepEqual(klantportaalVelden({ afzender: "Winco Direct <noreply@wincoapps.com>" }), { klantportaal: true, afzender: "Winco Direct <noreply@wincoapps.com>", captcha: false });
-  assert.deepEqual(klantportaalVelden({ afzender: "noreply@wincoapps.com", turnstileSitekey: "0x4AAAAAAA" }), { klantportaal: true, afzender: "noreply@wincoapps.com", turnstile_sitekey: "0x4AAAAAAA" });
-  for (const goed of ["noreply@wincoapps.com", "Winco Direct <noreply@wincoapps.com>", "Bakker & Zn. (shop) <a@b.nl>"]) assert.ok(geldigeAfzender(goed), goed);
+  assert.deepEqual(klantportaalVelden({ afzender: "Voorbeeld B.V. <noreply@voorbeeld.nl>" }), { klantportaal: true, afzender: "Voorbeeld B.V. <noreply@voorbeeld.nl>", captcha: false });
+  assert.deepEqual(klantportaalVelden({ afzender: "noreply@voorbeeld.nl", turnstileSitekey: SITEKEY_VB }), { klantportaal: true, afzender: "noreply@voorbeeld.nl", turnstile_sitekey: SITEKEY_VB });
+  for (const goed of ["noreply@voorbeeld.nl", "Voorbeeld B.V. <noreply@voorbeeld.nl>", "Bakker & Zn. (shop) <a@b.nl>"]) assert.ok(geldigeAfzender(goed), goed);
   for (const fout of ["", "geen adres", "Naam <geen-adres>", "Naam; rm <a@b.nl>", null]) assert.ok(!geldigeAfzender(fout), String(fout));
 });
 
-test("klantportaal: alleen bij --inrichten, met een afzender, en de sleutel is de openbare", () => {
+test("afzender en sitekey: dezelfde uitkomst als beheer (beheer/lib/toegang.mjs), met de voorbeelden van de criticus", () => {
+  // Uitkomst van leesAfzender in de beheer-repo (uitgave 43) op deze voorbeelden.
+  const beheer = {
+    "Café Jansen <a@b.nl>": true,
+    "(x) <a@b.nl>": false,
+    "-x <a@b.nl>": false,
+    ".x <a@b.nl>": false,
+    "A <a@b.n1>": false,
+    "a@b": false,
+    "A <A@B.NL>": true,
+    "a b <a@b.nl> ": true,
+    "Naam<a@b.nl>": true,
+    "a@b.nl": true,
+    "x@localhost.nl": true,
+    "Jan's & Co. (NL) <a@b.co.uk>": true,
+    "<a@b.nl>": false,
+    "a@-b.nl": false,
+    "Naam {{x}} <a@b.nl>": false,
+  };
+  for (const [afzender, verwacht] of Object.entries(beheer)) assert.equal(geldigeAfzender(afzender), verwacht, JSON.stringify(afzender));
+  const basis = { inrichten: true, naam: "shop", eigenaar: "Org", database: "eigen", klantportaal: true, afzender: "a@b.nl" };
+  // Beheer: SITEKEY /^[A-Za-z0-9_-]{10,100}$/ en hooguit SITEKEY_MAX (30) tekens; langer is de geheime.
+  assert.equal(SITEKEY_MAX, 30);
+  assert.match(controleerArgumenten({ ...basis, turnstileSitekey: "12345678" }), /openbare sleutel van de Turnstile-widget/, "8 tekens: beheer weigert het");
+  assert.match(controleerArgumenten({ ...basis, turnstileSitekey: "123456789" }), /openbare sleutel van de Turnstile-widget/, "9 tekens: beheer weigert het");
+  assert.equal(controleerArgumenten({ ...basis, turnstileSitekey: "0x4AAAAAAAabc" }), null);
+  assert.equal(controleerArgumenten({ ...basis, turnstileSitekey: "x".repeat(30) }), null);
+  assert.match(controleerArgumenten({ ...basis, turnstileSitekey: "0x4AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" }), /lengte van de GEHEIME sleutel/);
+});
+
+test("klantportaal: alleen bij --inrichten, met een afzender, en de captcha is de standaard", () => {
   const basis = { inrichten: true, naam: "shop", eigenaar: "Org", database: "eigen" };
-  assert.equal(controleerArgumenten({ ...basis, klantportaal: true, afzender: "a@b.nl" }), null);
+  assert.equal(controleerArgumenten({ ...basis, klantportaal: true, afzender: "a@b.nl", turnstileSitekey: SITEKEY_VB }), null);
+  const zonder = controleerArgumenten({ ...basis, klantportaal: true, afzender: "a@b.nl" });
+  assert.match(zonder, /vraagt --turnstile-sitekey/, "zonder sleutel geen stille verzwakking");
+  assert.match(zonder, /door één persoon worden platgelegd/);
+  assert.match(zonder, /--zonder-captcha/);
+  assert.equal(controleerArgumenten({ ...basis, klantportaal: true, afzender: "a@b.nl", zonderCaptcha: true }), null, "zonder captcha alleen uitdrukkelijk");
+  assert.match(controleerArgumenten({ ...basis, klantportaal: true, afzender: "a@b.nl", zonderCaptcha: true, turnstileSitekey: SITEKEY_VB }), /gaan niet samen/);
   assert.match(controleerArgumenten({ ...basis, klantportaal: true }), /vraagt --afzender/);
   assert.match(controleerArgumenten({ ...basis, inrichten: false, droogloop: true, klantportaal: true, afzender: "a@b.nl" }), /hoort bij --inrichten/);
   assert.match(controleerArgumenten({ ...basis, klantportaal: true, afzender: "a@b.nl", turnstileSitekey: "x y" }), /openbare sleutel/);
   assert.match(controleerArgumenten({ ...basis, afzender: "a@b.nl" }), /horen bij --klantportaal/);
-  const a = leesArgumenten(["--inrichten", "--klantportaal", "--afzender", "Shop <a@b.nl>", "--turnstile-sitekey", "0x4AAA1234"]);
+  assert.match(controleerArgumenten({ ...basis, zonderCaptcha: true }), /horen bij --klantportaal/);
+  const a = leesArgumenten(["--inrichten", "--klantportaal", "--afzender", "Shop <a@b.nl>", "--turnstile-sitekey", SITEKEY_VB]);
   assert.equal(a.klantportaal, true);
   assert.equal(a.afzender, "Shop <a@b.nl>");
-  assert.equal(a.turnstileSitekey, "0x4AAA1234");
+  assert.equal(a.turnstileSitekey, SITEKEY_VB);
+  assert.equal(a.zonderCaptcha, false);
+  assert.equal(leesArgumenten(["--inrichten", "--klantportaal", "--zonder-captcha"]).zonderCaptcha, true);
 });
 
 test("klantportaal in toegang.json: nieuw in de lange vorm, een bestaande app omgezet, publiek ernaast weigert", () => {
@@ -565,15 +609,37 @@ test("klantportaal in toegang.json: nieuw in de lange vorm, een bestaande app om
   assert.equal(controleerToegang({ apps: { x: { groepen: [] } } }, "x").staatErin, false);
 });
 
-test("klantportaal: wat de owner regelt, in gewone taal en zonder te wachten op Stage Two", () => {
-  const lijst = nogTeDoenKlantportaal({ naam: "shop", beheer: "Org/stagetwo-beheer-tier2", portaal: klantportaalVelden({ afzender: "Shop <noreply@shop.nl>" }) });
+test("klantportaal: de stappen tot het portaal open is, in de volgorde van beheer en zonder te wachten op Stage Two", () => {
+  const lijst = nogTeDoenKlantportaal({ naam: "shop", beheer: "Org/stagetwo-beheer-tier2", portaal: klantportaalVelden({ afzender: "Shop <noreply@shop.nl>", turnstileSitekey: SITEKEY_VB }) });
   const tekst = lijst.join("\n");
-  assert.match(tekst, /Resend het domein shop\.nl/);
-  assert.match(tekst, /SMTP_WACHTWOORD/);
+  assert.match(lijst[0], /^Vooraf: shop staat op versie 43 of later/);
+  assert.match(lijst[0], /RLS/);
   assert.match(tekst, /eigen domein in wrangler\.jsonc/);
-  assert.match(tekst, /Captcha: staat uit/);
-  assert.match(tekst, /RLS/);
+  assert.match(lijst[1], /^1\. Mail en captcha: bij Resend het domein shop\.nl .*SMTP_WACHTWOORD.*Turnstile-widget.*TURNSTILE_GEHEIM.*Org\/stagetwo-beheer-tier2/);
+  assert.match(lijst[2], /^2\. De pull request op toegang\.json/);
+  assert.match(lijst[3], /^3\. App inrichten .*de deur blijft nog staan/);
+  assert.match(lijst[4], /^4\. shop opnieuw uitrollen .*achter de deur testen/);
+  assert.match(lijst[5], /^5\. App inrichten nog een keer.*"Deur weghalen"/);
+  assert.match(lijst[6], /^6\. De knop "Controle van buitenaf"/);
+  assert.match(lijst[7], /README van Org\/stagetwo-beheer-tier2 \(beheer\/README\.md, hoofdstuk Klantportaal\)/);
   assert.doesNotMatch(tekst, /Stage Two|\u2014/);
+  const zonder = nogTeDoenKlantportaal({ naam: "shop", beheer: "B/stagetwo-beheer-tier2", portaal: klantportaalVelden({ afzender: "a@shop.nl" }) }).join("\n");
+  assert.match(zonder, /uitdrukkelijk zonder captcha/);
+  assert.doesNotMatch(zonder, /TURNSTILE_GEHEIM|widget zichtbaar/);
+});
+
+test("klantportaal al ingesteld met andere waarden: melden wat er staat, niets stil negeren", () => {
+  const beheer = "Org/stagetwo-beheer-tier2";
+  const toegang = { apps: { shop: { groepen: ["kantoor"], klantportaal: true, afzender: "Shop <noreply@shop.nl>", turnstile_sitekey: SITEKEY_VB }, intern: ["kantoor"] } };
+  const zelfde = klantportaalVelden({ afzender: " Shop <noreply@shop.nl> ", turnstileSitekey: SITEKEY_VB });
+  assert.equal(klantportaalAnders(toegang, "shop", zelfde, beheer), null, "dezelfde waarden: gewoon inrichten");
+  assert.equal(klantportaalAnders(toegang, "intern", zelfde, beheer), null, "geen klantportaal: dat is omzetten");
+  const andereAfzender = klantportaalAnders(toegang, "shop", klantportaalVelden({ afzender: "Winkel <noreply@shop.nl>", turnstileSitekey: SITEKEY_VB }), beheer);
+  assert.match(andereAfzender, /shop staat al als klantportaal in toegang\.json van Org\/stagetwo-beheer-tier2, met afzender "Shop <noreply@shop\.nl>", captcha aan \(sitekey 0x4AAAAAAAabcdefgh\); je gaf afzender "Winkel <noreply@shop\.nl>"/);
+  assert.match(andereAfzender, /Er is niets gewijzigd en App inrichten is niet gestart/);
+  assert.match(andereAfzender, /via een pull request op toegang\.json/);
+  assert.match(klantportaalAnders(toegang, "shop", klantportaalVelden({ afzender: "Shop <noreply@shop.nl>", turnstileSitekey: "0x4BBBBBBBBBBBB" }), beheer), /sitekey 0x4BBBBBBBBBBBB/);
+  assert.match(klantportaalAnders(toegang, "shop", klantportaalVelden({ afzender: "Shop <noreply@shop.nl>" }), beheer), /je gaf afzender "Shop <noreply@shop\.nl>", captcha uit/);
 });
 
 test("--inrichten --klantportaal: een gewone app in toegang.json krijgt een pull request die alleen hem omzet; zonder --klantportaal blijft alles zoals het was", () => {
@@ -595,10 +661,12 @@ test("--inrichten --klantportaal: een gewone app in toegang.json krijgt een pull
   const oud = process.env.PATH;
   process.env.PATH = `${nep.pad}:${oud}`;
   try {
-    const arg = leesArgumenten(["--inrichten", "--naam", "shop", "--eigenaar", "Org", "--klantportaal", "--afzender", "Shop <noreply@shop.nl>"]);
+    const arg = leesArgumenten(["--inrichten", "--naam", "shop", "--eigenaar", "Org", "--klantportaal", "--afzender", "Shop <noreply@shop.nl>", "--zonder-captcha"]);
     const r = richtIn(arg, { wachtMs: 0 });
     assert.equal(r.status, "wacht-op-toegang", r.reden);
     assert.equal(r.klantportaal, true);
+    assert.equal(r.waarschuwing, ZONDER_CAPTCHA, "zonder captcha: een waarschuwing in het antwoord");
+    assert.match(ZONDER_CAPTCHA, /door één persoon worden platgelegd/);
     assert.equal(r.pr, "https://github.com/Org/stagetwo-beheer-tier2/pull/7");
     assert.ok(r.nogTeDoen.some((x) => /SMTP_WACHTWOORD/.test(x)));
     const put = nep.aanroepen().find((a) => a[1] === `repos/${beheer}/contents/toegang.json` && a.includes("PUT"));
@@ -609,6 +677,7 @@ test("--inrichten --klantportaal: een gewone app in toegang.json krijgt een pull
     const create = nep.aanroepen().find((a) => a[0] === "pr" && a[1] === "create");
     assert.equal(create[create.indexOf("--title") + 1], "Klantportaal: shop");
     assert.match(create[create.indexOf("--body") + 1], /Klantportaal\.\*\* De app staat open voor klanten/);
+    assert.ok(create[create.indexOf("--body") + 1].includes(ZONDER_CAPTCHA), "en in de PR-tekst");
     assert.doesNotMatch(create[create.indexOf("--body") + 1], /\u2014/);
 
     // Zonder --klantportaal: de app staat erin, dus de workflow start (hier faalt die nep-aanroep),
@@ -618,6 +687,31 @@ test("--inrichten --klantportaal: een gewone app in toegang.json krijgt een pull
     assert.equal(gewoon.status, "mislukt");
     assert.match(gewoon.reden, /de workflow starten mislukte/);
     assert.ok(!nep.aanroepen().slice(voor).some((a) => a[0] === "pr" && a[1] === "create"));
+  } finally {
+    process.env.PATH = oud;
+    opruimen(wortel);
+  }
+});
+
+test("--inrichten --klantportaal op een app die al klantportaal is met een andere afzender: melden, geen pull request en geen workflow", () => {
+  const wortel = tijdelijkeMap("inrichten-portaal-anders-");
+  const toegang = { groepen: { kantoor: {} }, apps: { shop: { groepen: ["kantoor"], klantportaal: true, afzender: "Shop <noreply@shop.nl>", turnstile_sitekey: SITEKEY_VB } } };
+  const beheer = "Org/stagetwo-beheer-tier2";
+  const nep = nepGh(wortel, {
+    "--version": { stdout: "gh version 2.95.0\n" },
+    "auth status": { stdout: "Logged in\n" },
+    "api users/Org": { stdout: { type: "Organization" } },
+    "repo view": { stdout: { name: "x" } },
+    [`api repos/${beheer}/contents/toegang.json`]: { stdout: { content: Buffer.from(JSON.stringify(toegang)).toString("base64"), sha: "abc" } },
+  });
+  const oud = process.env.PATH;
+  process.env.PATH = `${nep.pad}:${oud}`;
+  try {
+    const r = richtIn(leesArgumenten(["--inrichten", "--naam", "shop", "--eigenaar", "Org", "--klantportaal", "--afzender", "Winkel <noreply@shop.nl>", "--turnstile-sitekey", SITEKEY_VB]), { wachtMs: 0 });
+    assert.equal(r.status, "klantportaal-anders");
+    assert.match(r.reden, /met afzender "Shop <noreply@shop\.nl>"/);
+    assert.match(r.reden, /via een pull request op toegang\.json/);
+    assert.ok(!nep.aanroepen().some((a) => (a[0] === "pr" && a[1] === "create") || (a[0] === "workflow" && a[1] === "run") || a.includes("PUT")), "niets gewijzigd, niets gestart");
   } finally {
     process.env.PATH = oud;
     opruimen(wortel);

@@ -194,17 +194,33 @@ node "${CLAUDE_SKILL_DIR}/scripts/nieuwe-app.mjs" --json --inrichten --naam "<na
 dit tot een kwartier kan duren: een nieuwe database moet opstarten.
 
 **Een klantportaal** (openbare template, klanten loggen in): dan staat de app in de
-toegangslijst als klantportaal. Daarvoor moet de owner eerst drie dingen regelen: een eigen
-domein voor de app, bij Resend een geverifieerd domein voor de afzender van de inlogmail met de
-sleutel als secret in de beheer-repo, en eventueel Turnstile tegen misbruik. Vraag of dat er al is.
+toegangslijst als klantportaal. Daarvoor regelt de owner een eigen domein voor de app, bij
+Resend een geverifieerd domein voor de afzender van de inlogmail, en een Turnstile-widget
+(captcha) voor het inlogscherm, met de geheime sleutels als secrets in de beheer-repo. Turnstile
+is geen extraatje maar de standaard: een open inlogformulier zonder captcha kan door één persoon
+worden platgelegd. Vraag of dat er al is.
 
 - **Nog niet** (gebruikelijk bij een nieuwe app): richt de app eerst in zoals hierboven, achter
   de deur. Zo kan er meteen gebouwd en bekeken worden. Is het er later wel, draai dan hetzelfde
   commando met `--klantportaal` erbij (zie hieronder); dat zet de app om.
-- **Ja**: voeg toe `--klantportaal --afzender "<Naam> <adres>"`, en `--turnstile-sitekey
-  "<openbare sleutel>"` als de app de Turnstile-widget al toont (anders blijft de captcha uit en
-  zegt het antwoord hoe hij later aan kan). Het adres staat op het domein dat bij Resend is
-  geverifieerd; vraag het de gebruiker, verzin het niet.
+- **Ja**: voeg toe `--klantportaal --afzender "<Naam> <adres>" --turnstile-sitekey "<openbare
+  sleutel>"`. Het adres staat op het domein dat bij Resend is geverifieerd, en de sleutel is de
+  openbare (Site Key) van de widget, nooit de geheime; vraag beide aan de gebruiker, verzin ze
+  niet. Alleen als de gebruiker uitdrukkelijk zonder captcha wil, geef je `--zonder-captcha` in
+  plaats van de sleutel; zeg dan de `waarschuwing` uit het antwoord letterlijk door (die staat
+  ook in de pull request).
+
+Daarna gaat het in deze volgorde (het antwoord geeft ze in `nogTeDoen`; de details staan in de
+README van de beheer-repo, hoofdstuk Klantportaal):
+
+0. Vooraf: de app staat op versie 43 of later, heeft een eigen domein, en de regels in de
+   database zijn nagelopen (bij een klantportaal de enige grens).
+1. Resend-sleutel en Turnstile-widget; de geheime sleutels als secrets in de beheer-repo.
+2. De pull request op `toegang.json` laten mergen.
+3. App inrichten: zet alles klaar, de deur blijft nog staan.
+4. De app opnieuw uitrollen en achter de deur testen (inloggen per mail, de widget).
+5. App inrichten nog een keer, met het vinkje "Deur weghalen": nu gaat het domein open.
+6. De knop "Controle van buitenaf" in de beheer-repo.
 
 Het antwoord:
 
@@ -218,6 +234,10 @@ Het antwoord:
   team `toegangsbeheer` zit (anders de owner van de organisatie); zo beslist een mens wie
   bij een app mag. Zeg ook dat je daarna hetzelfde commando nog een keer draait, zonder
   `--groepen`. Je kunt intussen al bouwen.
+- `klantportaal-anders`: de app staat al als klantportaal in de toegangslijst, met een andere
+  afzender of captcha dan je meegaf. Er is niets gewijzigd. Geef `reden` door: een wijziging
+  gaat via een pull request op `toegang.json`; inrichten met wat er staat kan met hetzelfde
+  commando zonder `--klantportaal`.
 - `geen-beheer`: deze organisatie heeft (nog) geen beheer-repo. Zeg dat die er aan het begin
   van het project komt (Stage Two zet hem klaar) en dat hij daarna hosting en database
   inricht; de app zelf is klaar. Loop de `nogTeDoen` van stap 5 langs.

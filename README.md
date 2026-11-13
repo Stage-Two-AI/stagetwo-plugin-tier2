@@ -376,7 +376,8 @@ Wat deze plugin anders doet dan die van tier 1:
   `stagetwo-beheer` en `stack-beheer` werken nog), zo nodig met een pull request, en start
   dan **App inrichten** (inputs `app` en `droogloop`); met `--klantportaal --afzender ...`
   zet een pull request de app als klantportaal in `toegang.json` (`klantportaal`, `afzender`,
-  en `turnstile_sitekey` of `"captcha": false`), ook een app die er al als gewone app in staat;
+  en `turnstile_sitekey`; zonder captcha alleen met `--zonder-captcha`, dan `"captcha": false`
+  en een waarschuwing), ook een app die er al als gewone app in staat;
 - `automatisch-bijwerken.mjs` zet de marketplace `stagetwo-tier2` en haalt de oude weg.
 
 Een verbetering die voor beide varianten geldt, doe je in beide repo's.
