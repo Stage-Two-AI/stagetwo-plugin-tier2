@@ -39,6 +39,10 @@
  * beheerdersrechten op de app-repo, die de gh-sessie van Stage Two in de projectfase heeft.
  * Lukt het niet, dan zegt het script wat er met de hand moet.
  *
+ * Een app van de openbare template (sinds versie 43) heeft dezelfde marketplace in
+ * `.claude/settings.json` en gaat dus op dezelfde manier om; welke template hij heeft, doet hier
+ * niet ter zake (het gaat alleen om de bron van de plugin).
+ *
  * Zonder --doe-het verandert er niets. Met GH_TOKEN of GITHUB_TOKEN in de omgeving weigert het:
  * draaien met de eigen gh-sessie van Stage Two, niet met een klanttoken.
  * Dit script gaat niet mee naar een klant (ALLEEN_IN_BRON in uitleveren.mjs).
