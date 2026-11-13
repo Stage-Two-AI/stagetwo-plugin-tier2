@@ -962,8 +962,10 @@ test("hook: een map zonder manifest en zonder apps eronder blijft stil", () => {
 
 // ---------------------------------------------------------------- uitgave 43: de openbare template
 
-// Een verkleinde kopie van het manifest van app-template-tier2-openbaar: de servercode (src/,
-// workers/) is van het project, de scripts die de Worker bouwen zijn van de template.
+// Een verkleinde kopie van het manifest van app-template-tier2-openbaar: de servercode van de
+// template (workers/app.ts, src/entry.server.tsx, src/lib/server/...) staat met naam in
+// `vervangen`, al valt hij onder src/** en workers/** van het project; de eigen servercode van de
+// app (routes) is van het project.
 const MANIFEST_OPENBAAR = {
   manifestFormaat: 1,
   stackVersion: 43,
@@ -979,7 +981,13 @@ const MANIFEST_OPENBAAR = {
       "scripts/dev.mjs",
       "scripts/lib/onderdelen.mjs",
       "scripts/lib/cloudflare-config.mjs",
+      "scripts/guard-server.mjs",
       "docs/routes/verder-werken.md",
+      "workers/app.ts",
+      "src/entry.server.tsx",
+      "src/lib/server/sessie.server.ts",
+      "src/lib/server/veilig-pad.ts",
+      "public/_headers",
     ],
     sleutelsSamenvoegen: { "package.json": ["scripts", "devDependencies"] },
     tussenMarkeringen: { "AGENTS.md": "stack" },
@@ -989,15 +997,19 @@ const MANIFEST_OPENBAAR = {
 
 test("openbare template: de bestanden van de template zijn even goed bewaakt, de servercode van het project niet", () => {
   const openbaar = (file_path, toolName = "Edit") => beoordeelTool({ projectmap: PROJECT, manifest: MANIFEST_OPENBAAR, toolName, toolInput: { file_path } });
-  for (const p of ["scripts/bouwen.mjs", "scripts/lib/cloudflare-config.mjs", ".github/workflows/uitrollen.yml", ".github/workflows/nieuw.yml", ".claude/stack-manifest.json", ".github/CODEOWNERS"]) {
+  for (const p of ["scripts/bouwen.mjs", "scripts/guard-server.mjs", ".github/workflows/uitrollen.yml", ".github/workflows/nieuw.yml", ".claude/stack-manifest.json", ".github/CODEOWNERS", "workers/app.ts", "src/entry.server.tsx", "src/lib/server/sessie.server.ts", "src/lib/server/veilig-pad.ts", "public/_headers"]) {
     geweigerd(openbaar(p), `Bestand: ${p}`);
   }
-  for (const p of ["src/lib/server/sessie.ts", "src/routes/product.tsx", "workers/app.ts", "react-router.config.ts", "wrangler.jsonc", "src/entry.server.tsx"]) {
+  // Wat het manifest niet noemt, is van het project, ook onder src/ en workers/ (zoals guard:template het ook ziet).
+  for (const p of ["src/routes/product.tsx", "src/routes.ts", "src/root.tsx", "react-router.config.ts", "wrangler.jsonc", "workers/eigen.ts", "src/lib/eigen.ts"]) {
     assert.deepEqual(openbaar(p), TOE, p);
   }
   // Ook via Bash, met hetzelfde manifest.
-  geweigerd(beoordeelTool({ projectmap: PROJECT, manifest: MANIFEST_OPENBAAR, toolName: "Bash", toolInput: { command: "sed -i 's/a/b/' scripts/bouwen.mjs" } }), "Bestand: scripts/bouwen.mjs");
-  assert.deepEqual(beoordeelTool({ projectmap: PROJECT, manifest: MANIFEST_OPENBAAR, toolName: "Bash", toolInput: { command: "echo x > workers/app.ts" } }), TOE);
+  geweigerd(beoordeelTool({ projectmap: PROJECT, manifest: MANIFEST_OPENBAAR, toolName: "Bash", toolInput: { command: "sed -i 's/a/b/' src/lib/server/sessie.server.ts" } }), "Bestand: src/lib/server/sessie.server.ts");
+  geweigerd(beoordeelTool({ projectmap: PROJECT, manifest: MANIFEST_OPENBAAR, toolName: "Bash", toolInput: { command: "echo x > workers/app.ts" } }), "Bestand: workers/app.ts");
+  assert.deepEqual(beoordeelTool({ projectmap: PROJECT, manifest: MANIFEST_OPENBAAR, toolName: "Bash", toolInput: { command: "echo x > src/routes/product.tsx" } }), TOE);
+  // Een gewone app met hetzelfde pad: daar is het van het project (de gewone template heeft geen servercode).
+  assert.deepEqual(bewerk("workers/app.ts"), TOE);
 });
 
 test("openbare template: ook de dev-server van React Router zelf is geen preview, met dezelfde ontsnapping", () => {
