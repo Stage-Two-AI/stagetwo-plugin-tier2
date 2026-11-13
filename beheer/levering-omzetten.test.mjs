@@ -303,3 +303,10 @@ test("droogloop zonder levering.json: waarschuwt, kijkt toch per app, schrijft n
   assert.doesNotMatch(tekst, /overgeslagen/);
   assert.deepEqual(w.schrijvend(), []);
 });
+
+test("versie 43: een app van de openbare template heeft dezelfde marketplace en gaat net zo om", () => {
+  // Zoals .claude/settings.json in app-template-tier2-openbaar.
+  const tekst = `${JSON.stringify({ extraKnownMarketplaces: { "stagetwo-tier2": { source: { source: "github", repo: STAGE_TWO.plugin } } }, enabledPlugins: { "stagetwo-tier2@stagetwo-tier2": true } }, null, 2)}\n`;
+  assert.deepEqual(leesInstellingen(tekst), { soort: "huidig", van: STAGE_TWO.plugin });
+  assert.equal(pluginBron(naarLevering(tekst, "Winco-Holland-B-V/stagetwo-plugin-tier2")), "Winco-Holland-B-V/stagetwo-plugin-tier2");
+});

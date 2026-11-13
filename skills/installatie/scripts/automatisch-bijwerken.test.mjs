@@ -120,7 +120,7 @@ test("als opdracht: één JSON-object, exitcode 0 bij gezet", () => {
 });
 
 test("levering: een bron van Stage Two gaat naar de leveringsrepo van de klant, een eigen bron blijft", () => {
-  const klant = { source: "github", repo: "Richplant-BV/stagetwo-plugin-tier2" };
+  const klant = { source: "github", repo: "Klant-BV/stagetwo-plugin-tier2" };
   for (const oud of [
     { source: "github", repo: STAGE_TWO.plugin },
     { source: "git", url: `https://github.com/${STAGE_TWO.plugin}.git` },
@@ -144,7 +144,7 @@ test("levering: zonder leveringsrepo blijft een bron van Stage Two gewoon staan"
 test("isBronVanStageTwo herkent de github- en de git-vorm, en niets anders", () => {
   assert.ok(isBronVanStageTwo({ source: "github", repo: STAGE_TWO.plugin.toUpperCase() }));
   assert.ok(isBronVanStageTwo({ source: "git", url: `git@github.com:${STAGE_TWO.plugin}.git` }));
-  assert.ok(!isBronVanStageTwo({ source: "github", repo: "Richplant-BV/stagetwo-plugin-tier2" }));
+  assert.ok(!isBronVanStageTwo({ source: "github", repo: "Klant-BV/stagetwo-plugin-tier2" }));
   assert.ok(!isBronVanStageTwo({ source: "directory", path: "/x" }));
   assert.ok(!isBronVanStageTwo(undefined));
 });
