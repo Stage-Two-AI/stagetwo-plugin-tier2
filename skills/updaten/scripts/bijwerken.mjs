@@ -82,12 +82,12 @@ import {
   repoUitUrl,
   sh,
   sluitOuderePRs,
-  templateRepo,
   vergelijkUrl,
   versieOpAfstand,
 } from "../../../lib/repo.mjs";
 import { controleerOpenTabellen, controleerSmal, controleerTestrol, zetKoppen } from "../../../lib/projectbestanden.mjs";
 import { LOCKFILE, MANIFEST_PAD, leesVersie, pasToe } from "../../../lib/toepassen.mjs";
+import { LEVERING, TEMPLATE_GEWOON, TEMPLATE_OPENBAAR, templateBron, templateOmschrijving, templateVan } from "../../../lib/levering.mjs";
 
 export const WERKMAP_PREFIX = "stack-bijwerken-";
 const WERKMAP_MAX_LEEFTIJD_MS = 60 * 60 * 1000;
@@ -242,7 +242,7 @@ export function geldigeTemplateRef(ref) {
  * `{ versie }` (uit .claude/stack-version op die branch) of `{ fout }`. Staat die versie al
  * als tag, dan is de uitgave uit en is dit geen proef meer: dan de gewone weg.
  */
-function kloonTemplateOpBranch({ repo, ref, doel }) {
+function kloonTemplateOpBranch({ repo, ref, doel, appTemplate = TEMPLATE_GEWOON }) {
   kloonTemplate({ repo, doel });
   try {
     git(doel, "rev-parse", "--verify", "--quiet", `refs/remotes/origin/${ref}^{commit}`);
@@ -257,6 +257,9 @@ function kloonTemplateOpBranch({ repo, ref, doel }) {
   if (variant !== VARIANT) {
     return { fout: `de branch ${ref} van ${repo} heeft variant ${JSON.stringify(variant ?? null)} in .claude/stack-manifest.json en past dus niet bij deze app (variant ${JSON.stringify(VARIANT)}, tier 2); deze plugin probeert alleen een uitgave van de template voor tier 2 uit. Kies een branch van de template voor tier 2` };
   }
+  // Ook de goede template van tier 2: een branch van de openbare template hoort niet in een gewone app, en andersom.
+  const anders = andereTemplate({ tmplMap: doel, tmplRepo: `de branch ${ref} van ${repo}`, appTemplate });
+  if (anders) return { fout: anders };
   if (git(doel, "tag", "--list", `stack-v${versie}`) !== "") {
     return { fout: `versie ${versie} op ${ref} is al uitgebracht (de template heeft de tag stack-v${versie}); werk bij zonder --template-ref` };
   }
@@ -283,8 +286,14 @@ function proefSluitTekst(naar) {
  * Zonder `opAfstand` de app in de open map (`checkout`); met `opAfstand` (eigenaar/naam)
  * een andere app van de klant, rechtstreeks van GitHub. Die kennen we pas na het klonen,
  * dus de controle op template en versie komt dan na de kloon.
+ *
+ * Sinds versie 43 heeft tier 2 twee templates (lib/levering.mjs): de gewone en de openbare. De
+ * app zegt in zijn manifest uit welke hij komt (veld `template`, zonder veld de gewone), en
+ * alleen die template werkt hem bij. Na het klonen van de template controleert het script dat
+ * nog een keer aan het manifest van de template zelf, zodat ook STACK_TEMPLATE_REPO of een
+ * proefbranch nooit de verkeerde template in een app zet.
  */
-export function droogloop({ checkout, opAfstand = null, env = process.env, templateRef = null }) {
+export function droogloop({ checkout, opAfstand = null, env = process.env, templateRef = null, levering = LEVERING }) {
   if (opAfstand !== null && !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(opAfstand)) {
     return mislukt("geef --repo als eigenaar/naam, bijvoorbeeld Mijn-Bedrijf/voorraad");
   }
@@ -293,6 +302,10 @@ export function droogloop({ checkout, opAfstand = null, env = process.env, templ
   }
   if (opAfstand === null && !isTemplateApp(checkout)) return GEEN_TEMPLATE;
   if (opAfstand === null && !isCloudflareManifest(leesManifestRuw(checkout))) return anderSpoor(leesManifestRuw(checkout));
+  // Uit welke template de open app komt; bij --repo pas na het klonen.
+  let appTemplate = opAfstand === null ? templateVan(leesManifestRuw(checkout)) : null;
+  let bron = appTemplate === null ? null : templateBron({ template: appTemplate, env, levering });
+  if (bron?.fout) return mislukt(bron.fout);
 
   const metGh = ghAanwezig();
   if (opAfstand !== null && !metGh) return mislukt("een andere app bijwerken kan alleen met de GitHub-opdrachtregel (gh); draai eerst /stagetwo-tier2:installatie");
@@ -302,34 +315,50 @@ export function droogloop({ checkout, opAfstand = null, env = process.env, templ
   if (!origin) return mislukt("deze checkout heeft geen origin op GitHub; voeg die toe met `git remote add origin <url>`");
   const repo = opAfstand ?? repoUitUrl(origin);
 
-  const tmplRepo = templateRepo(env);
-  // Een proef (--template-ref) kent zijn doel pas na het klonen van de template; die kloon komt
-  // dan al nu in de werkmap. Zonder proef blijft het zoals het was: eerst de tags op afstand.
   let werkmap = null;
-  let doel;
-  if (templateRef === null) {
-    doel = versieOpAfstand(tmplRepo);
-    if (doel === null) return mislukt(`de template is niet bereikbaar (${tmplRepo}): geen netwerk, nog geen versie-tag, of de repo bestaat niet of is niet openbaar; probeer het later opnieuw; lukt het dan nog niet, draai /stagetwo-tier2:installatie (die zet de plugin naar de kopie in de eigen organisatie)`);
-  } else {
-    werkmap = echtPad(mkdtempSync(join(tmpdir(), WERKMAP_PREFIX)));
-    let proef;
-    try {
-      proef = kloonTemplateOpBranch({ repo: tmplRepo, ref: templateRef, doel: join(werkmap, "template") });
-    } catch (fout) {
-      proef = { fout: `de template is niet te klonen (${tmplRepo}): ${eersteRegel(fout)}` };
-    }
-    if (proef.fout) {
-      verwijderWerkmap(werkmap);
-      return mislukt(proef.fout);
-    }
-    doel = proef.versie;
-  }
-  // verwijderWerkmap(null) doet niets: zonder proef is er hier nog geen werkmap.
   const klaarMet = (uitkomst) => {
     verwijderWerkmap(werkmap);
     return uitkomst;
   };
-  if (opAfstand === null && leesVersie(checkout) >= doel) return klaarMet(alBij(leesVersie(checkout), doel));
+  // Een andere app (--repo) eerst klonen: pas dan weten we uit welke template hij komt, en dus
+  // welke template hem bijwerkt.
+  let kloon = null;
+  if (opAfstand !== null) {
+    werkmap = echtPad(mkdtempSync(join(tmpdir(), WERKMAP_PREFIX)));
+    try {
+      kloon = kloonRepo({ url: origin, doel: join(werkmap, "app") });
+    } catch (fout) {
+      return klaarMet(mislukt(eersteRegel(fout)));
+    }
+    if (!isTemplateApp(kloon)) return klaarMet(GEEN_TEMPLATE);
+    // Ook een andere app moet van dit spoor zijn: nooit bestanden van tier 2 in een app van
+    // tier 1 of van het Vercel-spoor (gevonden bij de test van uitgave 40 op een app van tier 1).
+    if (!isCloudflareManifest(leesManifestRuw(kloon))) return klaarMet(anderSpoor(leesManifestRuw(kloon)));
+    appTemplate = templateVan(leesManifestRuw(kloon));
+    bron = templateBron({ template: appTemplate, env, levering });
+    if (bron.fout) return klaarMet(mislukt(bron.fout));
+  }
+  const tmplRepo = bron.repo;
+  const appVersie = leesVersie(kloon ?? checkout);
+
+  // Een proef (--template-ref) kent zijn doel pas na het klonen van de template; die kloon komt
+  // dan al nu in de werkmap. Zonder proef blijft het zoals het was: eerst de tags op afstand.
+  let doel;
+  if (templateRef === null) {
+    doel = versieOpAfstand(tmplRepo);
+    if (doel === null) return klaarMet(mislukt(`de template is niet bereikbaar (${tmplRepo}): geen netwerk, nog geen versie-tag, of de repo bestaat niet of is niet openbaar; probeer het later opnieuw; lukt het dan nog niet, draai /stagetwo-tier2:installatie (die zet de plugin naar de kopie in de eigen organisatie)`));
+  } else {
+    werkmap ??= echtPad(mkdtempSync(join(tmpdir(), WERKMAP_PREFIX)));
+    let proef;
+    try {
+      proef = kloonTemplateOpBranch({ repo: tmplRepo, ref: templateRef, doel: join(werkmap, "template"), appTemplate });
+    } catch (fout) {
+      proef = { fout: `de template is niet te klonen (${tmplRepo}): ${eersteRegel(fout)}` };
+    }
+    if (proef.fout) return klaarMet(mislukt(proef.fout));
+    doel = proef.versie;
+  }
+  if (appVersie >= doel) return klaarMet(alBij(appVersie, doel));
 
   const branch = templateRef === null ? branchNaam(doel) : proefBranchNaam(doel);
   if (metGh && repo) {
@@ -346,34 +375,16 @@ export function droogloop({ checkout, opAfstand = null, env = process.env, templ
 
   werkmap ??= echtPad(mkdtempSync(join(tmpdir(), WERKMAP_PREFIX)));
   try {
-    const kloon = kloonRepo({ url: origin, doel: join(werkmap, "app") });
-    if (opAfstand !== null) {
-      if (!isTemplateApp(kloon)) {
-        verwijderWerkmap(werkmap);
-        return GEEN_TEMPLATE;
-      }
-      // Ook een andere app moet van dit spoor zijn: nooit bestanden van tier 2 in een app van
-      // tier 1 of van het Vercel-spoor (gevonden bij de test van uitgave 40 op een app van tier 1).
-      if (!isCloudflareManifest(leesManifestRuw(kloon))) {
-        const uit = anderSpoor(leesManifestRuw(kloon));
-        verwijderWerkmap(werkmap);
-        return uit;
-      }
-      if (leesVersie(kloon) >= doel) {
-        verwijderWerkmap(werkmap);
-        return alBij(leesVersie(kloon), doel);
-      }
-    } else {
+    if (kloon === null) {
+      kloon = kloonRepo({ url: origin, doel: join(werkmap, "app") });
       const pushUrl = originPushUrl(checkout);
       if (pushUrl) git(kloon, "remote", "set-url", "--push", "origin", pushUrl);
     }
     if (!pushDroog(kloon, branch)) {
-      verwijderWerkmap(werkmap);
-      return mislukt(`je hebt geen schrijfrecht op ${repo ?? "deze repo"}; vraag de eigenaar je toe te voegen als medewerker`);
+      return klaarMet(mislukt(`je hebt geen schrijfrecht op ${repo ?? "deze repo"}; vraag de eigenaar je toe te voegen als medewerker`));
     }
     if (!branchHerbouwbaar(kloon, branch)) {
-      verwijderWerkmap(werkmap);
-      return gestopt(`op de branch ${branch} staat een commit die niet van /stagetwo-tier2:updaten is; bekijk de open pull request voor die branch of verwijder de branch, en draai dan opnieuw`);
+      return klaarMet(gestopt(`op de branch ${branch} staat een commit die niet van /stagetwo-tier2:updaten is; bekijk de open pull request voor die branch of verwijder de branch, en draai dan opnieuw`));
     }
 
     const tmplMap = join(werkmap, "template");
@@ -381,17 +392,22 @@ export function droogloop({ checkout, opAfstand = null, env = process.env, templ
       kloonTemplate({ repo: tmplRepo, doel: tmplMap });
       const hoogste = hoogsteTagVersie(tmplMap);
       if (hoogste !== doel) {
-        verwijderWerkmap(werkmap);
-        return mislukt(`de template-kloon heeft geen tag stack-v${doel}; probeer het later opnieuw`);
+        return klaarMet(mislukt(`de template-kloon heeft geen tag stack-v${doel}; probeer het later opnieuw`));
       }
       checkoutTag(tmplMap, doel);
+      const anders = andereTemplate({ tmplMap, tmplRepo, appTemplate });
+      if (anders) return klaarMet(mislukt(anders));
+    }
+    // Een app van de openbare template op een versie die die template niet heeft (die begint bij
+    // 43): er is geen vorig manifest om mee te vergelijken. Duidelijk stoppen, niet raden.
+    if (appTemplate === TEMPLATE_OPENBAAR && git(tmplMap, "tag", "--list", `stack-v${appVersie}`) === "") {
+      return klaarMet(gestopt(`deze app staat op versie ${appVersie} met het manifest van de openbare template, maar die template heeft geen versie ${appVersie} (hij begint bij versie 43). Dan is niet na te gaan welke bestanden nog van de template zijn, dus er wordt niets bijgewerkt en de app blijft zoals hij is. Dat gebeurt meestal als een app met de hand is omgezet; zet hem over volgens de route omzetten-naar-openbaar in docs/routes/ van de openbare template, die de app op een versie van die template zet`));
     }
     maakBranch(kloon, branch);
 
     const resultaat = pasToe({ map: kloon, tmplMap, git: gitVoorKern(kloon, tmplMap), pnpm: pnpmVoorKern(), node: nodeVoorKern() });
     if (resultaat.status !== "bijgewerkt") {
-      verwijderWerkmap(werkmap);
-      return { ...resultaat, reden: resultaat.reden && zonderLogin(resultaat.reden) };
+      return klaarMet({ ...resultaat, reden: resultaat.reden && zonderLogin(resultaat.reden) });
     }
     for (const s of resultaat.overgeslagen) s.verschil = verschil(kloon, tmplMap, s.pad);
 
@@ -400,9 +416,21 @@ export function droogloop({ checkout, opAfstand = null, env = process.env, templ
     writeFileSync(join(werkmap, TOESTAND), `${JSON.stringify(toestand, null, 2)}\n`);
     return { ...resultaat, status: "klaar", branch, repo, werkmap, ...(proef ? { proef } : {}), ...uitlegNaDroogloop(resultaat, proef) };
   } catch (fout) {
-    verwijderWerkmap(werkmap);
-    return mislukt(eersteRegel(fout));
+    return klaarMet(mislukt(eersteRegel(fout)));
   }
+}
+
+/**
+ * Komt de gekloonde template overeen met de template van de app? Null als het klopt, anders de
+ * reden in één zin. Zo komen er nooit bestanden van de ene template in een app van de andere,
+ * ook niet als STACK_TEMPLATE_REPO of een leveringsrepo naar de verkeerde wijst.
+ */
+export function andereTemplate({ tmplMap, tmplRepo, appTemplate }) {
+  const ruw = leesManifestRuw(tmplMap);
+  const daar = templateVan(ruw);
+  if (ruw?.variant === VARIANT && daar === appTemplate) return null;
+  const wat = ruw?.variant === VARIANT ? templateOmschrijving(daar) : `variant ${JSON.stringify(ruw?.variant ?? null)}`;
+  return `${tmplRepo} is ${wat}, maar deze app komt uit ${templateOmschrijving(appTemplate)}; bijwerken met de verkeerde template zet er bestanden in die niet bij deze app horen, dus er gebeurt niets. Werk de app bij vanuit zijn eigen template`;
 }
 
 function uitlegNaDroogloop(resultaat, proef = null) {
@@ -637,7 +665,7 @@ export function biomeVersie(map) {
 
 // ---------------------------------------------------------------- draaien
 
-export function hoofd(argv, { cwd = process.cwd(), env = process.env, updates = null } = {}) {
+export function hoofd(argv, { cwd = process.cwd(), env = process.env, updates = null, levering = LEVERING } = {}) {
   let args;
   try {
     args = leesArgumenten(argv);
@@ -646,7 +674,7 @@ export function hoofd(argv, { cwd = process.cwd(), env = process.env, updates = 
   }
   const checkout = resolve(args.checkout ?? cwd);
   if (args.werkmap) return voerUit({ werkmap: args.werkmap, losOp: args.losOp, koppen: args.koppen, updates });
-  if (args.droogloop) return droogloop({ checkout, opAfstand: args.repo, env, templateRef: args.templateRef });
+  if (args.droogloop) return droogloop({ checkout, opAfstand: args.repo, env, templateRef: args.templateRef, levering });
   return mislukt("geef --droogloop (eerste aanroep) of --werkmap <map> (tweede aanroep) mee");
 }
 
