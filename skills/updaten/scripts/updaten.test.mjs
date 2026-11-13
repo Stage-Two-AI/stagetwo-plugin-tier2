@@ -335,3 +335,23 @@ test("afhankelijkheden: zonder template-PR geen ontsnappingsregels in de PR-teks
   assert.doesNotMatch(tekst, /Bevestigd:/);
   assert.doesNotMatch(tekst, /Geen tests nodig:/);
 });
+
+test("overzicht: een app met een vreemde waarde in het veld template telt niet als gewone app, maar krijgt de reden", () => {
+  const gh = {
+    "repo list": { stdout: [{ nameWithOwner: "klant/raar", viewerPermission: "WRITE" }] },
+    "api repos/klant/raar/contents/.claude/stack-version": raw(8),
+    "api repos/klant/raar/contents/.claude/stack-manifest.json": { stdout: { ...CLOUDFLARE_MANIFEST, template: null } },
+    "pr list": { stdout: [] },
+  };
+  const w = overzichtWereld(gh);
+  try {
+    const r = w.draai(["--json", "--eigenaar", "klant"]);
+    assert.equal(r.status, "ok", r.reden);
+    const raar = r.apps.find((a) => a.repo === "klant/raar");
+    assert.equal(raar.achter, false, "niet bijwerken met de gewone template");
+    assert.equal(raar.template, null);
+    assert.match(raar.reden, /"template": null; dat is geen template die deze plugin kent/);
+  } finally {
+    w.opruimen();
+  }
+});

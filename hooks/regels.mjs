@@ -11,9 +11,10 @@
  * maakt dat alleen eerder merkbaar: bij de toetsaanslag in plaats van bij een rode check.
  *
  * Welke paden van de template zijn, komt uit .claude/stack-manifest.json van de repo
- * zelf (R4), dus ook voor een app van de openbare template (versie 43): daar staan de scripts
- * en workflows voor de servercode in `vervangen`, en de servercode zelf (`src/`, `workers/`)
- * onder `vanHetProject`. De hook neemt geen tier of template aan, alleen het manifest: de lijst `vervangen`, plus expliciet .github/CODEOWNERS en de twee
+ * zelf (R4), dus ook voor een app van de openbare template (versie 43): daar staat de servercode
+ * van de template met naam in `vervangen` (workers/app.ts, src/entry.server.tsx en de bestanden
+ * in src/lib/server/), en is de rest van `src/` en `workers/` van het project (`vanHetProject`).
+ * De hook neemt geen tier of template aan, alleen het manifest: de lijst `vervangen`, plus expliciet .github/CODEOWNERS en de twee
  * prefixen .github/workflows/ en .claude/ (nieuwe bestanden daar zijn even gevoelig).
  * De bestanden uit `sleutelsSamenvoegen` (package.json) en `tussenMarkeringen`
  * (AGENTS.md) zijn níet beschermd: het projectdeel daarvan mag bewerkt worden en de
@@ -665,6 +666,9 @@ function isKleinGetal(n) {
  * vorige controle (dan ook geen nieuwe stempel: er is niet gekeken). De melding is
  * context met een instructie aan de agent (KTD7).
  *
+ * Met `bronFout` "manifest" zegt het manifest van de app niet eenduidig uit welke template hij
+ * komt (`manifestFout` zegt wat er mis is); ook dan hooguit één keer per dag een melding.
+ *
  * Met `bronFout` "niet-in-levering" (de app is van de openbare template en die zit niet in de
  * levering van de klant) volgt hooguit één keer per dag een melding daarover, zonder netwerk.
  *
@@ -680,9 +684,19 @@ function isKleinGetal(n) {
  * wanneer, met de vraag het nadrukkelijk aan te bieden. Een lege lijst (site onbereikbaar,
  * onbekend formaat) geeft de melding zonder changelog.
  */
-export function beoordeelStart({ versieLokaal, versieOpAfstand, stempel, nu, bronFout = null, bron = null, uitgaven = [] }) {
+export function beoordeelStart({ versieLokaal, versieOpAfstand, stempel, nu, bronFout = null, bron = null, manifestFout = null, uitgaven = [] }) {
   const niets = { melding: null, nieuweStempel: null };
   if (!isKleinGetal(versieLokaal)) return niets;
+  // Het manifest zegt niet eenduidig uit welke template de app komt (sinds versie 43): hooguit
+  // één keer per dag zeggen wat er mis is, zonder netwerk.
+  if (bronFout === "manifest") {
+    if (!moetControleren({ stempel, nu })) return niets;
+    const melding = [
+      `stack: ${manifestFout ?? "het manifest van deze app (.claude/stack-manifest.json) klopt niet"}.`,
+      "Bouwen gaat gewoon door; alleen bijwerken naar een nieuwe versie kan zo niet. Zeg het één keer aan de gebruiker, in gewone taal, en voer zelf niets uit.",
+    ].join("\n");
+    return { melding, nieuweStempel: { versieOpAfstand: null, tijdstip: nu.toISOString() } };
+  }
   // Een app van de openbare template, terwijl die niet in de levering zit (sinds versie 43).
   if (bronFout === "niet-in-levering") {
     if (!moetControleren({ stempel, nu })) return niets;

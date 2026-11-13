@@ -25,7 +25,7 @@
  */
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { LEVERING, TEMPLATE_GEWOON, TEMPLATE_OPENBAAR, templateBron, templateVan } from "../../../lib/levering.mjs";
+import { LEVERING, TEMPLATE_GEWOON, TEMPLATE_OPENBAAR, manifestTemplate, templateBron } from "../../../lib/levering.mjs";
 import { isCloudflareManifest } from "../../../lib/manifest.mjs";
 import {
   eersteRegel,
@@ -64,7 +64,10 @@ export function appVanRepo(repo) {
     if (!isCloudflareManifest(manifest)) return null;
     const tekst = sh("gh", ["api", `repos/${repo}/contents/.claude/stack-version`, "-H", "Accept: application/vnd.github.raw"]);
     const n = Number.parseInt(tekst.trim(), 10);
-    return Number.isSafeInteger(n) && n > 0 ? { versie: n, template: templateVan(manifest) } : null;
+    if (!(Number.isSafeInteger(n) && n > 0)) return null;
+    // Zegt het manifest niet eenduidig uit welke template de app komt, dan staat er in `fout` wat er mis is.
+    const keuze = manifestTemplate(manifest);
+    return keuze.fout ? { versie: n, template: null, fout: keuze.fout } : { versie: n, template: keuze.template };
   } catch {
     return null;
   }
@@ -136,8 +139,9 @@ export function overzicht({ cwd = process.cwd(), eigenaren = [], env = process.e
       if (app === null) continue;
       const { versie } = app;
       // Een app van de openbare template meet zich aan die template, nooit aan de gewone.
-      const eigen =
-        app.template === TEMPLATE_GEWOON
+      const eigen = app.fout
+        ? { reden: app.fout }
+        : app.template === TEMPLATE_GEWOON
           ? { versie: doel }
           : app.template === TEMPLATE_OPENBAAR
             ? doelOpenbaar()

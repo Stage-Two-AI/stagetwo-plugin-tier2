@@ -1059,3 +1059,30 @@ test("hook: een openbare app meldt de versie van zijn eigen template, of dat die
   assert.match(g.stdout, /versie 43/);
   assert.doesNotMatch(g.stdout, /levering/);
 });
+
+test("hook: zegt het manifest niet eenduidig uit welke template de app komt, dan één melding per dag en geen versievergelijking", () => {
+  const gevallen = [
+    [{ ...MANIFEST_OPENBAAR, template: null }, /"template": null; dat is geen template die deze plugin kent/],
+    [{ ...MANIFEST, manifestFormaat: 2 }, /manifestFormaat 2 maar geen veld "template"/],
+    [{ ...MANIFEST, manifestFormaat: 3, template: "app-template-tier2" }, /kent tot en met formaat 2/],
+  ];
+  for (const [manifest, verwacht] of gevallen) {
+    const map = maakProject({ versie: "42" });
+    writeFileSync(join(map, ".claude", "stack-manifest.json"), JSON.stringify(manifest));
+    const data = mkdtempSync(join(tmpdir(), "stack-hook-data-"));
+    const uit = draaiHook(start(map), { projectmap: map, data, opAfstand: 99 });
+    assert.equal(uit.status, 0, uit.stderr);
+    assert.match(uit.stdout, verwacht);
+    assert.match(uit.stdout, /Bouwen gaat gewoon door/);
+    assert.doesNotMatch(uit.stdout, /99/, "geen vergelijking met een template");
+    assert.equal(draaiHook(start(map), { projectmap: map, data, opAfstand: 99 }).stdout, "", "hooguit één keer per dag");
+  }
+  // react-router.config.ts zonder veld template: iemand heeft het veld weggehaald.
+  const map = maakProject({ versie: "42" });
+  writeFileSync(join(map, "react-router.config.ts"), "export default {};\n");
+  const uit = draaiHook(start(map), { projectmap: map, data: mkdtempSync(join(tmpdir(), "stack-hook-data-")), opAfstand: 43 });
+  assert.match(uit.stdout, /Waarschijnlijk is dat veld weggehaald/);
+  // De bewaker blijft werken op het manifest, wat er ook in het veld template staat.
+  writeFileSync(join(map, ".claude", "stack-manifest.json"), JSON.stringify({ ...MANIFEST, template: null }));
+  assert.match(draaiHook(pre(map, "Edit", { file_path: join(map, ".github/workflows/ci.yml") }), { projectmap: map }).stdout, /"permissionDecision":"deny"/);
+});

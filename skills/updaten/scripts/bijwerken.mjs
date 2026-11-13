@@ -87,7 +87,7 @@ import {
 } from "../../../lib/repo.mjs";
 import { controleerOpenTabellen, controleerSmal, controleerTestrol, zetKoppen } from "../../../lib/projectbestanden.mjs";
 import { LOCKFILE, MANIFEST_PAD, leesVersie, pasToe } from "../../../lib/toepassen.mjs";
-import { LEVERING, TEMPLATE_GEWOON, TEMPLATE_OPENBAAR, templateBron, templateOmschrijving, templateVan } from "../../../lib/levering.mjs";
+import { LEVERING, TEMPLATE_GEWOON, TEMPLATE_OPENBAAR, manifestTemplate, templateBron, templateOmschrijving, templateVan } from "../../../lib/levering.mjs";
 
 export const WERKMAP_PREFIX = "stack-bijwerken-";
 const WERKMAP_MAX_LEEFTIJD_MS = 60 * 60 * 1000;
@@ -211,6 +211,14 @@ export function anderSpoor(manifest) {
   return { status: "ander-spoor", reden };
 }
 
+/**
+ * Uit welke template de app in `map` komt (lib/levering.mjs, manifestTemplate): `{ template }` of
+ * `{ fout }`. react-router.config.ts is het kenmerk van de openbare template.
+ */
+function templateVanApp(map) {
+  return manifestTemplate(leesManifestRuw(map), { heeftServercode: existsSync(join(map, "react-router.config.ts")) });
+}
+
 function leesManifestRuw(map) {
   try {
     return JSON.parse(readFileSync(join(map, MANIFEST_PAD), "utf8"));
@@ -303,7 +311,9 @@ export function droogloop({ checkout, opAfstand = null, env = process.env, templ
   if (opAfstand === null && !isTemplateApp(checkout)) return GEEN_TEMPLATE;
   if (opAfstand === null && !isCloudflareManifest(leesManifestRuw(checkout))) return anderSpoor(leesManifestRuw(checkout));
   // Uit welke template de open app komt; bij --repo pas na het klonen.
-  let appTemplate = opAfstand === null ? templateVan(leesManifestRuw(checkout)) : null;
+  const vanApp = opAfstand === null ? templateVanApp(checkout) : null;
+  if (vanApp?.fout) return mislukt(vanApp.fout);
+  let appTemplate = vanApp?.template ?? null;
   let bron = appTemplate === null ? null : templateBron({ template: appTemplate, env, levering });
   if (bron?.fout) return mislukt(bron.fout);
 
@@ -334,7 +344,9 @@ export function droogloop({ checkout, opAfstand = null, env = process.env, templ
     // Ook een andere app moet van dit spoor zijn: nooit bestanden van tier 2 in een app van
     // tier 1 of van het Vercel-spoor (gevonden bij de test van uitgave 40 op een app van tier 1).
     if (!isCloudflareManifest(leesManifestRuw(kloon))) return klaarMet(anderSpoor(leesManifestRuw(kloon)));
-    appTemplate = templateVan(leesManifestRuw(kloon));
+    const vanKloon = templateVanApp(kloon);
+    if (vanKloon.fout) return klaarMet(mislukt(vanKloon.fout));
+    appTemplate = vanKloon.template;
     bron = templateBron({ template: appTemplate, env, levering });
     if (bron.fout) return klaarMet(mislukt(bron.fout));
   }
@@ -428,7 +440,7 @@ export function droogloop({ checkout, opAfstand = null, env = process.env, templ
 export function andereTemplate({ tmplMap, tmplRepo, appTemplate }) {
   const ruw = leesManifestRuw(tmplMap);
   const daar = templateVan(ruw);
-  if (ruw?.variant === VARIANT && daar === appTemplate) return null;
+  if (ruw?.variant === VARIANT && daar !== null && daar === appTemplate) return null;
   const wat = ruw?.variant === VARIANT ? templateOmschrijving(daar) : `variant ${JSON.stringify(ruw?.variant ?? null)}`;
   return `${tmplRepo} is ${wat}, maar deze app komt uit ${templateOmschrijving(appTemplate)}; bijwerken met de verkeerde template zet er bestanden in die niet bij deze app horen, dus er gebeurt niets. Werk de app bij vanuit zijn eigen template`;
 }

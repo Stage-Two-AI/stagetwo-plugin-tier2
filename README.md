@@ -346,7 +346,13 @@ Stage Two heeft twee varianten van de stack, elk met een eigen template en een e
 
 Tier 2 heeft dus twee templates voor één plugin. Het manifest van een app zegt uit welke hij
 komt: `"template": "app-template-tier2-openbaar"`, en zonder dat veld de gewone (zo staat het
-in elke app van vóór 43). `lib/levering.mjs` (`templateVan`, `templateBron`) kiest daarop de
+in elke app van vóór 43). Sinds 43 kent de plugin manifestformaat 2: dezelfde inhoud, met het
+veld `template` verplicht; de openbare template staat op formaat 2. Alleen een ontbrekend veld
+(op formaat 1) is de gewone template. Een andere waarde (`null`, een lege tekst, een getal, een
+lijst, een onbekende naam), formaat 2 zonder veld, of een app met `react-router.config.ts` (het
+kenmerk van de openbare template) zonder veld: dan stopt updaten met uitleg en meldt de hook het
+één keer per dag, in plaats van met de verkeerde template bij te werken (`manifestTemplate`).
+`lib/levering.mjs` (`manifestTemplate`, `templateVan`, `templateBron`) kiest daarop de
 bron, en overal waar de plugin een template leest (melding, updaten, overzicht, andere apps,
 werkmap) meet hij een app alleen aan zijn eigen template. Na het klonen controleert updaten het
 manifest van de template zelf nog een keer, ook bij `--repo`, `--template-ref` en

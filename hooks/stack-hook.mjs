@@ -50,11 +50,11 @@
  * levering (welke templates deze klant heeft).
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { andereAppsAchter, repoUitOrigin } from "../lib/andere-apps.mjs";
-import { LEVERING, TEMPLATE_GEWOON, templateBron, templateVan } from "../lib/levering.mjs";
+import { LEVERING, TEMPLATE_GEWOON, manifestTemplate, templateBron, templateVan } from "../lib/levering.mjs";
 import { isCloudflareManifest } from "../lib/manifest.mjs";
 import { haalUpdates, uitgavenTussen } from "../lib/updates.mjs";
 import { appsInWerkmap, eigenaarUitOrigin, originVan } from "../lib/werkmap.mjs";
@@ -171,8 +171,11 @@ async function sessieStart(projectmap, manifest) {
   const nu = new Date();
   if (!moetControleren({ stempel, nu })) return;
 
-  const template = templateVan(manifest);
-  const opAfstand = bronOpAfstandOfTesthaak(template);
+  // Zegt het manifest niet eenduidig uit welke template de app komt, dan geen versie op afstand
+  // (van welke template?) maar hooguit één keer per dag een melding met wat er mis is.
+  const keuze = manifestTemplate(manifest, { heeftServercode: existsSync(join(projectmap, "react-router.config.ts")) });
+  const template = keuze.template ?? null;
+  const opAfstand = keuze.fout ? { repo: null, versie: null, fout: "manifest", reden: keuze.fout } : bronOpAfstandOfTesthaak(template);
   const doel = opAfstand.versie;
   const nieuwer = Number.isSafeInteger(doel) && doel > versieLokaal;
   const [updates, achter] = await Promise.all([
@@ -184,6 +187,7 @@ async function sessieStart(projectmap, manifest) {
     versieOpAfstand: doel,
     bronFout: opAfstand.fout,
     bron: opAfstand.repo,
+    manifestFout: opAfstand.reden ?? null,
     stempel,
     nu,
     uitgaven: uitgavenTussen(updates, { van: versieLokaal, tot: doel }),
@@ -243,6 +247,7 @@ function werkmapStart(werkmap, apps) {
   if (moetControleren({ stempel, nu })) {
     let gekeken = false;
     for (const template of new Set(apps.map((a) => templateVan(a.manifest)))) {
+      if (template === null) continue;
       const opAfstand = bronOpAfstandOfTesthaak(template);
       if (Number.isSafeInteger(opAfstand.versie)) {
         versies[template] = opAfstand.versie;

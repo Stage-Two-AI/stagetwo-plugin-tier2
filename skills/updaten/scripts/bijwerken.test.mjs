@@ -1131,3 +1131,106 @@ test("twee templates: --template-ref op een branch van de andere template stopt,
     w.opruimen();
   }
 });
+
+// ---------------------------------------------------------------- manifestformaat 2 en het veld template (versie 43)
+
+/** De app en de openbare template op manifestformaat 2 (zoals de openbare template sinds 43). */
+const FORMAAT2 = { ...OPENBAAR, manifestFormaat: 2 };
+const metManifest = (bestanden, aanpassen) => {
+  const m = JSON.parse(bestanden[".claude/stack-manifest.json"]);
+  aanpassen(m);
+  return { ...bestanden, ".claude/stack-manifest.json": `${JSON.stringify(m, null, 2)}\n` };
+};
+
+test("formaat 2: een openbare app op formaat 2 gaat met zijn eigen template, ook als die template op formaat 2 staat", () => {
+  const w = wereld({ app: metManifest(openbareAppBestanden(), (m) => Object.assign(m, FORMAAT2)) });
+  const open2 = maakTemplateRepo(w.wortel, { extraManifest: FORMAAT2, naam: "template-openbaar-2" });
+  try {
+    const d = w.draai(["--json", "--droogloop"], { STACK_TEMPLATE_REPO: open2 });
+    assert.equal(d.status, "klaar", d.reden);
+    const r = w.draai(["--json", "--werkmap", d.werkmap], { STACK_TEMPLATE_REPO: open2 });
+    assert.equal(r.status, "gepusht", r.reden);
+    const manifest = JSON.parse(git(w.klant.origin, "show", "stack-bijwerken/v9:.claude/stack-manifest.json"));
+    assert.equal(manifest.manifestFormaat, 2);
+    assert.equal(manifest.template, "app-template-tier2-openbaar");
+    // Met de gewone template blijft het geweigerd, ook op formaat 2.
+    const fout = w.draai(["--json", "--droogloop"]);
+    assert.equal(fout.status, "mislukt");
+    assert.match(fout.reden, /deze app komt uit de openbare template/);
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("formaat 2: zonder veld template, of met een vreemde waarde, stopt updaten vóór er iets gekloond is", () => {
+  const gevallen = [
+    [(m) => Object.assign(m, { manifestFormaat: 2 }), /manifestFormaat 2 maar geen veld "template"/],
+    [(m) => Object.assign(m, { manifestFormaat: 2, template: null }), /"template": null; dat is geen template die deze plugin kent/],
+    [(m) => Object.assign(m, { manifestFormaat: 3, template: "app-template-tier2" }), /kent tot en met formaat 2\. Werk eerst de plugin bij/],
+  ];
+  for (const [aanpassen, verwacht] of gevallen) {
+    const w = wereld({ app: metManifest(openbareAppBestanden(), (m) => { delete m.template; aanpassen(m); }) });
+    try {
+      const r = w.draai(["--json", "--droogloop"], { STACK_TEMPLATE_REPO: w.openbaar });
+      assert.equal(r.status, "mislukt");
+      assert.match(r.reden, verwacht);
+      assert.deepEqual(w.werkmappen(), [], "niets gekloond");
+      assert.equal(git(w.klant.origin, "branch", "--list", "stack-bijwerken/*"), "");
+    } finally {
+      w.opruimen();
+    }
+  }
+});
+
+test("veld template: null, een lijst, een getal of een lege tekst telt nooit als de gewone template", () => {
+  for (const vreemd of [null, ["app-template-tier2"], 2, ""]) {
+    const w = wereld({ app: metManifest(openbareAppBestanden(), (m) => { m.template = vreemd; }) });
+    try {
+      const r = w.draai(["--json", "--droogloop"]); // STACK_TEMPLATE_REPO wijst naar de gewone template
+      assert.equal(r.status, "mislukt", JSON.stringify(vreemd));
+      assert.match(r.reden, /dat is geen template die deze plugin kent/);
+      assert.deepEqual(w.werkmappen(), []);
+      // Ook via --repo, na het klonen; de kloon is weer weg.
+      const leeg = tijdelijkeMap("lege-map-");
+      const a = w.draai(["--json", "--droogloop", "--repo", "klant/app", "--checkout", leeg]);
+      opruimen(leeg);
+      assert.equal(a.status, "mislukt");
+      assert.match(a.reden, /dat is geen template die deze plugin kent/);
+      assert.deepEqual(w.werkmappen(), []);
+      assert.equal(git(w.klant.origin, "branch", "--list", "stack-bijwerken/*"), "");
+    } finally {
+      w.opruimen();
+    }
+  }
+});
+
+test("veld template weggehaald uit een app met react-router.config.ts: stoppen met uitleg, niet bijwerken met de gewone template", () => {
+  const app = metManifest({ ...openbareAppBestanden(), "react-router.config.ts": "export default {};\n" }, (m) => { delete m.template; });
+  const w = wereld({ app });
+  try {
+    const r = w.draai(["--json", "--droogloop"]);
+    assert.equal(r.status, "mislukt");
+    assert.match(r.reden, /react-router\.config\.ts, het kenmerk van de openbare template/);
+    assert.match(r.reden, /Waarschijnlijk is dat veld weggehaald/);
+    assert.deepEqual(w.werkmappen(), []);
+    const leeg = tijdelijkeMap("lege-map-");
+    const a = w.draai(["--json", "--droogloop", "--repo", "klant/app", "--checkout", leeg]);
+    opruimen(leeg);
+    assert.equal(a.status, "mislukt");
+    assert.match(a.reden, /Waarschijnlijk is dat veld weggehaald/);
+    assert.deepEqual(w.werkmappen(), []);
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("formaat 1 met template app-template-tier2-openbaar (de huidige stand van de template-branch) blijft werken", () => {
+  const w = wereld({ app: metManifest(openbareAppBestanden(), (m) => { m.manifestFormaat = 1; }) });
+  try {
+    const d = w.draai(["--json", "--droogloop"], { STACK_TEMPLATE_REPO: w.openbaar });
+    assert.equal(d.status, "klaar", d.reden);
+    w.draai(["--werkmap", d.werkmap]);
+  } finally {
+    w.opruimen();
+  }
+});
