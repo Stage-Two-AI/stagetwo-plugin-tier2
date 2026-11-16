@@ -53,6 +53,8 @@
  *   wacht-op-toegang (na --inrichten) de app staat nog niet in toegang.json; zie `pr`
  *   klantportaal-anders (na --inrichten --klantportaal) de app is al klantportaal, met andere
  *                waarden; `reden` zegt wat er staat en dat een wijziging via een pull request gaat
+ *   beheer-te-oud (na --inrichten) een app van de openbare template, en de beheer-repo staat onder versie 44:
+ *       App inrichten zou meteen stoppen op wrangler.jsonc. Er is niets gestart; zie `reden`
  *   geen-beheer  (na --inrichten) deze eigenaar heeft (nog) geen beheer-repo; in de projectfase koppelt Stage Two
  *   mislukt      een voorwaarde ontbreekt of een stap faalde; `reden` is één zin met één
  *                handeling. Was de repo al aangemaakt, dan staat hij in `repo`.
@@ -751,6 +753,56 @@ export function kiesBeheerRepo(eigenaar, bestaat = repoBestaat) {
 }
 export const BEHEER_WORKFLOW = "app-inrichten.yml";
 
+/**
+ * Vanaf deze versie van de beheer-repo kan App inrichten een app van de openbare template aan.
+ * Tot en met 43 stopt het meteen op wrangler.jsonc: de controle daar kent alleen de gewone
+ * template en weigert `main` (de servercode van de openbare template).
+ */
+export const BEHEER_OPENBAAR_VANAF = 44;
+export const OPENBARE_VARIANT = "cloudflare-openbaar";
+
+/** Het versienummer uit de tekst van `VERSIE` in de beheer-repo ("44" of "44.0.0"); null als het geen getal is. */
+export function leesBeheerVersie(tekst) {
+  const m = /^\s*v?(\d+)(?:\.\d+)*\s*$/.exec(String(tekst ?? ""));
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * Wat de bouwer hoort als de beheer-repo te oud is voor de openbare template, of null als het
+ * goed is. Een onbekende versie (geen `VERSIE`, niet te lezen) houdt niets tegen: dan zegt App
+ * inrichten het zelf. `moment` is "vooraf" (de app wordt nog gemaakt) of "inrichten".
+ */
+export function beheerTeOudVoorOpenbaar({ beheer, versie, moment = "inrichten" }) {
+  if (versie === null || versie === undefined || versie >= BEHEER_OPENBAAR_VANAF) return null;
+  const wat =
+    `De beheer-repo ${beheer} staat op versie ${versie}. App inrichten kan een app van de openbare template pas vanaf versie ${BEHEER_OPENBAAR_VANAF} aan; ` +
+    "op deze versie stopt het meteen op wrangler.jsonc (`main`, de servercode), vóór er iets is gewijzigd. ";
+  const uitweg =
+    `Een nieuwe versie van ${beheer} komt van Stage Two: de owner van de organisatie vraagt die aan en geeft daarvoor tijdelijk toegang. ` +
+    "Daarna werkt hetzelfde commando. ";
+  return moment === "vooraf"
+    ? `${wat}De app zelf kun je nu al maken, bouwen en lokaal bekijken; alleen het adres, de inlog en de database op internet wachten daarop. ${uitweg}Wil je vandaag al een app op een adres, dan kan dat met de gewone template van tier 2 (achter de deur); later omzetten kan, maar is een verbouwing.`
+    : `${wat}Er is niets gestart. De app zelf is klaar: je kunt bouwen en lokaal bekijken. ${uitweg}`;
+}
+
+/** De tekst van een bestand op de standaardtak van een repo, of null als het er niet is. */
+function ghBestand(repo, pad) {
+  try {
+    return sh("gh", ["api", `repos/${repo}/contents/${pad}`, "-H", "Accept: application/vnd.github.raw"]);
+  } catch {
+    return null;
+  }
+}
+
+/** Is de app-repo een app van de openbare template? Leest het manifest; onleesbaar is nee. */
+function isOpenbareApp(repo) {
+  try {
+    return JSON.parse(ghBestand(repo, ".claude/stack-manifest.json") ?? "{}").variant === OPENBARE_VARIANT;
+  } catch {
+    return false;
+  }
+}
+
 /** De regel `INRICHTING {...}` uit het logboek van de workflow, of null. */
 export function leesInrichting(logtekst) {
   const regels = String(logtekst ?? "").split("\n");
@@ -957,6 +1009,13 @@ export function richtIn(arg, { cwd = process.cwd(), wachtMs = 5000, maxWachtMinu
   const repo = `${arg.eigenaar}/${arg.naam}`;
   if (!repoBestaat(repo)) return { status: "mislukt", reden: `de repo ${repo} bestaat niet; maak de app eerst aan (--doe-het)` };
 
+  // Een app van de openbare template vraagt een beheer-repo vanaf versie 44; een oudere stopt
+  // meteen. Dan hier al zeggen wat er aan de hand is, vóór er een pull request of run komt.
+  if (isOpenbareApp(repo)) {
+    const teOud = beheerTeOudVoorOpenbaar({ beheer, versie: leesBeheerVersie(ghBestand(beheer, "VERSIE")) });
+    if (teOud) return { status: "beheer-te-oud", repo, beheer, reden: teOud };
+  }
+
   let toegang;
   let sha;
   try {
@@ -1122,8 +1181,19 @@ export function voorcontrole(arg, { cwd = process.cwd(), levering = LEVERING } =
     };
   }
 
+  // De openbare template vraagt een beheer-repo vanaf versie 44. Staat die lager, dan kan de app
+  // wel gemaakt worden, maar stopt App inrichten (stap 5b). Zeg dat nu, niet pas daarna.
+  let waarschuwing = null;
+  if (arg.template === "openbaar" && org) {
+    const beheer = kiesBeheerRepo(arg.eigenaar);
+    if (beheer) {
+      waarschuwing = beheerTeOudVoorOpenbaar({ beheer, versie: leesBeheerVersie(ghBestand(beheer, "VERSIE")), moment: "vooraf" });
+    }
+  }
+
   return {
     status: "klaar",
+    ...(waarschuwing ? { waarschuwing } : {}),
     plan: {
       repo,
       url: `https://github.com/${repo}`,

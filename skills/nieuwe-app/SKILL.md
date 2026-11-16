@@ -156,6 +156,12 @@ Het antwoord is één JSON-object met een `status`.
   eigenaar een organisatie, zeg dan dat main straks niet beschermd kan worden op het
   gratis plan, en dat de owner dat oplost door de organisatie op het plan Team te zetten (in
   de projectfase regelt Stage Two dat); doorgaan mag.
+  Staat er een `waarschuwing` bij (alleen bij de openbare template), zeg die dan vóór je
+  verdergaat, in gewone woorden: de beheer-repo van de organisatie is te oud voor de openbare
+  template, dus de app kan wel gemaakt en gebouwd worden, maar krijgt nog geen adres, inlog en
+  database op internet tot de owner bij Stage Two de nieuwe versie van de beheer-repo heeft
+  aangevraagd. Vraag of de gebruiker zo wil doorgaan, of nu liever de gewone template neemt
+  (dezelfde droogloop zonder `--template`).
 
 Zeg dan: "Ik maak hem nu aan; dat duurt een paar minuten." Draai hetzelfde commando met
 `--doe-het` in plaats van `--droogloop`. Vraag geen toestemming meer; het typen van
@@ -242,6 +248,12 @@ Het antwoord:
   afzender of captcha dan je meegaf. Er is niets gewijzigd. Geef `reden` door: een wijziging
   gaat via een pull request op `toegang.json`; inrichten met wat er staat kan met hetzelfde
   commando zonder `--klantportaal`.
+- `beheer-te-oud`: de app komt uit de openbare template en de beheer-repo van de organisatie
+  staat onder versie 44. App inrichten zou dan meteen stoppen op `wrangler.jsonc`; er is niets
+  gestart. Geef `reden` door, in gewone woorden: de app zelf is klaar en er kan gebouwd en lokaal
+  bekeken worden; de owner vraagt bij Stage Two de nieuwe versie van de beheer-repo aan, en
+  daarna werkt hetzelfde commando. Probeer het niet te omzeilen (geen aangepaste
+  `wrangler.jsonc`, geen eigen inrichting).
 - `geen-beheer`: deze organisatie heeft (nog) geen beheer-repo. Zeg dat die er aan het begin
   van het project komt (Stage Two zet hem klaar) en dat hij daarna hosting en database
   inricht; de app zelf is klaar. Loop de `nogTeDoen` van stap 5 langs.
