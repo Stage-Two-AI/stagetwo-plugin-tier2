@@ -657,6 +657,8 @@ test("--inrichten --klantportaal: een gewone app in toegang.json krijgt een pull
     "api users/Org": { stdout: { type: "Organization" } },
     "repo view": { stdout: { name: "x" } },
     [`api repos/${beheer}/contents/toegang.json`]: { stdout: { content: Buffer.from(JSON.stringify(toegang)).toString("base64"), sha: "abc" } },
+    // De app is al ingericht achter de deur: alleen dan mag hij klantportaal worden.
+    "api repos/Org/shop/environments/production/variables/VITE_INLOGDIENST": { stdout: { name: "VITE_INLOGDIENST", value: "cloudflare" } },
     [`api repos/${beheer}/contents/toegang.json?ref=toegang/shop-klantportaal`]: { exit: 1, stderr: "HTTP 404" },
     "pr list": { stdout: [] },
     [`api repos/${beheer}/git/ref/heads/main`]: { stdout: "sha-main\n" },
@@ -717,6 +719,115 @@ test("--inrichten --klantportaal op een app die al klantportaal is met een ander
     assert.match(r.reden, /met afzender "Shop <noreply@shop\.nl>"/);
     assert.match(r.reden, /via een pull request op toegang\.json/);
     assert.ok(!nep.aanroepen().some((a) => (a[0] === "pr" && a[1] === "create") || (a[0] === "workflow" && a[1] === "run") || a.includes("PUT")), "niets gewijzigd, niets gestart");
+  } finally {
+    process.env.PATH = oud;
+    opruimen(wortel);
+  }
+});
+
+// ---------------------------------------------------------------- beheer te oud voor de openbare template (44)
+
+test("beheer-repo en de openbare template: de versie lezen, en alleen onder 44 een melding", async () => {
+  const { leesBeheerVersie, beheerTeOudVoorOpenbaar, BEHEER_OPENBAAR_VANAF } = await import("./nieuwe-app.mjs");
+  assert.equal(BEHEER_OPENBAAR_VANAF, 44);
+  assert.equal(leesBeheerVersie("43\n"), 43);
+  assert.equal(leesBeheerVersie("44.0.0"), 44);
+  assert.equal(leesBeheerVersie("v45"), 45);
+  for (const geen of [null, "", "nieuw", "4x"]) assert.equal(leesBeheerVersie(geen), null, String(geen));
+  const beheer = "Org/stagetwo-beheer-tier2";
+  for (const versie of [44, 45, null, undefined]) assert.equal(beheerTeOudVoorOpenbaar({ beheer, versie }), null, String(versie));
+  const bijInrichten = beheerTeOudVoorOpenbaar({ beheer, versie: 37 });
+  assert.match(bijInrichten, /Org\/stagetwo-beheer-tier2 staat op versie 37/);
+  assert.match(bijInrichten, /pas vanaf versie 44/);
+  assert.match(bijInrichten, /Er is niets gestart\. De app zelf is klaar/);
+  const vooraf = beheerTeOudVoorOpenbaar({ beheer, versie: 43, moment: "vooraf" });
+  // De bouwer staat niet stil: de app kan gemaakt worden, en de gewone template werkt vandaag.
+  assert.match(vooraf, /De app zelf kun je nu al maken, bouwen en lokaal bekijken/);
+  for (const tekst of [bijInrichten, vooraf]) {
+    // De klant staat niet stil en hangt niet aan Stage Two: zelf doen kan, Stage Two is een
+    // optie, en de gewone template werkt vandaag.
+    assert.match(tekst, /De beheer-repo is van de organisatie; de owner brengt hem op versie 44 of hoger/);
+    assert.match(tekst, /Zelf: de owner past Org\/stagetwo-beheer-tier2 aan met Claude, als pull request die het bedrijfsaccount goedkeurt/);
+    assert.match(tekst, /Of door Stage Two: met een abonnement/);
+    assert.match(tekst, /met de gewone template van tier 2 \(achter de deur\) kan een app vandaag al op een adres/);
+    assert.ok(tekst.indexOf("Zelf:") < tekst.indexOf("Of door Stage Two"), "eerst wat de klant zelf kan");
+    assert.doesNotMatch(tekst, /\u2014/);
+  }
+});
+
+test("--inrichten: een openbare app met een beheer-repo onder 44 stopt vóór er iets start; op 44 gaat het door", () => {
+  const wortel = tijdelijkeMap("inrichten-openbaar-");
+  const beheer = "Org/stagetwo-beheer-tier2";
+  const toegang = { groepen: { kantoor: { domeinen: ["shop.nl"] } }, apps: { shop: ["kantoor"] } };
+  const antwoorden = (versie, variant) => ({
+    "--version": { stdout: "gh version 2.95.0\n" },
+    "auth status": { stdout: "Logged in\n" },
+    "api users/Org": { stdout: { type: "Organization" } },
+    "repo view": { stdout: { name: "x" } },
+    "api repos/Org/shop/contents/.claude/stack-manifest.json": { stdout: { variant } },
+    [`api repos/${beheer}/contents/VERSIE`]: { stdout: `${versie}\n` },
+    [`api repos/${beheer}/contents/toegang.json`]: { stdout: { content: Buffer.from(JSON.stringify(toegang)).toString("base64"), sha: "abc" } },
+  });
+  const nep = nepGh(wortel, antwoorden(37, "cloudflare-openbaar"));
+  const oud = process.env.PATH;
+  process.env.PATH = `${nep.pad}:${oud}`;
+  const arg = leesArgumenten(["--inrichten", "--naam", "shop", "--eigenaar", "Org"]);
+  const gestart = () => nep.aanroepen().some((a) => (a[0] === "workflow" && a[1] === "run") || (a[0] === "pr" && a[1] === "create") || a.includes("PUT"));
+  try {
+    const r = richtIn(arg, { wachtMs: 0 });
+    assert.equal(r.status, "beheer-te-oud", r.reden);
+    assert.equal(r.beheer, beheer);
+    assert.match(r.reden, /staat op versie 37/);
+    assert.equal(gestart(), false, "geen pull request en geen run");
+
+    // Een gewone app op dezelfde oude beheer-repo: zoals altijd (de nep-run faalt bij het starten).
+    nep.zet(antwoorden(37, "cloudflare"));
+    const gewoon = richtIn(arg, { wachtMs: 0 });
+    assert.equal(gewoon.status, "mislukt");
+    assert.match(gewoon.reden, /de workflow starten mislukte/);
+
+    // Een openbare app op beheer 44: door naar de workflow.
+    nep.zet(antwoorden(44, "cloudflare-openbaar"));
+    const nieuw = richtIn(arg, { wachtMs: 0 });
+    assert.equal(nieuw.status, "mislukt");
+    assert.match(nieuw.reden, /de workflow starten mislukte/);
+  } finally {
+    process.env.PATH = oud;
+    opruimen(wortel);
+  }
+});
+
+test("--inrichten --klantportaal: een app die nog niet is ingericht wordt nooit meteen klantportaal", async () => {
+  const { eerstAchterDeDeur } = await import("./nieuwe-app.mjs");
+  const wortel = tijdelijkeMap("inrichten-vers-portaal-");
+  const beheer = "Org/stagetwo-beheer-tier2";
+  const antwoorden = (apps) => ({
+    "--version": { stdout: "gh version 2.95.0\n" },
+    "auth status": { stdout: "Logged in\n" },
+    "api users/Org": { stdout: { type: "Organization" } },
+    "repo view": { stdout: { name: "x" } },
+    [`api repos/${beheer}/contents/toegang.json`]: {
+      stdout: { content: Buffer.from(JSON.stringify({ groepen: { kantoor: { domeinen: ["shop.nl"] } }, apps })).toString("base64"), sha: "abc" },
+    },
+  });
+  const nep = nepGh(wortel, antwoorden({ intern: ["kantoor"] }));
+  const oud = process.env.PATH;
+  process.env.PATH = `${nep.pad}:${oud}`;
+  const portaal = ["--klantportaal", "--afzender", "Shop <noreply@shop.nl>", "--turnstile-sitekey", SITEKEY_VB];
+  const gewijzigd = () => nep.aanroepen().some((a) => (a[0] === "pr" && a[1] === "create") || (a[0] === "workflow" && a[1] === "run") || a.includes("PUT"));
+  try {
+    // Staat nog niet in toegang.json: geen pull request die hem als klantportaal neerzet.
+    const nieuw = richtIn(leesArgumenten(["--inrichten", "--naam", "shop", "--eigenaar", "Org", "--groepen", "kantoor", ...portaal]), { wachtMs: 0 });
+    assert.equal(nieuw.status, "eerst-achter-de-deur", nieuw.reden);
+    assert.equal(nieuw.reden, eerstAchterDeDeur("shop"));
+    // Staat er wel in, maar App inrichten heeft nog nooit gedraaid (geen VITE_INLOGDIENST in production).
+    nep.zet(antwoorden({ shop: ["kantoor"] }));
+    const nietIngericht = richtIn(leesArgumenten(["--inrichten", "--naam", "shop", "--eigenaar", "Org", ...portaal]), { wachtMs: 0 });
+    assert.equal(nietIngericht.status, "eerst-achter-de-deur");
+    assert.equal(gewijzigd(), false, "niets gewijzigd, niets gestart");
+    assert.match(eerstAchterDeDeur("shop"), /Draai eerst hetzelfde commando zonder --klantportaal/);
+    assert.match(eerstAchterDeDeur("shop"), /het vinkje "Deur weghalen"/);
+    assert.doesNotMatch(eerstAchterDeDeur("shop"), /Stage Two|\u2014/);
   } finally {
     process.env.PATH = oud;
     opruimen(wortel);

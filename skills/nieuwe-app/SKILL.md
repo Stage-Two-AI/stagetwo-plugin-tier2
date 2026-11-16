@@ -156,6 +156,13 @@ Het antwoord is één JSON-object met een `status`.
   eigenaar een organisatie, zeg dan dat main straks niet beschermd kan worden op het
   gratis plan, en dat de owner dat oplost door de organisatie op het plan Team te zetten (in
   de projectfase regelt Stage Two dat); doorgaan mag.
+  Staat er een `waarschuwing` bij (alleen bij de openbare template), zeg die dan vóór je
+  verdergaat, in gewone woorden: de beheer-repo van de organisatie is te oud voor de openbare
+  template, dus de app kan wel gemaakt en gebouwd worden, maar krijgt nog geen adres, inlog en
+  database op internet tot de beheer-repo op de nieuwe versie staat. Die repo is van de
+  organisatie: de owner brengt hem zelf op de nieuwe versie, of laat Stage Two dat klaarzetten.
+  Vraag of de gebruiker zo wil doorgaan, of nu liever de gewone template neemt (dezelfde
+  droogloop zonder `--template`).
 
 Zeg dan: "Ik maak hem nu aan; dat duurt een paar minuten." Draai hetzelfde commando met
 `--doe-het` in plaats van `--droogloop`. Vraag geen toestemming meer; het typen van
@@ -197,33 +204,33 @@ node "${CLAUDE_SKILL_DIR}/scripts/nieuwe-app.mjs" --json --inrichten --naam "<na
 `--groepen` alleen als de app nog niet in de toegangslijst stond (stap 4). Zeg vooraf dat
 dit tot een kwartier kan duren: een nieuwe database moet opstarten.
 
-**Een klantportaal** (openbare template, klanten loggen in): dan staat de app in de
-toegangslijst als klantportaal. Daarvoor regelt de owner een eigen domein voor de app, bij
-Resend een geverifieerd domein voor de afzender van de inlogmail, en een Turnstile-widget
-(captcha) voor het inlogscherm, met de geheime sleutels als secrets in de beheer-repo. Turnstile
-is geen extraatje maar de standaard: een open inlogformulier zonder captcha kan door één persoon
-worden platgelegd. Vraag of dat er al is.
+**Een klantportaal** (openbare template, klanten loggen in). Een app wordt nooit meteen een
+klantportaal. Hij wordt eerst ingericht zoals hierboven, achter de deur, net als elke app; zo kan
+er meteen gebouwd en bekeken worden, en staat er niets open voordat iemand het heeft getest. Zeg
+dat zo tegen de gebruiker. Omzetten naar klantportaal is een tweede stap, als de app achter de
+deur werkt en de owner dit heeft geregeld: een eigen domein voor de app, bij Resend een
+geverifieerd domein voor de afzender van de inlogmail, en een Turnstile-widget (captcha) voor het
+inlogscherm, met de geheime sleutels als secrets in de beheer-repo. Turnstile is geen extraatje
+maar de standaard: een open inlogformulier zonder captcha kan door één persoon worden platgelegd.
 
-- **Nog niet** (gebruikelijk bij een nieuwe app): richt de app eerst in zoals hierboven, achter
-  de deur. Zo kan er meteen gebouwd en bekeken worden. Is het er later wel, draai dan hetzelfde
-  commando met `--klantportaal` erbij (zie hieronder); dat zet de app om.
-- **Ja**: voeg toe `--klantportaal --afzender "<Naam> <adres>" --turnstile-sitekey "<openbare
-  sleutel>"`. Het adres staat op het domein dat bij Resend is geverifieerd, en de sleutel is de
-  openbare (Site Key) van de widget, nooit de geheime; vraag beide aan de gebruiker, verzin ze
-  niet. Alleen als de gebruiker uitdrukkelijk zonder captcha wil, geef je `--zonder-captcha` in
-  plaats van de sleutel; zeg dan de `waarschuwing` uit het antwoord letterlijk door (die staat
-  ook in de pull request).
+Is dat er, draai dan hetzelfde commando met `--klantportaal --afzender "<Naam> <adres>"
+--turnstile-sitekey "<openbare sleutel>"` erbij. Het adres staat op het domein dat bij Resend is
+geverifieerd, en de sleutel is de openbare (Site Key) van de widget, nooit de geheime; vraag
+beide aan de gebruiker, verzin ze niet. Alleen als de gebruiker uitdrukkelijk zonder captcha wil,
+geef je `--zonder-captcha` in plaats van de sleutel; zeg dan de `waarschuwing` uit het antwoord
+letterlijk door (die staat ook in de pull request).
 
 Daarna gaat het in deze volgorde (het antwoord geeft ze in `nogTeDoen`; de details staan in de
 README van de beheer-repo, hoofdstuk Klantportaal):
 
-0. Vooraf: de app staat op versie 43 of later, heeft een eigen domein, en de regels in de
-   database zijn nagelopen (bij een klantportaal de enige grens).
+0. Vooraf: de app staat op versie 43 of later, is achter de deur ingericht en uitgerold, heeft
+   een eigen domein, en de regels in de database zijn nagelopen (bij een klantportaal de enige
+   grens).
 1. Resend-sleutel en Turnstile-widget; de geheime sleutels als secrets in de beheer-repo.
-2. De pull request op `toegang.json` laten mergen.
-3. App inrichten: zet alles klaar, de deur blijft nog staan.
+2. De pull request op `toegang.json` laten mergen (die zet de app om naar klantportaal).
+3. App inrichten: zet alles klaar; de deur die er al stond, blijft staan.
 4. De app opnieuw uitrollen en achter de deur testen (inloggen per mail, de widget).
-5. App inrichten nog een keer, met het vinkje "Deur weghalen": nu gaat het domein open.
+5. App inrichten nog een keer, met het vinkje "Deur weghalen": nu pas gaat het domein open.
 6. De knop "Controle van buitenaf" in de beheer-repo.
 
 Het antwoord:
@@ -231,9 +238,13 @@ Het antwoord:
 - `kies-groepen`: de app staat nog niet in de toegangslijst en er zijn geen groepen
   meegegeven. Toon `groepen`, laat kiezen, en draai opnieuw met `--groepen`. Is de lijst
   leeg, geef dan `reden` door: de owner maakt de groepen aan (tijdens het project Stage Two).
+- `eerst-achter-de-deur`: je gaf `--klantportaal` mee voor een app die nog niet is ingericht.
+  Er is niets gewijzigd. Draai eerst hetzelfde commando zonder `--klantportaal` (en zonder
+  `--afzender` en de sleutel); pas als de app achter de deur staat en is uitgerold, zet je hem
+  om. Leg in één zin uit waarom: anders zou het domein open staan voordat iemand het heeft getest.
 - `wacht-op-toegang`: er staat nu een pull request op de beheer-repo (`pr`) die de app
-  aan de toegangslijst toevoegt (of, met `klantportaal: true`, als klantportaal neerzet of een
-  bestaande app omzet; loop dan ook `nogTeDoen` langs: dat regelt de owner vóór App inrichten). Die wijzigt alleen `toegang.json`, dus de controle
+  aan de toegangslijst toevoegt (of, met `klantportaal: true`, een app die al achter de deur
+  staat omzet naar klantportaal; loop dan ook `nogTeDoen` langs: dat regelt de owner vóór App inrichten). Die wijzigt alleen `toegang.json`, dus de controle
   Toegang of review wordt vanzelf groen. Zeg dat de gebruiker hem zelf merget als hij in het
   team `toegangsbeheer` zit (anders de owner van de organisatie); zo beslist een mens wie
   bij een app mag. Zeg ook dat je daarna hetzelfde commando nog een keer draait, zonder
@@ -242,6 +253,14 @@ Het antwoord:
   afzender of captcha dan je meegaf. Er is niets gewijzigd. Geef `reden` door: een wijziging
   gaat via een pull request op `toegang.json`; inrichten met wat er staat kan met hetzelfde
   commando zonder `--klantportaal`.
+- `beheer-te-oud`: de app komt uit de openbare template en de beheer-repo van de organisatie
+  staat onder versie 44. App inrichten zou dan meteen stoppen op `wrangler.jsonc`; er is niets
+  gestart. Geef `reden` door, in gewone woorden: de app zelf is klaar en er kan gebouwd en lokaal
+  bekeken worden. De beheer-repo is van de organisatie: de owner brengt hem zelf op de nieuwe
+  versie (met Claude, als pull request die het bedrijfsaccount goedkeurt), of laat Stage Two de
+  nieuwe versie klaarzetten (zit in het abonnement). Is er haast, dan kan de app ook op de gewone
+  template van tier 2 beginnen. Daarna werkt hetzelfde commando. Pas de app niet aan om erlangs
+  te komen (geen aangepaste `wrangler.jsonc`, geen eigen inrichting vanaf deze computer).
 - `geen-beheer`: deze organisatie heeft (nog) geen beheer-repo. Zeg dat die er aan het begin
   van het project komt (Stage Two zet hem klaar) en dat hij daarna hosting en database
   inricht; de app zelf is klaar. Loop de `nogTeDoen` van stap 5 langs.

@@ -393,9 +393,12 @@ Wat deze plugin anders doet dan die van tier 1:
   controleert eerst `toegang.json` van `<org>/stagetwo-beheer-tier2` (oude namen
   `stagetwo-beheer` en `stack-beheer` werken nog), zo nodig met een pull request, en start
   dan **App inrichten** (inputs `app` en `droogloop`); met `--klantportaal --afzender ...`
-  zet een pull request de app als klantportaal in `toegang.json` (`klantportaal`, `afzender`,
-  en `turnstile_sitekey`; zonder captcha alleen met `--zonder-captcha`, dan `"captcha": false`
-  en een waarschuwing), ook een app die er al als gewone app in staat;
+  zet een pull request een app die al achter de deur is ingericht om naar klantportaal in
+  `toegang.json` (`klantportaal`, `afzender`, en `turnstile_sitekey`; zonder captcha alleen met
+  `--zonder-captcha`, dan `"captcha": false` en een waarschuwing). Een app die nog niet is
+  ingericht wordt nooit meteen klantportaal (sinds versie 44, status `eerst-achter-de-deur`):
+  App inrichten zet bij een klantportaal geen deur neer. Bij een app van de openbare template
+  kijkt `--inrichten` eerst of de beheer-repo op versie 44 of hoger staat (`beheer-te-oud`);
 - `automatisch-bijwerken.mjs` zet de marketplace `stagetwo-tier2` en haalt de oude weg.
 
 Een verbetering die voor beide varianten geldt, doe je in beide repo's.
