@@ -10,8 +10,9 @@
  * deze tier, dan is dit een werkmap. Bij sessiestart volgt dan één regel (welke apps, en
  * alleen als er een achterloopt ook welke; de versie op afstand hooguit één keer per dag,
  * stempel werkmap_<map>.json), en bij PreToolUse beoordeelt de bewaker elk bestand in de
- * map van zijn app. Geen manifest en geen apps eronder: exit 0 zonder uitvoer (R4, AE7). Staat er in dat manifest geen `variant: "cloudflare"`,
- * dan is het een app van het Vercel-spoor en doet deze plugin ook niets. Kapotte invoer is ook een no-op: een hook die
+ * map van zijn app. Geen manifest en geen apps eronder: exit 0 zonder uitvoer (R4, AE7). Staat er in dat manifest geen variant van tier 2
+ * (`"cloudflare"` of, sinds versie 43, `"cloudflare-openbaar"`; lib/manifest.mjs), dan is het een app van
+ * een ander spoor en doet deze plugin ook niets. Kapotte invoer is ook een no-op: een hook die
  * crasht mag nooit de sessie in de weg zitten.
  *
  * PreToolUse: beoordeelTool weigert templatebestanden en riskante Bash-opdrachten; een
@@ -35,18 +36,26 @@
  *     van het bedrijf die achterlopen (lib/andere-apps.mjs, via `gh`); zonder antwoord binnen
  *     de limiet ontbreekt die regel, en morgen volgt een nieuwe poging.
  *
+ * Tier 2 heeft sinds versie 43 twee templates (lib/levering.mjs). De versie op afstand komt uit
+ * de template van de app zelf (het veld `template` in zijn manifest), in een werkmap per
+ * template. Is de app van de openbare template en zit die niet in de levering, dan volgt
+ * hooguit één keer per dag een melding daarover (regels.mjs, bronFout "niet-in-levering"), en
+ * nooit een vergelijking met de gewone template.
+ *
  * Testhaak: is STACK_VERSIE_OP_AFSTAND_TEST gezet, dan vervangt die waarde de
  * netwerkvraag ("10" telt als versie 10, "geen-toegang" als een repo die GitHub weigert,
  * elke andere waarde als null). Alleen voor de
  * tests van deze plugin; het enige wat een verkeerd gebruik oplevert is een onjuiste
  * melding in de eigen sessie. STAGETWO_UPDATES_TEST en STAGETWO_ANDERE_APPS_TEST doen
- * hetzelfde voor het changelog en de andere apps.
+ * hetzelfde voor het changelog en de andere apps, en STAGETWO_LEVERING_TEST (JSON) vervangt de
+ * levering (welke templates deze klant heeft).
  */
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { andereAppsAchter, repoUitOrigin } from "../lib/andere-apps.mjs";
+import { LEVERING, TEMPLATE_GEWOON, TEMPLATE_OPENBAAR, manifestTemplate, templateBron, templateVan } from "../lib/levering.mjs";
 import { isCloudflareManifest } from "../lib/manifest.mjs";
 import { haalUpdates, uitgavenTussen } from "../lib/updates.mjs";
 import { appsInWerkmap, eigenaarUitOrigin, originVan } from "../lib/werkmap.mjs";
@@ -109,13 +118,26 @@ function stempelMap() {
   return process.env.CLAUDE_PLUGIN_DATA || join(process.env.HOME || homedir(), ".cache", "stagetwo-tier2");
 }
 
-function bronOpAfstandOfTesthaak() {
+function levering() {
+  const test = process.env.STAGETWO_LEVERING_TEST;
+  if (test === undefined) return LEVERING;
+  try {
+    return { ...LEVERING, ...JSON.parse(test) };
+  } catch {
+    return LEVERING;
+  }
+}
+
+/** De versie op afstand van de template `template` (de template van de app). */
+function bronOpAfstandOfTesthaak(template = TEMPLATE_GEWOON) {
+  const bron = templateBron({ template, env: process.env, levering: levering() });
+  if (bron.fout) return { repo: null, versie: null, fout: bron.nietInLevering ? "niet-in-levering" : null };
   const test = process.env.STACK_VERSIE_OP_AFSTAND_TEST;
   if (test !== undefined) {
     if (test === "geen-toegang") return { repo: "Test/template", versie: null, fout: "geen-toegang" };
     return { repo: "Test/template", versie: /^\d{1,6}$/.test(test) ? Number(test) : null, fout: null };
   }
-  return bronOpAfstand();
+  return bronOpAfstand({ repo: bron.repo });
 }
 
 function schrijfStempel(map, pad, stempel) {
@@ -128,7 +150,7 @@ function schrijfStempel(map, pad, stempel) {
 }
 
 /** De andere apps die achterlopen, hooguit één keer per dag per organisatie; anders null. */
-async function andereApps({ map, origin, doel, nu }) {
+async function andereApps({ map, origin, doel, template, nu }) {
   const huidige = repoUitOrigin(origin);
   if (!huidige) return null;
   const eigenaar = huidige.split("/")[0];
@@ -136,10 +158,10 @@ async function andereApps({ map, origin, doel, nu }) {
   if (!moetControleren({ stempel: leesJson(pad), nu })) return null;
   // De stempel komt er ook als het niet lukt: morgen opnieuw, niet bij elke sessie.
   schrijfStempel(map, pad, { tijdstip: nu.toISOString() });
-  return andereAppsAchter({ eigenaar, huidige, doel });
+  return andereAppsAchter({ eigenaar, huidige, doel, template });
 }
 
-async function sessieStart(projectmap) {
+async function sessieStart(projectmap, manifest) {
   const versieLokaal = leesVersie(projectmap);
   if (versieLokaal === null) return;
 
@@ -150,18 +172,24 @@ async function sessieStart(projectmap) {
   const nu = new Date();
   if (!moetControleren({ stempel, nu })) return;
 
-  const opAfstand = bronOpAfstandOfTesthaak();
+  // Zegt het manifest niet eenduidig uit welke template de app komt, dan geen versie op afstand
+  // (van welke template?) maar hooguit één keer per dag een melding met wat er mis is.
+  const keuze = manifestTemplate(manifest, { heeftServercode: existsSync(join(projectmap, "react-router.config.ts")) });
+  const template = keuze.template ?? null;
+  const opAfstand = keuze.fout ? { repo: null, versie: null, fout: "manifest", reden: keuze.fout } : bronOpAfstandOfTesthaak(template);
   const doel = opAfstand.versie;
   const nieuwer = Number.isSafeInteger(doel) && doel > versieLokaal;
   const [updates, achter] = await Promise.all([
     nieuwer ? haalUpdates() : null,
-    Number.isSafeInteger(doel) ? andereApps({ map, origin, doel, nu }) : null,
+    Number.isSafeInteger(doel) ? andereApps({ map, origin, doel, template, nu }) : null,
   ]);
   const { melding, nieuweStempel } = beoordeelStart({
     versieLokaal,
     versieOpAfstand: doel,
     bronFout: opAfstand.fout,
     bron: opAfstand.repo,
+    manifestFout: opAfstand.reden ?? null,
+    openbaar: template === TEMPLATE_OPENBAAR && !process.env.STACK_TEMPLATE_REPO,
     stempel,
     nu,
     uitgaven: uitgavenTussen(updates, { van: versieLokaal, tot: doel }),
@@ -206,22 +234,35 @@ function preToolUse(projectmap, manifest, event) {
   );
 }
 
-/** Sessiestart in een werkmap: één regel, met de versie op afstand hooguit één keer per dag. */
+/**
+ * Sessiestart in een werkmap: één regel, met de versie op afstand hooguit één keer per dag, per
+ * template die in de werkmap voorkomt. De stempel houdt `versieOpAfstand` (de gewone template,
+ * zoals vóór versie 43) en `versies` (per template).
+ */
 function werkmapStart(werkmap, apps) {
   const map = stempelMap();
   const pad = join(map, `${werkmapStempelNaam(werkmap)}.json`);
   const stempel = leesJson(pad);
   const nu = new Date();
-  let versie = Number.isSafeInteger(stempel?.versieOpAfstand) ? stempel.versieOpAfstand : null;
+  const versies = { ...(stempel?.versies && typeof stempel.versies === "object" ? stempel.versies : {}) };
+  if (Number.isSafeInteger(stempel?.versieOpAfstand) && !Number.isSafeInteger(versies[TEMPLATE_GEWOON])) versies[TEMPLATE_GEWOON] = stempel.versieOpAfstand;
   if (moetControleren({ stempel, nu })) {
-    const opAfstand = bronOpAfstandOfTesthaak();
-    if (Number.isSafeInteger(opAfstand.versie)) {
-      versie = opAfstand.versie;
-      schrijfStempel(map, pad, { versieOpAfstand: versie, tijdstip: nu.toISOString() });
+    let gekeken = false;
+    for (const template of new Set(apps.map((a) => templateVan(a.manifest)))) {
+      if (template === null) continue;
+      const opAfstand = bronOpAfstandOfTesthaak(template);
+      if (Number.isSafeInteger(opAfstand.versie)) {
+        versies[template] = opAfstand.versie;
+        gekeken = true;
+      }
+    }
+    if (gekeken) {
+      const gewoon = Number.isSafeInteger(versies[TEMPLATE_GEWOON]) ? { versieOpAfstand: versies[TEMPLATE_GEWOON] } : {};
+      schrijfStempel(map, pad, { ...gewoon, versies, tijdstip: nu.toISOString() });
     }
   }
   const eigenaren = [...new Set(apps.map((a) => eigenaarUitOrigin(originVan(a.map))).filter(Boolean))];
-  const melding = meldingWerkmap({ apps, eigenaren, versieOpAfstand: versie });
+  const melding = meldingWerkmap({ apps, eigenaren, versies });
   if (melding) process.stdout.write(`${melding}\n`);
 }
 
@@ -253,7 +294,7 @@ async function main() {
   // Een app van het Vercel-spoor is voor de andere Stage Two-plugin, niet voor deze.
   if (!isCloudflareManifest(manifest)) return;
 
-  if (event.hook_event_name === "SessionStart") await sessieStart(projectmap);
+  if (event.hook_event_name === "SessionStart") await sessieStart(projectmap, manifest);
   else if (event.hook_event_name === "PreToolUse") preToolUse(projectmap, manifest, event);
 }
 

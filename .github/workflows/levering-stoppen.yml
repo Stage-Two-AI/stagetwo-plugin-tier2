@@ -1,6 +1,7 @@
 # Levering stoppen: bij het einde van een abonnement haalt Stage Two de GitHub App
 # stagetwo-levering weg uit de org van de klant (voorwaarden 1.1, art. 18.6). Daarna heeft
-# Stage Two daar geen schrijfrecht meer; de leveringsrepo's blijven op de laatste versie staan.
+# Stage Two daar geen schrijfrecht meer; de leveringsrepo's blijven op de laatste versie staan
+# (ook app-template-tier2-openbaar, als de klant die kreeg: de hele installatie gaat weg).
 #
 # Volgorde: eerst de klant uit abonnees.json (pull request, merge), dan deze workflow met de
 # hand ("Run workflow", invoer org). Staat de org nog in abonnees.json, of is het de org van

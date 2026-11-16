@@ -11,7 +11,10 @@
  * maakt dat alleen eerder merkbaar: bij de toetsaanslag in plaats van bij een rode check.
  *
  * Welke paden van de template zijn, komt uit .claude/stack-manifest.json van de repo
- * zelf (R4): de lijst `vervangen`, plus expliciet .github/CODEOWNERS en de twee
+ * zelf (R4), dus ook voor een app van de openbare template (versie 43): daar staat de servercode
+ * van de template met naam in `vervangen` (workers/app.ts, src/entry.server.tsx en de bestanden
+ * in src/lib/server/), en is de rest van `src/` en `workers/` van het project (`vanHetProject`).
+ * De hook neemt geen tier of template aan, alleen het manifest: de lijst `vervangen`, plus expliciet .github/CODEOWNERS en de twee
  * prefixen .github/workflows/ en .claude/ (nieuwe bestanden daar zijn even gevoelig).
  * De bestanden uit `sleutelsSamenvoegen` (package.json) en `tussenMarkeringen`
  * (AGENTS.md) zijn níet beschermd: het projectdeel daarvan mag bewerkt worden en de
@@ -41,6 +44,7 @@
  * ontsnapping: STACK_ALLOW_DEV=1, voor lokaal kijken voor jezelf.
  */
 import { posix as pad } from "node:path";
+import { NIET_IN_LEVERING, TEMPLATE_GEWOON, openbaarNietBereikbaar, templateVan } from "../lib/levering.mjs";
 import { actieUit, datumNL, PAGINA_URL } from "../lib/updates.mjs";
 
 /** De gereedschappen die de hook beoordeelt; hooks.json gebruikt dezelfde tekst. */
@@ -63,7 +67,9 @@ export const BESCHERMDE_PREFIXEN = [".github/workflows/", ".claude/"];
  */
 export const BASH_REGELS = [
   {
-    patroon: /\b(?:pnpm|npm|yarn|bun)\s+(?:run\s+)?dev\b|\bvite\s*$|\bvite\s+(?!build|preview)/,
+    // Ook `react-router dev`: de dev-server van de openbare template (versie 43), die scripts/dev.mjs
+    // daar zelf start; rechtstreeks aanroepen zou om de weigering van dat script heen gaan.
+    patroon: /\b(?:pnpm|npm|yarn|bun)\s+(?:run\s+)?dev\b|\bvite\s*$|\bvite\s+(?!build|preview)|\breact-router\s+dev\b/,
     // Lokaal kijken voor jezelf mag, mits expliciet: met STACK_ALLOW_DEV=1 vóór het
     // commando (of in de omgeving van de sessie). Dezelfde ontsnapping als scripts/dev.mjs,
     // zodat de hook nooit strenger is dan de kern. In de Claude-app hoeft dit niet: daar
@@ -605,13 +611,21 @@ export function appsInOpdracht({ commando, werkmap, cwd, apps }) {
  * verder-werken in de map van de app gaan, en alleen als er apps achterlopen ook welke. Niets
  * uit een logboek of geschiedenis: dat gaat vervelen (Christijn 29-10).
  */
-export function meldingWerkmap({ apps, eigenaren = [], versieOpAfstand = null }) {
+export function meldingWerkmap({ apps, eigenaren = [], versieOpAfstand = null, versies = null }) {
   if (!Array.isArray(apps) || apps.length === 0) return null;
   const van = eigenaren.length > 0 ? ` van ${opsomming(eigenaren)}` : "";
   let regel = `stack: je staat boven de apps${van}: ${opsomming(apps.map((a) => a.naam))}; wijzigingen gaan via /stagetwo-tier2:verder-werken in de map van de app.`;
-  const achter = isKleinGetal(versieOpAfstand) ? apps.filter((a) => isKleinGetal(a.versie) && a.versie < versieOpAfstand) : [];
+  // Elke app tegen de nieuwste versie van zijn eigen template (twee templates sinds versie 43);
+  // `versieOpAfstand` alleen is de gewone template, zoals vóór 43.
+  const doelen = versies && typeof versies === "object" ? versies : { [TEMPLATE_GEWOON]: versieOpAfstand };
+  const doelVan = (a) => doelen[templateVan(a.manifest)];
+  const achter = apps.filter((a) => isKleinGetal(a.versie) && isKleinGetal(doelVan(a)) && a.versie < doelVan(a));
   if (achter.length > 0) {
-    regel += ` Achter op de nieuwste template (versie ${versieOpAfstand}): ${opsomming(achter.map((a) => `${a.naam} (versie ${a.versie})`))}; noem dat één keer en bied /stagetwo-tier2:updaten aan, zonder het uit te voeren.`;
+    const eenDoel = new Set(achter.map(doelVan)).size === 1;
+    const lijst = eenDoel
+      ? `Achter op de nieuwste template (versie ${doelVan(achter[0])}): ${opsomming(achter.map((a) => `${a.naam} (versie ${a.versie})`))}`
+      : `Achter op de nieuwste versie van hun template: ${opsomming(achter.map((a) => `${a.naam} (versie ${a.versie}, nieuwste ${doelVan(a)})`))}`;
+    regel += ` ${lijst}; noem dat één keer en bied /stagetwo-tier2:updaten aan, zonder het uit te voeren.`;
   }
   return regel;
 }
@@ -652,11 +666,18 @@ function isKleinGetal(n) {
  * vorige controle (dan ook geen nieuwe stempel: er is niet gekeken). De melding is
  * context met een instructie aan de agent (KTD7).
  *
+ * Met `bronFout` "manifest" zegt het manifest van de app niet eenduidig uit welke template hij
+ * komt (`manifestFout` zegt wat er mis is); ook dan hooguit één keer per dag een melding.
+ *
+ * Met `bronFout` "niet-in-levering" (de app is van de openbare template en die zit niet in de
+ * levering van de klant) volgt hooguit één keer per dag een melding daarover, zonder netwerk.
+ *
  * Uitzondering op "geen versie op afstand": met `bronFout` "geen-toegang" (GitHub weigert of
  * kent de repo `bron` niet, zie versie-op-afstand.mjs) volgt wel een melding, met een stempel,
  * dus hooguit één keer per dag. Dat gebeurt als een app na het afschermen van de bronrepo
  * nog niet op de kopie van de klant staat; stil blijven zou betekenen dat er nooit meer een
- * nieuwe versie gemeld wordt zonder dat iemand het merkt.
+ * nieuwe versie gemeld wordt zonder dat iemand het merkt. Met `openbaar` (de app is van de
+ * openbare template uit de levering) zegt die melding wat de owner aan die levering doet.
  *
  * `uitgaven` komt uit het changelog op stagetwo.nl (lib/updates.mjs, uitgavenTussen): de
  * uitgaven tussen de lokale versie en die op afstand, nieuwste eerst. Dan noemt de melding wat
@@ -664,11 +685,39 @@ function isKleinGetal(n) {
  * wanneer, met de vraag het nadrukkelijk aan te bieden. Een lege lijst (site onbereikbaar,
  * onbekend formaat) geeft de melding zonder changelog.
  */
-export function beoordeelStart({ versieLokaal, versieOpAfstand, stempel, nu, bronFout = null, bron = null, uitgaven = [] }) {
+export function beoordeelStart({ versieLokaal, versieOpAfstand, stempel, nu, bronFout = null, bron = null, manifestFout = null, openbaar = false, uitgaven = [] }) {
   const niets = { melding: null, nieuweStempel: null };
   if (!isKleinGetal(versieLokaal)) return niets;
+  // Het manifest zegt niet eenduidig uit welke template de app komt (sinds versie 43): hooguit
+  // één keer per dag zeggen wat er mis is, zonder netwerk.
+  if (bronFout === "manifest") {
+    if (!moetControleren({ stempel, nu })) return niets;
+    const melding = [
+      `stack: ${manifestFout ?? "het manifest van deze app (.claude/stack-manifest.json) klopt niet"}.`,
+      "Bouwen gaat gewoon door; alleen bijwerken naar een nieuwe versie kan zo niet. Zeg het één keer aan de gebruiker, in gewone taal, en voer zelf niets uit.",
+    ].join("\n");
+    return { melding, nieuweStempel: { versieOpAfstand: null, tijdstip: nu.toISOString() } };
+  }
+  // Een app van de openbare template, terwijl die niet in de levering zit (sinds versie 43).
+  if (bronFout === "niet-in-levering") {
+    if (!moetControleren({ stempel, nu })) return niets;
+    const melding = [
+      `stack: ${NIET_IN_LEVERING}.`,
+      "Dit blokkeert niets. Zeg het één keer aan de gebruiker, in gewone taal, en voer zelf niets uit.",
+    ].join("\n");
+    return { melding, nieuweStempel: { versieOpAfstand: null, tijdstip: nu.toISOString() } };
+  }
   if (!isKleinGetal(versieOpAfstand)) {
     if (bronFout !== "geen-toegang" || !moetControleren({ stempel, nu })) return niets;
+    // De openbare template uit de levering die niet bereikbaar is: installatie helpt dan niet,
+    // de levering in die repo is (nog) niet gelukt. Zeggen wat de owner doet.
+    if (openbaar) {
+      const melding = [
+        `stack: ${openbaarNietBereikbaar(bron ?? "de openbare template")}.`,
+        "Dit blokkeert niets. Zeg het één keer aan de gebruiker, in gewone taal, en voer zelf niets uit.",
+      ].join("\n");
+      return { melding, nieuweStempel: { versieOpAfstand: null, tijdstip: nu.toISOString() } };
+    }
     const melding = [
       `stack: de plugin kan de nieuwste versie van de Stage Two-template niet opvragen bij ${bron ?? "de template"}`,
       "(GitHub kent die repo niet of geeft geen toegang). Daardoor komt een nieuwe versie hier niet als melding",

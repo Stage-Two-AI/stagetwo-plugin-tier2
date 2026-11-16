@@ -5,6 +5,12 @@
 #             vanaf HEAD van main), bij de klant ook als tag v<versie>
 #   template  elke nieuwe tag stack-v<n> van Stage-Two-AI/app-template-tier2, tot en met
 #             de tag uit toegepast_template
+#   openbaar  (sinds versie 43, alleen bij "openbaar": true in abonnees.json) hetzelfde voor
+#             Stage-Two-AI/app-template-tier2-openbaar, naar <org>/app-template-tier2-openbaar.
+#             Een eigen stap met een eigen token: mislukt hij (de repo bestaat nog niet bij de
+#             klant, of de App mag er niet schrijven), dan is alleen die stap rood, met wat de
+#             owner moet doen. Plugin en gewone template zijn dan al geleverd, en de andere
+#             klanten lopen gewoon door. Een abonnee zonder "openbaar" merkt hier niets van.
 #
 # Wanneer: alleen met de hand ("Run workflow", of gh workflow run uitleveren.yml), nadat Stage
 # Two een nieuwe versie op de eigen apps heeft toegepast. Een merge naar main levert dus
@@ -25,8 +31,8 @@
 # Een versie die de klant al heeft, slaat hij over; een run zonder iets nieuws doet niets.
 #
 # Schrijven bij de klant gaat via de GitHub App stagetwo-levering, die Stage Two bij de start
-# namens de klant installeert op alleen zijn twee leveringsrepo's ("Only select
-# repositories"); de klant kan hem altijd zelf verwijderen. Nodig in deze repo: de variabele LEVERING_APP_ID
+# namens de klant installeert op alleen zijn leveringsrepo's ("Only select repositories"; twee,
+# of drie met de openbare template); de klant kan hem altijd zelf verwijderen. Nodig in deze repo: de variabele LEVERING_APP_ID
 # en het geheim LEVERING_APP_PRIVATE_KEY (recept: Stack/docs/recepten/github-app-levering.md).
 # Het geheim staat in omgeving levering, die alleen main toelaat: een run vanaf een andere
 # branch krijgt de sleutel van de App niet.
@@ -134,3 +140,57 @@ jobs:
         run: |
           gh auth setup-git
           node beheer/uitleveren.mjs --org "$ORG" --toegepast "$TOEGEPAST" --toegepast-template "$TOEGEPAST_TEMPLATE" --template "$GITHUB_WORKSPACE/.bron-template"
+      # De openbare template (sinds versie 43), alleen voor een abonnee met "openbaar": true. Elk
+      # token apart en met continue-on-error: zo blokkeert een ontbrekende repo of installatie
+      # niets van wat hierboven al geleverd is. De laatste stap zegt wat er mis is en wordt rood.
+      - id: openbaar
+        name: Openbare template voor deze klant?
+        env:
+          ORG: ${{ matrix.org }}
+        run: echo "aan=$(node beheer/uitleveren.mjs --openbaar-voor "$ORG")" >> "$GITHUB_OUTPUT"
+      - id: token-openbaar
+        if: steps.openbaar.outputs.aan == 'true'
+        continue-on-error: true
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.LEVERING_APP_ID }}
+          private-key: ${{ secrets.LEVERING_APP_PRIVATE_KEY }}
+          owner: ${{ matrix.org }}
+          repositories: app-template-tier2-openbaar
+      - id: bron-openbaar-token
+        if: steps.openbaar.outputs.aan == 'true'
+        continue-on-error: true
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ vars.LEVERING_APP_ID }}
+          private-key: ${{ secrets.LEVERING_APP_PRIVATE_KEY }}
+          owner: Stage-Two-AI
+          repositories: app-template-tier2-openbaar
+      - id: bron-openbaar
+        if: steps.openbaar.outputs.aan == 'true' && steps.bron-openbaar-token.outcome == 'success'
+        continue-on-error: true
+        uses: actions/checkout@v5
+        with:
+          repository: Stage-Two-AI/app-template-tier2-openbaar
+          token: ${{ steps.bron-openbaar-token.outputs.token }}
+          path: .bron-template-openbaar
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Uitleveren openbare template
+        if: steps.openbaar.outputs.aan == 'true'
+        env:
+          GH_TOKEN: ${{ steps.token-openbaar.outputs.token }}
+          ORG: ${{ matrix.org }}
+          TOEGEPAST_TEMPLATE: ${{ inputs.toegepast_template }}
+          BRON: ${{ steps.bron-openbaar.outcome }}
+          KLANT: ${{ steps.token-openbaar.outcome }}
+        run: |
+          extra=()
+          if [ "$BRON" != "success" ]; then extra=(--geen-toegang bron); elif [ "$KLANT" != "success" ]; then extra=(--geen-toegang klant); fi
+          # Zonder token voor de klant geen inlog: gh auth setup-git zou met een leeg token stoppen
+          # (bash -e) voordat de melding voor de owner er staat.
+          if [ "$KLANT" = "success" ]; then gh auth setup-git; fi
+          if ! uit=$(node beheer/uitleveren.mjs --org "$ORG" --alleen-openbaar --toegepast-template "$TOEGEPAST_TEMPLATE" --template-openbaar "$GITHUB_WORKSPACE/.bron-template-openbaar" "${extra[@]}" 2>&1); then
+            echo "::error::$uit"; exit 1
+          fi
+          echo "$uit"

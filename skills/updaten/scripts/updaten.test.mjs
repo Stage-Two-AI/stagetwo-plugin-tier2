@@ -30,17 +30,19 @@ function metOmgeving(env, fn) {
 
 // ---------------------------------------------------------------- overzicht
 
-function overzichtWereld(gh) {
+function overzichtWereld(gh, { levering = null } = {}) {
   const wortel = tijdelijkeMap("overzicht-");
   const template = maakTemplateRepo(wortel); // tags stack-v8 en stack-v9: doel is 9
   const nep = nepGh(wortel, { ...GH_BASIS, ...gh });
   const leeg = join(wortel, "leeg");
   mkdirSync(leeg);
-  const env = { PATH: `${nep.pad}:${process.env.PATH}`, STACK_TEMPLATE_REPO: template };
+  // Met een levering (versie 43, twee templates) zonder STACK_TEMPLATE_REPO: elke template uit de levering.
+  const env = { PATH: `${nep.pad}:${process.env.PATH}`, STACK_TEMPLATE_REPO: levering ? "" : template };
+  const opties = levering ? { levering: levering({ wortel, template }) } : {};
   return {
     nep,
     leeg,
-    draai: (argv, cwd = leeg) => metOmgeving(env, () => overzichtHoofd(argv, { cwd, env: process.env })),
+    draai: (argv, cwd = leeg) => metOmgeving(env, () => overzichtHoofd(argv, { cwd, env: process.env, ...opties })),
     opruimen: () => opruimen(wortel),
   };
 }
@@ -94,6 +96,75 @@ test("overzicht: alleen Cloudflare-template-apps met schrijfrecht (geen Vercel-a
     assert.ok(!w.nep.aanroepen().some((a) => a[1]?.includes("alleen-lezen")), "een repo zonder schrijfrecht wordt niet eens bekeken");
   } finally {
     w.opruimen();
+  }
+});
+
+test("overzicht: een app met variant cloudflare-openbaar telt mee bij zijn eigen template; tegenspraak geeft een reden", () => {
+  const NIEUW = { ...CLOUDFLARE_MANIFEST, variant: "cloudflare-openbaar", manifestFormaat: 2, template: "app-template-tier2-openbaar" };
+  const gh = {
+    "repo list": {
+      stdout: [
+        { nameWithOwner: "klant/shop", viewerPermission: "WRITE" },
+        { nameWithOwner: "klant/raar", viewerPermission: "WRITE" },
+      ],
+    },
+    "api repos/klant/shop/contents/.claude/stack-version": raw(8),
+    "api repos/klant/raar/contents/.claude/stack-version": raw(8),
+    "api repos/klant/shop/contents/.claude/stack-manifest.json": { stdout: NIEUW },
+    "api repos/klant/raar/contents/.claude/stack-manifest.json": { stdout: { ...NIEUW, template: "app-template-tier2" } },
+    "pr list": { stdout: [] },
+  };
+  const w = overzichtWereld(gh, {
+    levering: ({ wortel, template }) => ({ plugin: "klant/p", template, templateOpenbaar: maakTemplateRepo(wortel, { extraManifest: NIEUW, naam: "openbaar" }) }),
+  });
+  try {
+    const r = w.draai(["--json", "--eigenaar", "klant"]);
+    assert.equal(r.status, "ok", r.reden);
+    assert.deepEqual(r.apps.find((a) => a.repo === "klant/shop"), { repo: "klant/shop", versie: 8, achter: true, openPR: null, huidige: false, template: "app-template-tier2-openbaar", doel: 9 });
+    const raar = r.apps.find((a) => a.repo === "klant/raar");
+    assert.equal(raar.achter, false);
+    assert.match(raar.reden, /spreken elkaar tegen/);
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("overzicht: een app van de openbare template meet zich aan die template; zonder die template in de levering niet achter, met een reden", () => {
+  const OPENBAAR_MANIFEST = { ...CLOUDFLARE_MANIFEST, template: "app-template-tier2-openbaar" };
+  const gh = {
+    "repo list": {
+      stdout: [
+        { nameWithOwner: "klant/intern", viewerPermission: "WRITE" },
+        { nameWithOwner: "klant/shop", viewerPermission: "WRITE" },
+      ],
+    },
+    "api repos/klant/intern/contents/.claude/stack-version": raw(8),
+    "api repos/klant/shop/contents/.claude/stack-version": raw(8),
+    "api repos/klant/intern/contents/.claude/stack-manifest.json": { stdout: CLOUDFLARE_MANIFEST },
+    "api repos/klant/shop/contents/.claude/stack-manifest.json": { stdout: OPENBAAR_MANIFEST },
+    "pr list": { stdout: [] },
+  };
+  const met = overzichtWereld(gh, {
+    levering: ({ wortel, template }) => ({ plugin: "klant/p", template, templateOpenbaar: maakTemplateRepo(wortel, { tagV9: false, extraManifest: { template: "app-template-tier2-openbaar" }, naam: "openbaar" }) }),
+  });
+  try {
+    const r = met.draai(["--json", "--eigenaar", "klant"]);
+    assert.equal(r.status, "ok", r.reden);
+    assert.equal(r.doel, 9, "doel blijft de gewone template");
+    assert.deepEqual(r.apps.find((a) => a.repo === "klant/intern"), { repo: "klant/intern", versie: 8, achter: true, openPR: null, huidige: false }, "een gewone app: precies zoals vóór versie 43");
+    assert.deepEqual(r.apps.find((a) => a.repo === "klant/shop"), { repo: "klant/shop", versie: 8, achter: false, openPR: null, huidige: false, template: "app-template-tier2-openbaar", doel: 8 }, "de openbare template staat op 8: niet achter, ook al is de gewone op 9");
+  } finally {
+    met.opruimen();
+  }
+  const zonder = overzichtWereld(gh, { levering: ({ template }) => ({ plugin: "klant/p", template, templateOpenbaar: null }) });
+  try {
+    const r = zonder.draai(["--json", "--eigenaar", "klant"]);
+    const shop = r.apps.find((a) => a.repo === "klant/shop");
+    assert.equal(shop.achter, false, "niet bij te werken, en zeker niet met de gewone template");
+    assert.match(shop.reden, /niet in de levering/);
+    assert.equal(r.apps.find((a) => a.repo === "klant/intern").achter, true);
+  } finally {
+    zonder.opruimen();
   }
 });
 
@@ -293,4 +364,24 @@ test("afhankelijkheden: zonder template-PR geen ontsnappingsregels in de PR-teks
   const tekst = prTekst({ hoofdversies: [], dependabot: [] });
   assert.doesNotMatch(tekst, /Bevestigd:/);
   assert.doesNotMatch(tekst, /Geen tests nodig:/);
+});
+
+test("overzicht: een app met een vreemde waarde in het veld template telt niet als gewone app, maar krijgt de reden", () => {
+  const gh = {
+    "repo list": { stdout: [{ nameWithOwner: "klant/raar", viewerPermission: "WRITE" }] },
+    "api repos/klant/raar/contents/.claude/stack-version": raw(8),
+    "api repos/klant/raar/contents/.claude/stack-manifest.json": { stdout: { ...CLOUDFLARE_MANIFEST, template: null } },
+    "pr list": { stdout: [] },
+  };
+  const w = overzichtWereld(gh);
+  try {
+    const r = w.draai(["--json", "--eigenaar", "klant"]);
+    assert.equal(r.status, "ok", r.reden);
+    const raar = r.apps.find((a) => a.repo === "klant/raar");
+    assert.equal(raar.achter, false, "niet bijwerken met de gewone template");
+    assert.equal(raar.template, null);
+    assert.match(raar.reden, /"template": null; dat is geen template die deze plugin kent/);
+  } finally {
+    w.opruimen();
+  }
 });

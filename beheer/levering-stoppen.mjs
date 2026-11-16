@@ -2,7 +2,9 @@
 /**
  * Het werk achter de workflow Levering stoppen: haalt bij het einde van een abonnement de GitHub
  * App `stagetwo-levering` weg uit de org van de klant. Zo heeft Stage Two daarna ook geen
- * schrijfrecht meer op de twee leveringsrepo's van de klant (voorwaarden 1.1, art. 18.6).
+ * schrijfrecht meer op de leveringsrepo's van de klant (voorwaarden 1.1, art. 18.6): de twee
+ * van elke abonnee, en de openbare template (app-template-tier2-openbaar) als hij die ook kreeg.
+ * Het gaat om de hele installatie, dus alle drie in één keer; daar hoeft niets voor te veranderen.
  *
  *   node beheer/levering-stoppen.mjs --org <klantorg> [--droog]
  *

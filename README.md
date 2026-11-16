@@ -10,7 +10,10 @@ Wat je bouwt en je gegevens zijn van jou. De plugin en de template mag je blijve
 voor je eigen apps, en ze blijven werken, ook zonder Stage Two; de rechten op plugin en
 template zelf blijven bij Stage Two (zie `LICENSE`). Bij de start zet Stage Two in de GitHub
 van je eigen organisatie een kopie van deze plugin en van de template klaar
-(`stagetwo-plugin-tier2` en `app-template-tier2`). Zolang je bedrijf een abonnement bij
+(`stagetwo-plugin-tier2` en `app-template-tier2`). Sinds versie 43 heeft tier 2 een tweede
+template, voor apps die vindbaar moeten zijn in Google of die klanten gebruiken (een site, een
+webshop, een klantportaal): `app-template-tier2-openbaar`, waarin de server de pagina's maakt.
+Die komt er alleen bij als je bedrijf hem gebruikt. Zolang je bedrijf een abonnement bij
 Stage Two heeft, zet Stage Two daar nieuwe versies in. Stage Two past elke versie eerst toe op
 zijn eigen apps. Stopt het abonnement, dan blijven die kopieën op de laatste versie staan;
 er komt alleen niets nieuws bij, en vragen en meedenken stoppen ook.
@@ -48,9 +51,9 @@ je de plugin zelf bij met `/stagetwo-tier2:updaten`, en "zet het weer aan" draai
 In de Claude-app werken daarna ook je andere plugins zich op die computer niet meer vanzelf
 bij, omdat de app dat voor alle plugins tegelijk regelt. Met een
 abonnement komen nieuwe versies binnen via de GitHub App `stagetwo-levering`. Stage Two
-installeert hem bij de start namens je bedrijf, op alleen de twee kopieën (`stagetwo-plugin-tier2`
-en `app-template-tier2`, "Only select repositories"); je bedrijf kan hem altijd zelf
-verwijderen. Die App kan alleen daar schrijven, niet in je apps. Heeft de
+installeert hem bij de start namens je bedrijf, op alleen de kopieën (`stagetwo-plugin-tier2`
+en `app-template-tier2`, en `app-template-tier2-openbaar` als je bedrijf die gebruikt; "Only
+select repositories"); je bedrijf kan hem altijd zelf verwijderen. Die App kan alleen daar schrijven, niet in je apps. Heeft de
 beheer-repo een nieuwe versie nodig, dan vraag je Stage Two erom; de owner geeft Stage Two
 daarvoor tijdelijk toegang tot de beheer-repo en haalt die daarna weer weg.
 Dat valt binnen het abonnement. Zeg je op, dan haalt Stage Two je bedrijf uit de lijst van
@@ -206,12 +209,24 @@ daar zijn achteraf duur om te veranderen.
    Elke database kost geld, en gegevens op twee plekken lopen uit elkaar.
 2. Wat moet de app doen, voor wie, met welke gegevens, en wat is de eerste versie waar
    iemand echt iets aan heeft?
-3. Een naam, de plek (onder het GitHub-account van je bedrijf, in een nieuwe map op je
+3. **Moet de app vindbaar zijn in Google of door klanten gebruikt worden?** Nee: de gewone
+   template, een werktuig achter de deur, zoals altijd. Ja: de openbare template, waarin de
+   server elke pagina maakt (zodat Google en WhatsApp hem lezen), met daarna de vraag of
+   klanten moeten kunnen inloggen (een klantportaal, met een code per mail). Zit de openbare
+   template niet in de levering van je bedrijf, dan zegt je assistent dat en kan de app gewoon
+   op de gewone template. Wil je bedrijf de openbare, dan maakt de owner in jullie organisatie
+   op GitHub een lege, openbare repo `app-template-tier2-openbaar`, vinkt bij die repo Template
+   repository aan, geeft de GitHub App `stagetwo-levering` toegang tot die repo en laat het
+   Stage Two weten; Stage Two zet de openbare template dan in de levering.
+4. Een naam, de plek (onder het GitHub-account van je bedrijf, in een nieuwe map op je
    computer) en wie erbij mag (een of meer groepen uit de toegangslijst van je bedrijf).
 
-Elke app krijgt een deur (alleen wie op de toegangslijst staat komt erin) en een eigen
+Elke app krijgt eerst een deur (alleen wie op de toegangslijst staat komt erin) en een eigen
 database bij Supabase, want het inloggen loopt daar doorheen. Daar hoef je niets voor te
-kiezen.
+kiezen. Een klantportaal gaat later open voor klanten: daarvoor regelt de owner een eigen
+domein, de mail (Resend) en de captcha (Turnstile, de standaard: zonder kan één persoon het
+inlogformulier platleggen), en zet je assistent de app met een pull request als klantportaal
+in de toegangslijst.
 
 Daarna maakt je assistent de app aan uit de nieuwste template, zet de eerste versie op
 GitHub en beschermt de hoofdtak. Hij eindigt met wat er nog open staat en met de
@@ -245,7 +260,9 @@ bij de tijd houden, typ dan in de map van je app:
 /stagetwo-tier2:updaten
 ```
 
-Dit is de weg waarlangs een nieuwe versie van de werkwijze in je apps komt. Stage Two zet na de
+Dit is de weg waarlangs een nieuwe versie van de werkwijze in je apps komt. Elke app wordt
+bijgewerkt uit de template waar hij uit komt (de gewone of de openbare); de plugin leest dat in
+de app zelf en mengt die twee nooit. Stage Two zet na de
 overdracht zelf geen voorstellen in je apps klaar; Stage Two past elke versie eerst toe op zijn
 eigen apps en zet hem daarna in de kopie die het bij de start in je eigen organisatie heeft
 klaargezet. De plugin op je computer
@@ -329,6 +346,36 @@ Stage Two heeft twee varianten van de stack, elk met een eigen template en een e
 |---|---|---|---|
 | tier 1: alleen Cloudflare (D1, R2) | `Stage-Two-AI/app-template-tier1` | `Stage-Two-AI/stagetwo-plugin-tier1` (`stagetwo-tier1`) | `stagetwo-tier1` |
 | tier 2: Cloudflare met Supabase | `Stage-Two-AI/app-template-tier2` | `Stage-Two-AI/stagetwo-plugin-tier2` (`stagetwo-tier2`) | `stagetwo-tier2` |
+| tier 2 openbaar (sinds 43): idem, de server maakt de pagina's | `Stage-Two-AI/app-template-tier2-openbaar` | dezelfde plugin | `stagetwo-tier2` |
+
+Tier 2 heeft dus twee templates voor één plugin. Het manifest van een app zegt uit welke hij
+komt: `"template": "app-template-tier2-openbaar"`, en zonder dat veld de gewone (zo staat het
+in elke app van vóór 43). Sinds 43 kent de plugin manifestformaat 2: dezelfde inhoud, met het
+veld `template` verplicht; de openbare template staat op formaat 2. Alleen een ontbrekend veld
+(op formaat 1) is de gewone template. Een andere waarde (`null`, een lege tekst, een getal, een
+lijst, een onbekende naam), formaat 2 zonder veld, of een app met `react-router.config.ts` (het
+kenmerk van de openbare template) zonder veld: dan stopt updaten met uitleg en meldt de hook het
+één keer per dag, in plaats van met de verkeerde template bij te werken (`manifestTemplate`).
+`lib/levering.mjs` (`manifestTemplate`, `templateVan`, `templateBron`) kiest daarop de
+bron, en overal waar de plugin een template leest (melding, updaten, overzicht, andere apps,
+werkmap) meet hij een app alleen aan zijn eigen template. Na het klonen controleert updaten het
+manifest van de template zelf nog een keer, ook bij `--repo`, `--template-ref` en
+`STACK_TEMPLATE_REPO`. Zit de openbare template niet in de levering van de klant (geen
+`templateOpenbaar` in `levering.json`), dan geeft de plugin een melding en valt nooit terug op
+de gewone template.
+
+De openbare template heeft ook een eigen variant: `"variant": "cloudflare-openbaar"` (de gewone
+blijft `"cloudflare"`). De reden: een oudere plugin (versie 42 en eerder, bij klanten die niet
+automatisch bijwerken) kent het veld `template` niet en kijkt alleen naar `variant`. Met
+`cloudflare` in een openbare app zou zo'n plugin hem bijwerken met de gewone template, en dan
+komen er bestanden in die niet bij de app horen. Met een eigen variant ziet de oudere plugin een
+app van een ander spoor: updaten stopt zonder iets te veranderen en de hook zegt niets. Deze
+plugin behandelt beide varianten als tier 2 en controleert dat variant en template bij elkaar
+horen; een manifest waarin ze elkaar tegenspreken is een fout met uitleg. Tijdens uitgave 43
+werkt ook nog de tussenstand `"variant": "cloudflare"` met `"template": "app-template-tier2-openbaar"`
+(zo stond de openbare template eerst); die tak in `manifestTemplate` is als tijdelijk gemarkeerd.
+`test/v42-stopt.test.mjs` bewijst met de echte code van v42 (de tag `v42.0.0`) dat die plugin op
+een app met de nieuwe variant stopt.
 
 Tot 15-10-2026 heette deze plugin `stack-cloudflare` (repo `stack-plugin-cloudflare`,
 marketplace `stagetwo-cloudflare`). Die repo blijft bevroren staan zodat computers die nog
@@ -336,14 +383,19 @@ niet zijn omgezet blijven werken; `installatie` en `updaten` halen de oude plugi
 
 Wat deze plugin anders doet dan die van tier 1:
 
-- de template is `Stage-Two-AI/app-template-tier2` (melding, updaten, nieuwe-app);
+- de templates zijn `Stage-Two-AI/app-template-tier2` en `Stage-Two-AI/app-template-tier2-openbaar`
+  (melding, updaten, nieuwe-app met `--template openbaar`);
 - de hook, `updaten` en het overzicht doen alleen iets bij een app met
-  `"variant": "cloudflare"` in `.claude/stack-manifest.json` (interne naam, blijft zo);
+  `"variant": "cloudflare"` of `"variant": "cloudflare-openbaar"` in `.claude/stack-manifest.json`
+  (interne namen, blijven zo);
 - `nieuwe-app` haalt de paden uit `nietMeenemen` weg, zet de Worker-naam in
   `wrangler.jsonc` op de appnaam, geeft elke app een eigen database, en `--inrichten`
   controleert eerst `toegang.json` van `<org>/stagetwo-beheer-tier2` (oude namen
   `stagetwo-beheer` en `stack-beheer` werken nog), zo nodig met een pull request, en start
-  dan **App inrichten** (inputs `app` en `droogloop`);
+  dan **App inrichten** (inputs `app` en `droogloop`); met `--klantportaal --afzender ...`
+  zet een pull request de app als klantportaal in `toegang.json` (`klantportaal`, `afzender`,
+  en `turnstile_sitekey`; zonder captcha alleen met `--zonder-captcha`, dan `"captcha": false`
+  en een waarschuwing), ook een app die er al als gewone app in staat;
 - `automatisch-bijwerken.mjs` zet de marketplace `stagetwo-tier2` en haalt de oude weg.
 
 Een verbetering die voor beide varianten geldt, doe je in beide repo's.
@@ -569,7 +621,9 @@ overweg.
 
 Een abonnee krijgt plugin en template in zijn eigen GitHub-org, als openbare kopie
 (besluit 16-10-2026, `Stack/docs/besluiten/2026-10-16-levering-per-klant.md`):
-`<klantorg>/stagetwo-plugin-tier2` en `<klantorg>/app-template-tier2`. Een klant installeert
+`<klantorg>/stagetwo-plugin-tier2` en `<klantorg>/app-template-tier2`. Sinds versie 43 per
+abonnee ook de openbare template, `<klantorg>/app-template-tier2-openbaar` (zie
+"De openbare template per abonnee" hieronder). Een klant installeert
 de plugin altijd uit die kopie (`/plugin marketplace add <klantorg>/stagetwo-plugin-tier2`);
 alleen daar staat `levering.json`. Alleen de eigen apps van Stage Two installeren uit deze
 bronrepo.
@@ -579,7 +633,8 @@ bronrepo.
   de marketplace (`automatisch-bijwerken.mjs`). Zonder bestand geldt `Stage-Two-AI`. In
   deze bronrepo staat het nooit; de workflow schrijft het per abonnee.
 - `abonnees.json` is de lijst met abonnees (GitHub-orgs). Erin = nieuwe versies; eruit =
-  de leveringsrepo blijft op de laatste versie staan en er komt niets meer bij.
+  de leveringsrepo blijft op de laatste versie staan en er komt niets meer bij. Per abonnee
+  mag `"openbaar": true` erbij (sinds versie 43): dan krijgt hij ook de openbare template.
 - De workflow **Uitleveren** (`.github/workflows/uitleveren.yml`, script
   `beheer/uitleveren.mjs`) draait alleen met de hand, nadat Stage Two een versie op de eigen
   apps heeft toegepast; ook na een nieuwe abonnee in `abonnees.json`. Elke run levert de
@@ -624,8 +679,8 @@ bronrepo.
 - `/nieuwe-app` zet een `LICENSE` op naam van de organisatie (`--organisatie`, anders de naam
   van de org op GitHub); het gebruiksrecht van Stage Two staat in `LICENSE-STAGE-TWO`, dat
   met elke template-versie meekomt (vanaf template versie 26).
-- Schrijfrecht bij de klant gaat via de GitHub App `stagetwo-levering`, alleen op de twee
-  leveringsrepo's. Rechten: Contents en Workflows `Read and write`, Metadata `Read-only`,
+- Schrijfrecht bij de klant gaat via de GitHub App `stagetwo-levering`, alleen op de
+  leveringsrepo's (twee, of drie met de openbare template). Rechten: Contents en Workflows `Read and write`, Metadata `Read-only`,
   verder niets (geen Pull requests, geen apps, geen beheer-repo). Recept in
   `Stack/docs/recepten/github-app-levering.md`.
 - Na de overdracht (voorstel 17-10-2026, abonnement zonder toegang): Stage Two houdt geen
@@ -635,11 +690,68 @@ bronrepo.
   `StageTwoAI` in CODEOWNERS van een klant-app: start Stage Two in de projectfase zelf een app,
   dan wordt het bedrijfsaccount de reviewer (de andere eigenaar in CODEOWNERS van de
   beheer-repo); staat daar geen ander account, dan stopt het script met een melding. Stage Two installeert `stagetwo-levering` bij de
-  start namens de klant, op alleen de twee leveringsrepo's ("Only select repositories"); de
+  start namens de klant, op alleen de leveringsrepo's (twee, of drie met de openbare template; "Only select repositories"); de
   klant kan hem altijd zelf verwijderen. Update-voorstellen in apps zet de bouwer zelf klaar met
   `/stagetwo-tier2:updaten`; Stage Two opent geen pull requests bij de klant. Een nieuwe
   versie van de beheer-repo alleen op verzoek: de owner geeft Stage Two tijdelijk toegang en
   haalt die daarna weer weg. Opzeggen: zie hieronder.
+
+### De openbare template per abonnee
+
+Sinds versie 43. Een abonnee krijgt de openbare template alleen met `"openbaar": true` in
+`abonnees.json`; wie dat niet heeft, krijgt bij Uitleveren precies wat hij op versie 42 kreeg
+(zelfde aanroepen, zelfde bestanden, zelfde `levering.json`; `beheer/uitleveren.test.mjs`,
+"harde eis", draait de code van `v42.0.0` ernaast). Met het veld:
+
+```json
+{ "org": "Klant-BV", "klant": "Voorbeeld B.V.", "openbaar": true }
+```
+
+krijgt `levering.json` van die klant een derde veld:
+
+```json
+{
+  "plugin": "Klant-BV/stagetwo-plugin-tier2",
+  "template": "Klant-BV/app-template-tier2",
+  "templateOpenbaar": "Klant-BV/app-template-tier2-openbaar"
+}
+```
+
+en levert Uitleveren in een eigen stap elke tag `stack-v<n>` van
+`Stage-Two-AI/app-template-tier2-openbaar` tot en met `toegepast_template` naar
+`<klantorg>/app-template-tier2-openbaar`, op dezelfde manier als de gewone template: één commit
+per versie, getagd, nooit geforceerd, met de bron van de plugin in de eigen org. Alleen tags
+waarvan het manifest op die tag de openbare template noemt, gaan mee: die template is als kopie
+van de gewone begonnen en draagt diens oude tags (tot en met `stack-v42`) nog mee, en die gaan
+nooit naar een klant (`openbareVersies`).
+
+Gaat `"openbaar": true` aan nadat de pluginversie al bij de klant staat, dan zet Uitleveren
+`levering.json` op zijn main goed met één extra commit van Stage Two (geen nieuwe tag, nooit
+geforceerd); anders zou het veld pas bij de volgende pluginversie komen. Hetzelfde als de
+openbare template weer uitgaat: zet dan `"openbaar": false` (niet het veld weghalen), dan gaat
+`templateOpenbaar` er met één commit weer uit. Een abonnee zonder het veld `openbaar` krijgt
+precies wat hij op 42 kreeg, dus ook geen herstel. Die stap heeft eigen tokens met `continue-on-error`. Bestaat de repo bij de klant nog
+niet, mag de App er niet schrijven, of kan de App de bron in Stage-Two-AI niet lezen, dan is
+alleen die stap rood, met een melding wat er moet gebeuren; plugin en gewone template zijn dan
+al geleverd en de andere abonnees lopen gewoon door.
+
+Wat er vooraf moet, in deze volgorde:
+
+1. Stage Two, één keer: de App `stagetwo-levering` in Stage-Two-AI ook op
+   `app-template-tier2-openbaar` zetten (Configure, Repository access; recept
+   github-app-levering, deel A).
+2. De owner van de klant (in de projectfase Stage Two namens hem): in de org een repo
+   `app-template-tier2-openbaar` maken, Public en leeg; in de instellingen Template repository
+   aanvinken; en bij de installatie van `stagetwo-levering` (Settings van de org, GitHub Apps,
+   Configure) die repo erbij zetten.
+3. Stage Two: `"openbaar": true` bij die abonnee in `abonnees.json` (pull request, merge).
+4. Uitleveren starten zoals altijd; dezelfde twee invoeren.
+
+Zit de openbare template niet in de levering van een klant, dan zegt `/stagetwo-tier2:nieuwe-app`
+dat eerlijk en biedt de gewone template aan, en krijgt een app van de openbare template bij
+updaten en bij sessiestart een melding in plaats van een update. Levering stoppen haalt de hele
+installatie van de App weg, dus ook voor deze repo; `levering-omzetten.mjs` werkt voor apps van
+beide templates (dezelfde marketplace).
 
 ### Een abonnement stoppen
 

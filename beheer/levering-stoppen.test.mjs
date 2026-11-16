@@ -111,3 +111,17 @@ test("Levering stoppen gaat nooit mee naar een klant", () => {
     assert.ok(ALLEEN_IN_BRON.includes(pad), pad);
   }
 });
+
+test("versie 43: een abonnee met openbaar staat net zo goed op de lijst; stoppen haalt de hele installatie weg", async () => {
+  const { mkdtempSync, rmSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { leesAbonnees } = await import("./uitleveren.mjs");
+  const map = mkdtempSync(join(tmpdir(), "stoppen-openbaar-"));
+  try {
+    writeFileSync(join(map, "abonnees.json"), JSON.stringify({ abonnees: [{ org: "Winco-Holland-B-V", openbaar: true }] }));
+    assert.match(weigering("Winco-Holland-B-V", leesAbonnees(map)), /staat nog in abonnees\.json/);
+    assert.equal(weigering("Richplant-BV", leesAbonnees(map)), null);
+  } finally {
+    rmSync(map, { recursive: true, force: true });
+  }
+});
