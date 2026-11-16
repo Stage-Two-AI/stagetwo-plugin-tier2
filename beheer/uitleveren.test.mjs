@@ -466,8 +466,10 @@ test("abonnees.json: openbaar is per abonnee, alleen true telt, een vreemde waar
   });
 });
 
-test("de abonneelijst van deze repo: niemand staat op openbaar (dat beslist de eigenaar)", () => {
-  assert.ok(leesAbonneesMetKeuzes().every((a) => a.openbaar === false));
+test("de abonneelijst van deze repo: de openbare template staat alleen aan waar de eigenaar dat besloot", () => {
+  // Besloten door de eigenaar op 16-11-2026: alleen de eerste abonnee. Een nieuwe naam hier is een besluit.
+  const metOpenbaar = leesAbonneesMetKeuzes().filter((a) => a.openbaar).map((a) => a.org);
+  assert.deepEqual(metOpenbaar, [leesAbonneesMetKeuzes()[0].org]);
 });
 
 test("leveringVoor: met openbaar een derde repo; zonder precies de twee van versie 42", () => {

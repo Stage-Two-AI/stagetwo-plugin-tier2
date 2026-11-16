@@ -3,7 +3,8 @@
   "abonnees": [
     {
       "org": "Winco-Holland-B-V",
-      "klant": "Winco"
+      "klant": "Winco",
+      "openbaar": true
     },
     {
       "org": "Richplant-BV",
