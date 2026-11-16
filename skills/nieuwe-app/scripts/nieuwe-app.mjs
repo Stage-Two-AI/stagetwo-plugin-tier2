@@ -38,13 +38,16 @@
  *       hij erin, dan start het de workflow "App inrichten" in <org>/stagetwo-beheer-tier2, wacht tot
  *       hij klaar is en leest het resultaat uit het logboek. Zo komen Cloudflare en Supabase
  *       erbij zonder dat er een Cloudflare- of Supabase-sleutel op deze computer staat.
- *       Met --klantportaal (sinds versie 43; klanten loggen zelf in per mail) zet de pull request
- *       de app als klantportaal in toegang.json (`klantportaal`, `afzender` en `turnstile_sitekey`;
- *       zie beheer/README.md, "Klantportaal"). De captcha is de standaard: zonder kan alleen met
- *       --zonder-captcha (`"captcha": false`), en dan staat er een `waarschuwing` in het antwoord en
- *       in de pull request. Staat de app er al in als gewone app, dan zet een eigen pull request hem
- *       om; staat hij er al als klantportaal met een andere afzender of captcha, dan
- *       `klantportaal-anders`. De stappen tot het portaal open is, staan in `nogTeDoen`.
+ *       Met --klantportaal (sinds versie 43; klanten loggen zelf in per mail) zet een eigen pull
+ *       request een app die al achter de deur is ingericht om naar klantportaal in toegang.json
+ *       (`klantportaal`, `afzender` en `turnstile_sitekey`; zie beheer/README.md, "Klantportaal").
+ *       Een app die nog niet is ingericht wordt nooit meteen klantportaal (sinds versie 44,
+ *       `eerst-achter-de-deur`): App inrichten zet bij een klantportaal geen deur neer, dus zo'n
+ *       app zou open staan zonder dat iemand hem achter de deur heeft getest. De captcha is de
+ *       standaard: zonder kan alleen met --zonder-captcha (`"captcha": false`), en dan staat er
+ *       een `waarschuwing` in het antwoord en in de pull request. Staat de app er al als
+ *       klantportaal in met een andere afzender of captcha, dan `klantportaal-anders`. De stappen
+ *       tot het portaal open is, staan in `nogTeDoen`.
  *
  * Elke uitkomst is één JSON-object op stdout met een `status`:
  *   klaar        (na --droogloop) alles staat klaar; zie `plan`
@@ -55,6 +58,8 @@
  *                waarden; `reden` zegt wat er staat en dat een wijziging via een pull request gaat
  *   beheer-te-oud (na --inrichten) een app van de openbare template, en de beheer-repo staat onder versie 44:
  *       App inrichten zou meteen stoppen op wrangler.jsonc. Er is niets gestart; zie `reden`
+ *   eerst-achter-de-deur (na --inrichten --klantportaal) de app is nog niet ingericht; een klantportaal
+ *       begint nooit zonder deur. Er is niets gewijzigd: eerst inrichten zonder --klantportaal
  *   geen-beheer  (na --inrichten) deze eigenaar heeft (nog) geen beheer-repo; in de projectfase koppelt Stage Two
  *   mislukt      een voorwaarde ontbreekt of een stap faalde; `reden` is één zin met één
  *                handeling. Was de repo al aangemaakt, dan staat hij in `repo`.
@@ -777,12 +782,17 @@ export function beheerTeOudVoorOpenbaar({ beheer, versie, moment = "inrichten" }
   const wat =
     `De beheer-repo ${beheer} staat op versie ${versie}. App inrichten kan een app van de openbare template pas vanaf versie ${BEHEER_OPENBAAR_VANAF} aan; ` +
     "op deze versie stopt het meteen op wrangler.jsonc (`main`, de servercode), vóór er iets is gewijzigd. ";
+  // Drie wegen, en de bouwer staat bij geen ervan stil: de owner haalt de nieuwe versie zelf
+  // binnen, Stage Two zet hem klaar, of de app begint op de gewone template.
   const uitweg =
-    `Een nieuwe versie van ${beheer} komt van Stage Two: de owner van de organisatie vraagt die aan en geeft daarvoor tijdelijk toegang. ` +
+    `De beheer-repo is van de organisatie; de owner brengt hem op versie ${BEHEER_OPENBAAR_VANAF} of hoger. Dat kan op twee manieren. ` +
+    `Zelf: de owner past ${beheer} aan met Claude, als pull request die het bedrijfsaccount goedkeurt (de README van de beheer-repo, "Wie wat mag", zegt hoe); nodig is dat de map beheer/ en de workflows App inrichten en Controle van buitenaf een app van de openbare template herkennen. ` +
+    "Of door Stage Two: met een abonnement zet Stage Two de nieuwe versie op verzoek klaar als pull request, die het bedrijfsaccount beoordeelt en merget. " +
     "Daarna werkt hetzelfde commando. ";
+  const gewoon = "met de gewone template van tier 2 (achter de deur) kan een app vandaag al op een adres; later omzetten naar de openbare kan, maar is een verbouwing.";
   return moment === "vooraf"
-    ? `${wat}De app zelf kun je nu al maken, bouwen en lokaal bekijken; alleen het adres, de inlog en de database op internet wachten daarop. ${uitweg}Wil je vandaag al een app op een adres, dan kan dat met de gewone template van tier 2 (achter de deur); later omzetten kan, maar is een verbouwing.`
-    : `${wat}Er is niets gestart. De app zelf is klaar: je kunt bouwen en lokaal bekijken. ${uitweg}`;
+    ? `${wat}De app zelf kun je nu al maken, bouwen en lokaal bekijken; alleen het adres, de inlog en de database op internet wachten op de beheer-repo. ${uitweg}Wil je niet wachten: ${gewoon}`
+    : `${wat}Er is niets gestart. De app zelf is klaar: je kunt bouwen en lokaal bekijken. ${uitweg}Is er haast: ${gewoon}`;
 }
 
 /** De tekst van een bestand op de standaardtak van een repo, of null als het er niet is. */
@@ -792,6 +802,33 @@ function ghBestand(repo, pad) {
   } catch {
     return null;
   }
+}
+
+/**
+ * Is de app al eens ingericht? App inrichten zet dan VITE_INLOGDIENST in omgeving production van
+ * de app-repo. Niet te lezen telt als nee.
+ */
+function isIngericht(repo) {
+  try {
+    sh("gh", ["api", `repos/${repo}/environments/production/variables/VITE_INLOGDIENST`]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Waarom een app niet meteen klantportaal wordt. App inrichten zet bij een klantportaal geen deur
+ * neer: het haalt alleen een bestaande deur weg, met het vinkje. Een app die als klantportaal
+ * begint, staat dus vanaf de eerste uitrol open, zonder dat iemand achter de deur heeft getest.
+ */
+export function eerstAchterDeDeur(naam) {
+  return (
+    `${naam} is nog niet ingericht, en een app wordt pas een klantportaal nadat hij achter de deur is ingericht en bekeken. ` +
+    "Er is niets gewijzigd. Draai eerst hetzelfde commando zonder --klantportaal (en de vlaggen die erbij horen): dan komt de app achter de deur, zoals elke app. " +
+    "Rol hem uit en kijk of hij werkt. Draai daarna dit commando met --klantportaal opnieuw: dat zet de app om, en het domein gaat pas open als de owner App inrichten draait met het vinkje \"Deur weghalen\". " +
+    "Zo staat een klantportaal nooit open voordat iemand het achter de deur heeft getest."
+  );
 }
 
 /** Is de app-repo een app van de openbare template? Leest het manifest; onleesbaar is nee. */
@@ -1025,6 +1062,10 @@ export function richtIn(arg, { cwd = process.cwd(), wachtMs = 5000, maxWachtMinu
   }
   const { staatErin, groepen } = controleerToegang(toegang, arg.naam);
   const portaal = arg.klantportaal ? klantportaalVelden(arg) : null;
+  // Een klantportaal begint nooit zonder deur: eerst inrichten als gewone app, dan omzetten.
+  if (portaal && !isKlantportaalIn(toegang, arg.naam) && !(staatErin && isIngericht(repo))) {
+    return { status: "eerst-achter-de-deur", repo, reden: eerstAchterDeDeur(arg.naam) };
+  }
   if (!staatErin) {
     if (!arg.groepen?.length) {
       return {
@@ -1038,13 +1079,13 @@ export function richtIn(arg, { cwd = process.cwd(), wachtMs = 5000, maxWachtMinu
     const onbekend = arg.groepen.filter((g) => !groepen.includes(g));
     if (onbekend.length) return { status: "mislukt", reden: `onbekende groep(en) ${onbekend.join(", ")}; kies uit ${groepen.join(", ")}` };
     try {
-      const pr = vraagToegangAan(beheer, arg, toegang, sha, { portaal });
+      // Altijd als gewone app (achter de deur); een klantportaal wordt hij pas daarna (zie boven).
+      const pr = vraagToegangAan(beheer, arg, toegang, sha);
       return {
         status: "wacht-op-toegang",
         repo,
         pr,
         reden: `de app moet eerst in toegang.json; deze pull request wijzigt alleen toegang.json, dus wie in team toegangsbeheer van de organisatie zit (of de owner) merget hem zelf; daarna draai je --inrichten opnieuw`,
-        ...(portaal ? { klantportaal: true, nogTeDoen: nogTeDoenKlantportaal({ naam: arg.naam, beheer, portaal }), ...waarschuwingVan(portaal) } : {}),
       };
     } catch (f) {
       return { status: "mislukt", reden: `de pull request op ${beheer} openen mislukte: ${foutTekst(f)} (heb je Write op ${beheer}?)` };
