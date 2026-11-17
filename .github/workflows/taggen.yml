@@ -1,0 +1,47 @@
+# Zet na een merge op main de tag van de versie op die commit: v<versie> uit
+# .claude-plugin/plugin.json. Zonder tag komt een versie nergens aan (de update leest de
+# tags), en met de hand taggen werd twee keer vergeten of kon niet (een cloudsessie mag geen
+# tag pushen). GitHub doet het daarom zelf.
+#
+# Bestaat de tag al, dan gebeurt er niets: een tag wordt nooit verplaatst. De regel "tags
+# vastzetten" van deze repo verbiedt dat ook; aanmaken mag.
+#
+# Alleen in de bronrepo van Stage Two. Het bestand gaat niet mee naar de kopie bij een klant
+# (ALLEEN_IN_BRON in beheer/uitleveren.mjs); de voorwaarde bij de job is het tweede slot.
+name: Taggen
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: taggen
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    name: Tag van de versie
+    if: github.repository == 'Stage-Two-AI/stagetwo-plugin-tier2'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Tag zetten als hij er nog niet is
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          versie="$(jq -r .version .claude-plugin/plugin.json)"
+          if ! [[ "$versie" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::.claude-plugin/plugin.json heeft geen leesbare versie: '$versie'"
+            exit 1
+          fi
+          tag="v$versie"
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --silent 2>/dev/null; then
+            echo "De tag $tag bestaat al; er verandert niets."
+            exit 0
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" -X POST -f "ref=refs/tags/$tag" -f "sha=$GITHUB_SHA" --silent
+          echo "Tag $tag gezet op $GITHUB_SHA."

@@ -82,6 +82,7 @@ import {
   repoUitUrl,
   sh,
   sluitOuderePRs,
+  templateOnbereikbaar,
   vergelijkUrl,
   versieOpAfstand,
 } from "../../../lib/repo.mjs";
@@ -362,7 +363,7 @@ export function droogloop({ checkout, opAfstand = null, env = process.env, templ
     // De openbare template uit de levering die niet bereikbaar is: zeggen wat er aan de hand is
     // en wat de owner doet (de levering in die repo kan mislukt zijn).
     if (doel === null && appTemplate === TEMPLATE_OPENBAAR && !env?.STACK_TEMPLATE_REPO) return klaarMet(mislukt(openbaarNietBereikbaar(tmplRepo)));
-    if (doel === null) return klaarMet(mislukt(`de template is niet bereikbaar (${tmplRepo}): geen netwerk, nog geen versie-tag, of de repo bestaat niet of is niet openbaar; probeer het later opnieuw; lukt het dan nog niet, draai /stagetwo-tier2:installatie (die zet de plugin naar de kopie in de eigen organisatie)`));
+    if (doel === null) return klaarMet(mislukt(templateOnbereikbaar(tmplRepo, { tier: 2, env })));
   } else {
     werkmap ??= echtPad(mkdtempSync(join(tmpdir(), WERKMAP_PREFIX)));
     let proef;
@@ -591,12 +592,15 @@ export function voerUit({ werkmap, losOp, koppen = {}, updates = null }) {
     const uitgaven = uitgavenTussen(updates, { van: resultaat.van, tot: resultaat.naar });
     const tekst = proef ? `${proefKop({ ref: proef.ref, naar: resultaat.naar })}\n\n${prTekst({ resultaat: eind, uitgaven, proef })}` : prTekst({ resultaat: eind, uitgaven });
     let pr = null;
+    let gesloten = [];
     if (metGh && repo) {
       pr = openOfWerkPRBij({ repo, branch, titel: proef ? proefTitel(resultaat.naar) : prTitel(resultaat.naar), tekst });
       // Een proef sluit alleen oudere proeven; echte update-PR's laat hij met rust.
-      if (proef) sluitOuderePRs({ repo, prefix: PROEF_PREFIX, doelVersie: resultaat.naar, tekst: proefSluitTekst(resultaat.naar), map: kloon });
-      else sluitOuderePRs({ repo, prefix: "stack-bijwerken", doelVersie: resultaat.naar, tekst: sluitTekst(resultaat.naar), map: kloon });
+      if (proef) gesloten = sluitOuderePRs({ repo, prefix: PROEF_PREFIX, doelVersie: resultaat.naar, tekst: proefSluitTekst(resultaat.naar), map: kloon });
+      else gesloten = sluitOuderePRs({ repo, prefix: "stack-bijwerken", doelVersie: resultaat.naar, tekst: sluitTekst(resultaat.naar), map: kloon });
     }
+    // In een cloudsessie mag een branch niet weg: de oude pull request is dan wel dicht.
+    const blijvenStaan = gesloten.filter((g) => g.geweigerd).map((g) => g.branch);
     verwijderWerkmap(werkmap);
     return {
       status: "gepusht",
@@ -618,7 +622,7 @@ export function voerUit({ werkmap, losOp, koppen = {}, updates = null }) {
       smal,
       ruleset,
       ...(proef ? { proef } : {}),
-      samenvatting: uitlegNaPush({ gepusht, pr, repo, branch, resultaat: eind, proef }),
+      samenvatting: uitlegNaPush({ gepusht, pr, repo, branch, resultaat: eind, proef, blijvenStaan }),
     };
   } catch (fout) {
     verwijderWerkmap(werkmap);
@@ -626,7 +630,7 @@ export function voerUit({ werkmap, losOp, koppen = {}, updates = null }) {
   }
 }
 
-function uitlegNaPush({ gepusht, pr, repo, branch, resultaat, proef = null }) {
+function uitlegNaPush({ gepusht, pr, repo, branch, resultaat, proef = null, blijvenStaan = [] }) {
   const regels = [];
   if (pr) regels.push(pr.nieuw ? `Pull request geopend: ${pr.url}` : `Bestaande pull request bijgewerkt: ${pr.url}`);
   else if (repo) regels.push(`De branch ${branch} staat op GitHub; open de pull request hier: ${vergelijkUrl(repo, branch)}`);
@@ -639,6 +643,9 @@ function uitlegNaPush({ gepusht, pr, repo, branch, resultaat, proef = null }) {
   }
   if ((resultaat.voorDeBouwer ?? []).length > 0) {
     regels.push("Voor deze versie is er ook iets voor jou om na te lopen; dat staat in de pull request onder Voor jou.");
+  }
+  if (blijvenStaan.length > 0) {
+    regels.push(`De oudere pull request is gesloten, maar de branch ${blijvenStaan.join(" en ")} kon hier niet worden weggegooid (in de cloud mag dat niet). Dat kan geen kwaad; opruimen kan op GitHub onder Branches.`);
   }
   if ((resultaat.abTests?.geschreven ?? []).length > 0) {
     regels.push(`Voor ${resultaat.abTests.geschreven.length} tabel(len) staat er nu een A/B-test in de pull request; daar hoef je niets voor te doen.`);

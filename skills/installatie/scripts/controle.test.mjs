@@ -48,12 +48,14 @@ test("een verse computer: alles ontbreekt", () => {
   assert.equal(uit.gh_ingelogd, undefined, "zonder gh geen inlogregel");
 });
 
+// De nep-gh hieronder laat `gh auth status` mislukken en `gh api user` slagen, zoals in een
+// cloudsessie: de controle hoort op de echte vraag aan GitHub te leunen.
 test("alles aanwezig, gh ingelogd, node te oud wordt gemeld", () => {
   const bin = nepPad({
     git: 'case "$1" in --version) echo "git version 2.55.0.windows.1";; config) exit 1;; esac',
     node: 'echo "v20.11.0"',
     pnpm: 'echo "10.4.1"',
-    gh: 'case "$1 $2" in "--version ") echo "gh version 2.101.0 (2026-01-01)";; "auth status") exit 0;; "api user") echo "bart";; esac',
+    gh: 'case "$1 $2" in "--version ") echo "gh version 2.101.0 (2026-01-01)";; "auth status") exit 1;; "api user") echo "bart";; esac',
   });
   const uit = draai(bin);
   assert.equal(uit.git, "2.55.0");
@@ -66,7 +68,7 @@ test("alles aanwezig, gh ingelogd, node te oud wordt gemeld", () => {
 
 test("gh aanwezig maar niet ingelogd", () => {
   const bin = nepPad({
-    gh: 'case "$1 $2" in "--version ") echo "gh version 2.101.0";; "auth status") exit 1;; esac',
+    gh: 'case "$1 $2" in "--version ") echo "gh version 2.101.0";; "api user") exit 1;; esac',
   });
   assert.equal(draai(bin).gh_ingelogd, "nee");
 });
@@ -79,7 +81,6 @@ test("identiteit zetten: uit het GitHub-profiel, noreply-adres als het e-mailadr
     gh: [
       'case "$*" in',
       '  "--version") echo "gh version 2.101.0";;',
-      '  "auth status") exit 0;;',
       '  "api user -q .login") echo "bart";;',
       '  "api user -q .name // empty") echo "Bart Jansen";;',
       '  "api user -q .email // empty") echo "";;',

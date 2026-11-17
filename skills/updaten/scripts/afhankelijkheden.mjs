@@ -109,8 +109,9 @@ function hoofdversiesVan(map) {
 
 function dependabotPRs(repo) {
   try {
-    const lijst = JSON.parse(sh("gh", ["pr", "list", "--repo", repo, "--state", "open", "--author", "app/dependabot", "--json", "number,title,url"]));
-    return lijst.map(({ number, title, url }) => ({ number, title, url }));
+    return openPRs(repo)
+      .filter((pr) => pr.auteur === "dependabot[bot]")
+      .map(({ number, title, url }) => ({ number, title, url }));
   } catch {
     return [];
   }
@@ -131,7 +132,7 @@ export function prTekst({ hoofdversies, dependabot, opTemplate = null }) {
         ]
       : []),
     "",
-    "Aangemaakt met /stagetwo-tier2:updaten vanuit je eigen Claude Code-sessie. Wacht tot de checks groen zijn en druk dan op Merge. Rood? Zet de check niet uit: los het op met /stagetwo-tier2:verder-werken (een eigen pull request) en draai daarna /stagetwo-tier2:updaten opnieuw.",
+    "Aangemaakt met /stagetwo-tier2:updaten. Wacht tot de checks groen zijn en druk dan op Merge. Rood? Zet de check niet uit: los het op met /stagetwo-tier2:verder-werken (een eigen pull request) en draai daarna /stagetwo-tier2:updaten opnieuw.",
   ];
   if (hoofdversies.length > 0) {
     regels.push("", "**Nieuwe hoofdversies (niet meegenomen).** Zo'n grote stap zet de bouwer zelf door met Claude, als gewone wijziging via /stagetwo-tier2:verder-werken. Wie dat liever uitbesteedt, kan het op verzoek door Stage Two laten doen (nacalculatie, €120 per uur exclusief btw):", "");

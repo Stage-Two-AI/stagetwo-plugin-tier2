@@ -8,6 +8,15 @@ taal, één ding tegelijk, en leg uit wat er gaat gebeuren vóórdat het gebeurt
 toestemming voor stappen die hieronder staan; de gebruiker heeft `/stagetwo-tier2:installatie` getypt
 en dat is de opdracht. Voer niets uit wat hier niet staat.
 
+## In de cloud (een thread op claude.ai)
+
+Daar valt niets te installeren en niets in te loggen: de programma's staan er al en de omgeving
+regelt de toegang tot GitHub. Draai stap 1. Staat er `gh_ingelogd=<naam>`, sla dan stap 2 tot
+en met 5b over en ga naar stap 6. De apps van het Project staan als mappen naast elkaar;
+`gh repo list` en `gh repo clone` werken er niet. Mist er een app, dan zet de gebruiker die in
+zijn Project en begint hij een nieuwe thread. Stap 7 sla je ook over: de map boven de apps hoort
+bij deze ene thread en blijft niet bewaard.
+
 ## Stap 1: kijken wat er is
 
 Draai dit precies zo, met Bash:

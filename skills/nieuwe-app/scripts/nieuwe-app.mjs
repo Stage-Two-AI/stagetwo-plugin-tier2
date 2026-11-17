@@ -520,13 +520,43 @@ function ghJson(args) {
   return JSON.parse(sh("gh", ["api", ...args]));
 }
 
-function repoBestaat(repo) {
+// Alle aanroepen gaan via de REST-API (`gh api`): `gh repo` en `gh pr` gebruiken GraphQL, en
+// dat is in een cloudsessie (claude.ai) dicht.
+
+export function repoBestaat(repo) {
   try {
-    sh("gh", ["repo", "view", repo, "--json", "name"]);
+    sh("gh", ["api", `repos/${repo}`, "-q", ".name"]);
     return true;
   } catch {
     return false;
   }
+}
+
+/** Maakt de besloten repo aan als kopie van de template (alleen de standaardbranch). */
+export function maakRepoUitTemplate(repo, { template = TEMPLATE, omschrijving = null } = {}) {
+  const [eigenaar, naam] = repo.split("/");
+  sh("gh", [
+    "api", `repos/${template}/generate`, "-X", "POST",
+    "-f", `owner=${eigenaar}`,
+    "-f", `name=${naam}`,
+    "-F", "private=true",
+    ...(omschrijving ? ["-f", `description=${omschrijving}`] : []),
+    "-q", ".full_name",
+  ]);
+}
+
+/**
+ * Het adres om een repo te klonen, zoals `gh repo clone` het kiest: ssh als de gebruiker gh zo
+ * heeft ingesteld, anders https.
+ */
+export function kloonAdres(repo) {
+  let protocol = "https";
+  try {
+    protocol = sh("gh", ["config", "get", "git_protocol", "-h", "github.com"]) || "https";
+  } catch {
+    // geen instelling: https
+  }
+  return protocol === "ssh" ? `git@github.com:${repo}.git` : `https://github.com/${repo}.git`;
 }
 
 function login() {
@@ -985,8 +1015,8 @@ function leesToegang(beheer) {
  */
 function vraagToegangAan(beheer, arg, toegang, sha, { portaal = null, omzetten = false } = {}) {
   const branch = omzetten ? `toegang/${arg.naam}-klantportaal` : `toegang/${arg.naam}`;
-  const bestaand = JSON.parse(sh("gh", ["pr", "list", "--repo", beheer, "--head", branch, "--state", "open", "--json", "url"]));
-  if (bestaand[0]?.url) return bestaand[0].url;
+  const bestaand = sh("gh", ["api", `repos/${beheer}/pulls?state=open&head=${beheer.split("/")[0]}:${branch}`, "-q", ".[0].html_url // empty"]);
+  if (bestaand) return bestaand;
   const mainSha = sh("gh", ["api", `repos/${beheer}/git/ref/heads/main`, "-q", ".object.sha"]);
   try {
     sh("gh", ["api", `repos/${beheer}/git/refs`, "-X", "POST", "-f", `ref=refs/heads/${branch}`, "-f", `sha=${mainSha}`]);
@@ -1018,9 +1048,11 @@ function vraagToegangAan(beheer, arg, toegang, sha, { portaal = null, omzetten =
     ? `De app **${arg.naam}** wordt een klantportaal in toegang.json.${portaalTekst}\n\nAangevraagd met /stagetwo-tier2:nieuwe-app. Deze pull request wijzigt alleen toegang.json.`
     : `De nieuwe app **${arg.naam}** komt in toegang.json, voor de groep(en) ${arg.groepen.map((g) => `\`${g}\``).join(", ")}.${portaalTekst}\n\nAangevraagd met /stagetwo-tier2:nieuwe-app. Deze pull request wijzigt alleen toegang.json; na de merge kan de app worden ingericht.`;
   return sh("gh", [
-    "pr", "create", "--repo", beheer, "--base", "main", "--head", branch,
-    "--title", omzetten ? `Klantportaal: ${arg.naam}` : `Toegang: ${arg.naam}`,
-    "--body", body,
+    "api", `repos/${beheer}/pulls`, "-X", "POST", "-q", ".html_url",
+    "-f", "base=main",
+    "-f", `head=${branch}`,
+    "-f", `title=${omzetten ? `Klantportaal: ${arg.naam}` : `Toegang: ${arg.naam}`}`,
+    "-f", `body=${body}`,
   ]);
 }
 
@@ -1261,15 +1293,7 @@ export function doeHet(arg, { cwd = process.cwd() } = {}) {
 
   if (!hervatten || !repoBestaat(repo)) {
     try {
-      sh("gh", [
-        "repo",
-        "create",
-        repo,
-        "--private",
-        "--template",
-        template,
-        ...(arg.omschrijving ? ["--description", arg.omschrijving] : []),
-      ]);
+      maakRepoUitTemplate(repo, { template, omschrijving: arg.omschrijving });
     } catch (fout) {
       return { status: "mislukt", reden: `de repo aanmaken mislukte: ${foutTekst(fout)}` };
     }
@@ -1293,7 +1317,7 @@ export function doeHet(arg, { cwd = process.cwd() } = {}) {
   try {
     if (!existsSync(map)) {
       mkdirSync(dirname(map), { recursive: true });
-      sh("gh", ["repo", "clone", repo, map, "--", "--quiet"], { timeout: 300000 });
+      sh("git", ["clone", "--quiet", kloonAdres(repo), map], { timeout: 300000 });
     }
     stap = "invullen";
     verwijderNietMeenemen(map);

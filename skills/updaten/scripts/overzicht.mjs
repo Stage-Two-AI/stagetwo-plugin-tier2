@@ -10,6 +10,10 @@
  * de gebruiker. Alleen repo's waar de gebruiker naar mag schrijven tellen mee: een app
  * die je niet kunt bijwerken, hoort niet in de vraag "welke wil je bijwerken?".
  *
+ * In een cloudsessie (claude.ai) mag het script de repo's van een organisatie niet bij GitHub
+ * opvragen: zo'n sessie ziet alleen de repo's van het Project, en die staan er als mappen naast
+ * elkaar. Dan komt de lijst uit die mappen (`bron: "mappen"`) en zegt `letOp` dat erbij.
+ *
  * Het script wijzigt niets. De skill toont het overzicht en vraagt welke apps mee
  * moeten; bijwerken gaat daarna per app met `bijwerken.mjs --repo`.
  *
@@ -20,23 +24,29 @@
  * bijwerken kan dan niet, en met de gewone template mag het nooit.
  *
  * Uitkomst: één JSON-object met `status`:
- *   ok        `apps` (achterlopers eerst), `doel`, `huidige` (de open app of null)
+ *   ok        `apps` (achterlopers eerst), `doel`, `huidige` (de open app of null), `bron`
+ *             ("github" of "mappen") en bij "mappen" een `letOp` voor de gebruiker
  *   mislukt   een voorwaarde ontbreekt; `reden` is één zin met één handeling
  */
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { LEVERING, TEMPLATE_GEWOON, TEMPLATE_OPENBAAR, manifestTemplate, openbaarNietBereikbaar, templateBron } from "../../../lib/levering.mjs";
 import { isCloudflareManifest } from "../../../lib/manifest.mjs";
 import {
   eersteRegel,
   ghAanwezig,
+  ghApi,
   ghIngelogd,
+  git,
+  inDeCloud,
   openPRVoorVersie,
   originUrl,
   repoUitUrl,
   sh,
+  templateOnbereikbaar,
   versieOpAfstand,
 } from "../../../lib/repo.mjs";
+import { appsInWerkmap } from "../../../lib/werkmap.mjs";
 
 const SCHRIJVERS = new Set(["ADMIN", "MAINTAIN", "WRITE"]);
 
@@ -79,14 +89,19 @@ export function versieVanRepo(repo) {
 }
 
 function eigenarenVanGebruiker() {
-  const login = sh("gh", ["api", "user", "--jq", ".login"]).trim();
-  const orgs = sh("gh", ["api", "user/orgs", "--jq", ".[].login"])
+  const login = ghApi("user", { jq: ".login" }).trim();
+  const orgs = ghApi("user/orgs", { jq: ".[].login" })
     .split("\n")
     .map((r) => r.trim())
     .filter(Boolean);
   return [...orgs, login].filter(Boolean);
 }
 
+/**
+ * De repo's van een organisatie of account opvragen is het enige wat geen REST-vorm heeft die
+ * voor allebei werkt, dus dit blijft `gh repo list`. Een cloudsessie weigert het; zie
+ * `alleenMappen`.
+ */
 function reposVan(eigenaar) {
   const lijst = JSON.parse(
     sh("gh", ["repo", "list", eigenaar, "--no-archived", "--limit", "300", "--json", "nameWithOwner,viewerPermission"]),
@@ -94,13 +109,37 @@ function reposVan(eigenaar) {
   return lijst.filter((r) => SCHRIJVERS.has(r.viewerPermission)).map((r) => r.nameWithOwner);
 }
 
+/** Weigert GitHub de vraag omdat dit een cloudsessie is? Die ziet alleen de repo's van het Project. */
+function alleenMappen(fout, env) {
+  return inDeCloud(env) || /GraphQL is not available|bound to their configured repositories/i.test(String(fout?.stderr ?? fout?.message ?? ""));
+}
+
+/**
+ * De apps die als map naast de open app staan (of in de open map, als dat de map boven de
+ * apps is): `eigenaar/naam` uit hun origin. Alleen lezen, geen netwerk.
+ */
+export function reposInMappen(cwd) {
+  let werkmap = cwd;
+  try {
+    werkmap = dirname(git(cwd, "rev-parse", "--show-toplevel"));
+  } catch {
+    // geen git-map: dan is dit de map boven de apps
+  }
+  return appsInWerkmap(werkmap)
+    .map((app) => repoUitUrl(originUrl(app.map)))
+    .filter(Boolean);
+}
+
+const LET_OP_MAPPEN =
+  "In de cloud zijn alleen de apps te zien die in dit Project staan. Mist er een app, zet hem dan in het Project en begin een nieuwe thread, of draai dit op een computer.";
+
 export function overzicht({ cwd = process.cwd(), eigenaren = [], env = process.env, levering = LEVERING } = {}) {
   if (!ghAanwezig()) return { status: "mislukt", reden: "de GitHub-opdrachtregel (gh) ontbreekt; draai eerst /stagetwo-tier2:installatie" };
   if (!ghIngelogd()) return { status: "mislukt", reden: "log eerst in bij GitHub met `gh auth login` (zie /stagetwo-tier2:installatie)" };
 
   const gewoon = templateBron({ template: TEMPLATE_GEWOON, env, levering }).repo;
   const doel = versieOpAfstand(gewoon);
-  if (doel === null) return { status: "mislukt", reden: `de template is niet bereikbaar (${gewoon}): geen netwerk, nog geen versie-tag, of de repo bestaat niet of is niet openbaar; probeer het later opnieuw; lukt het dan nog niet, draai /stagetwo-tier2:installatie (die zet de plugin naar de kopie in de eigen organisatie)` };
+  if (doel === null) return { status: "mislukt", reden: templateOnbereikbaar(gewoon, { tier: 2, env }) };
   // De openbare template pas opvragen als er een app van is (de meeste klanten hebben er geen).
   let openbaar;
   const doelOpenbaar = () => {
@@ -116,11 +155,16 @@ export function overzicht({ cwd = process.cwd(), eigenaren = [], env = process.e
   };
 
   const huidige = repoUitUrl(originUrl(cwd));
+  const zelfde = (x, y) => x.toLowerCase() === y.toLowerCase();
+  let inMappen = null;
   let welke = eigenaren;
   try {
     if (welke.length === 0) welke = huidige ? [huidige.split("/")[0]] : eigenarenVanGebruiker();
   } catch (fout) {
-    return { status: "mislukt", reden: `je organisaties zijn niet op te vragen: ${eersteRegel(fout)}` };
+    if (!alleenMappen(fout, env)) return { status: "mislukt", reden: `je organisaties zijn niet op te vragen: ${eersteRegel(fout)}` };
+    inMappen = reposInMappen(cwd);
+    welke = [...new Set(inMappen.map((repo) => repo.split("/")[0]))];
+    if (welke.length === 0) return { status: "mislukt", reden: "in de cloud zijn alleen de apps van dit Project te zien, en hier staat er geen; zet de apps in het Project, of draai dit op een computer" };
   }
 
   const apps = [];
@@ -128,10 +172,12 @@ export function overzicht({ cwd = process.cwd(), eigenaren = [], env = process.e
   for (const eigenaar of welke) {
     let repos;
     try {
-      repos = reposVan(eigenaar);
+      repos = inMappen ? null : reposVan(eigenaar);
     } catch (fout) {
-      return { status: "mislukt", reden: `de repo's van ${eigenaar} zijn niet op te vragen: ${eersteRegel(fout)}` };
+      if (!alleenMappen(fout, env)) return { status: "mislukt", reden: `de repo's van ${eigenaar} zijn niet op te vragen: ${eersteRegel(fout)}` };
+      inMappen = reposInMappen(cwd);
     }
+    repos ??= inMappen.filter((repo) => zelfde(repo.split("/")[0], eigenaar));
     for (const repo of repos) {
       if (gezien.has(repo)) continue;
       gezien.add(repo);
@@ -160,7 +206,7 @@ export function overzicht({ cwd = process.cwd(), eigenaren = [], env = process.e
     }
   }
   apps.sort((a, b) => Number(b.achter) - Number(a.achter) || a.versie - b.versie || a.repo.localeCompare(b.repo));
-  return { status: "ok", doel, huidige, eigenaren: welke, apps };
+  return { status: "ok", doel, huidige, eigenaren: welke, apps, bron: inMappen ? "mappen" : "github", ...(inMappen ? { letOp: LET_OP_MAPPEN } : {}) };
 }
 
 export function hoofd(argv, { cwd = process.cwd(), env = process.env, levering = LEVERING } = {}) {
