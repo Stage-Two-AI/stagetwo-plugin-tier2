@@ -46,6 +46,7 @@ import {
   kloonAdres,
   maakRepoUitTemplate,
   repoBestaat,
+  NIET_IN_DE_CLOUD,
 } from "./nieuwe-app.mjs";
 import { STAGE_TWO, STAGE_TWO_OPENBAAR } from "../../../lib/levering.mjs";
 
@@ -304,6 +305,26 @@ test("hervatBesluit: nieuw, hervatten, of weigeren als het niet van ons is", () 
   assert.equal(hervatBesluit({ repo: true, uitTemplate: false, map: false }).besluit, "weiger");
   assert.equal(hervatBesluit({ repo: true, uitTemplate: true, map: true, mapIsKloon: false }).besluit, "weiger");
   assert.equal(hervatBesluit({ repo: false, map: true }).besluit, "weiger");
+});
+
+test("in de cloud stoppen aanmaken en inrichten vooraf, met wat de gebruiker wel kan doen", () => {
+  const env = { CLAUDE_CODE_REMOTE: "true" };
+  const maak = voorcontrole(leesArgumenten(["--droogloop", "--naam", "voorraad", "--eigenaar", "Org"]), { env });
+  assert.equal(maak.status, "mislukt");
+  assert.equal(maak.cloud, true);
+  assert.match(maak.reden, /kan nog niet vanuit de cloud/);
+  assert.match(maak.reden, /op een computer/);
+  assert.match(maak.reden, /Zet de nieuwe repo daarna in je Project/);
+  const richt = richtIn(leesArgumenten(["--inrichten", "--naam", "voorraad", "--eigenaar", "Org"]), { env });
+  assert.equal(richt.status, "mislukt");
+  assert.equal(richt.cloud, true);
+  assert.match(richt.reden, /inrichten kan nog niet vanuit de cloud/);
+  // Een ongeldig argument blijft de eerste melding, ook in de cloud.
+  assert.doesNotMatch(voorcontrole(leesArgumenten(["--droogloop", "--naam", "Fout Naam", "--eigenaar", "Org"]), { env }).reden, /cloud/);
+  for (const tekst of Object.values(NIET_IN_DE_CLOUD)) {
+    assert.doesNotMatch(tekst, /\u2014/);
+    assert.doesNotMatch(tekst, /Stage Two/, "de gebruiker kan zelf verder, zonder op iemand te wachten");
+  }
 });
 
 test("GitHub via de REST-API: bestaat de repo, repo uit de template, kloonadres; nergens gh repo of gh pr", () => {
