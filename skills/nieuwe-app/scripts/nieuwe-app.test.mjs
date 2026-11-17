@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { nepGh, opruimen, schrijfBestanden, tijdelijkeMap } from "../../../lib/test-hulp.mjs";
+import { nepGh, opruimen, prAanmaken, schrijfBestanden, tijdelijkeMap, veldenVan } from "../../../lib/test-hulp.mjs";
 import {
   STAGE_TWO_LOGIN,
   controleerArgumenten,
@@ -43,6 +43,10 @@ import {
   ZONDER_CAPTCHA,
   richtIn,
   voorcontrole,
+  kloonAdres,
+  maakRepoUitTemplate,
+  repoBestaat,
+  NIET_IN_DE_CLOUD,
 } from "./nieuwe-app.mjs";
 import { STAGE_TWO, STAGE_TWO_OPENBAAR } from "../../../lib/levering.mjs";
 
@@ -301,6 +305,57 @@ test("hervatBesluit: nieuw, hervatten, of weigeren als het niet van ons is", () 
   assert.equal(hervatBesluit({ repo: true, uitTemplate: false, map: false }).besluit, "weiger");
   assert.equal(hervatBesluit({ repo: true, uitTemplate: true, map: true, mapIsKloon: false }).besluit, "weiger");
   assert.equal(hervatBesluit({ repo: false, map: true }).besluit, "weiger");
+});
+
+test("in de cloud stoppen aanmaken en inrichten vooraf, met wat de gebruiker wel kan doen", () => {
+  const env = { CLAUDE_CODE_REMOTE: "true" };
+  const maak = voorcontrole(leesArgumenten(["--droogloop", "--naam", "voorraad", "--eigenaar", "Org"]), { env });
+  assert.equal(maak.status, "mislukt");
+  assert.equal(maak.cloud, true);
+  assert.match(maak.reden, /kan nog niet vanuit de cloud/);
+  assert.match(maak.reden, /op een computer/);
+  assert.match(maak.reden, /Zet de nieuwe repo daarna in je Project/);
+  const richt = richtIn(leesArgumenten(["--inrichten", "--naam", "voorraad", "--eigenaar", "Org"]), { env });
+  assert.equal(richt.status, "mislukt");
+  assert.equal(richt.cloud, true);
+  assert.match(richt.reden, /inrichten kan nog niet vanuit de cloud/);
+  // Een ongeldig argument blijft de eerste melding, ook in de cloud.
+  assert.doesNotMatch(voorcontrole(leesArgumenten(["--droogloop", "--naam", "Fout Naam", "--eigenaar", "Org"]), { env }).reden, /cloud/);
+  for (const tekst of Object.values(NIET_IN_DE_CLOUD)) {
+    assert.doesNotMatch(tekst, /\u2014/);
+    assert.doesNotMatch(tekst, /Stage Two/, "de gebruiker kan zelf verder, zonder op iemand te wachten");
+  }
+});
+
+test("GitHub via de REST-API: bestaat de repo, repo uit de template, kloonadres; nergens gh repo of gh pr", () => {
+  const wortel = tijdelijkeMap("nieuwe-app-gh-");
+  const gh = nepGh(wortel, {
+    "GET repo": { stdout: "voorraad\n" },
+    "POST generate": { stdout: "Org/voorraad\n" },
+    "config get": { stdout: "https\n" },
+    "GET pulls": { stdout: "" },
+  });
+  const oudPath = process.env.PATH;
+  process.env.PATH = `${gh.pad}:${oudPath}`;
+  try {
+    assert.equal(repoBestaat("Org/voorraad"), true);
+    maakRepoUitTemplate("Org/voorraad", { template: "Org/app-template-tier2", omschrijving: "Voorraad bijhouden" });
+    assert.equal(kloonAdres("Org/voorraad"), "https://github.com/Org/voorraad.git");
+    gh.zet({ "config get": { stdout: "ssh\n" }, "GET repo": { exit: 1, stderr: "gh: Not Found (HTTP 404)" } });
+    assert.equal(kloonAdres("Org/voorraad"), "git@github.com:Org/voorraad.git");
+    assert.equal(repoBestaat("Org/weg"), false);
+    gh.zet({});
+    assert.equal(kloonAdres("Org/voorraad"), "https://github.com/Org/voorraad.git", "zonder instelling: https");
+
+    const aanroepen = gh.aanroepen();
+    assert.ok(!aanroepen.some((a) => a[0] === "repo" || a[0] === "pr"), "gh repo en gh pr werken in een cloudsessie niet");
+    const maak = aanroepen.find((a) => a[1] === "repos/Org/app-template-tier2/generate");
+    assert.ok(maak.includes("POST"));
+    assert.deepEqual(veldenVan(maak), { owner: "Org", name: "voorraad", private: "true", description: "Voorraad bijhouden" });
+  } finally {
+    process.env.PATH = oudPath;
+    opruimen(wortel);
+  }
 });
 
 function nepGitHub(beginstand) {
@@ -653,17 +708,17 @@ test("--inrichten --klantportaal: een gewone app in toegang.json krijgt een pull
   const beheer = "Org/stagetwo-beheer-tier2";
   const nep = nepGh(wortel, {
     "--version": { stdout: "gh version 2.95.0\n" },
-    "auth status": { stdout: "Logged in\n" },
+    "GET user": { stdout: "bart\n" },
     "api users/Org": { stdout: { type: "Organization" } },
-    "repo view": { stdout: { name: "x" } },
+    "GET repo": { stdout: "x\n" },
     [`api repos/${beheer}/contents/toegang.json`]: { stdout: { content: Buffer.from(JSON.stringify(toegang)).toString("base64"), sha: "abc" } },
     // De app is al ingericht achter de deur: alleen dan mag hij klantportaal worden.
     "api repos/Org/shop/environments/production/variables/VITE_INLOGDIENST": { stdout: { name: "VITE_INLOGDIENST", value: "cloudflare" } },
     [`api repos/${beheer}/contents/toegang.json?ref=toegang/shop-klantportaal`]: { exit: 1, stderr: "HTTP 404" },
-    "pr list": { stdout: [] },
+    "GET pulls": { stdout: [] },
     [`api repos/${beheer}/git/ref/heads/main`]: { stdout: "sha-main\n" },
     [`api repos/${beheer}/git/refs`]: { stdout: {} },
-    "pr create": { stdout: "https://github.com/Org/stagetwo-beheer-tier2/pull/7\n" },
+    "POST pulls": { stdout: "https://github.com/Org/stagetwo-beheer-tier2/pull/7\n" },
   });
   const oud = process.env.PATH;
   process.env.PATH = `${nep.pad}:${oud}`;
@@ -681,11 +736,11 @@ test("--inrichten --klantportaal: een gewone app in toegang.json krijgt een pull
     assert.deepEqual(inhoud.apps.shop, { groepen: ["kantoor"], klantportaal: true, afzender: "Shop <noreply@shop.nl>", captcha: false });
     assert.deepEqual(inhoud.apps.intern, ["kantoor"]);
     assert.ok(put.includes("branch=toegang/shop-klantportaal"));
-    const create = nep.aanroepen().find((a) => a[0] === "pr" && a[1] === "create");
-    assert.equal(create[create.indexOf("--title") + 1], "Klantportaal: shop");
-    assert.match(create[create.indexOf("--body") + 1], /Klantportaal\.\*\* De app staat open voor klanten/);
-    assert.ok(create[create.indexOf("--body") + 1].includes(ZONDER_CAPTCHA), "en in de PR-tekst");
-    assert.doesNotMatch(create[create.indexOf("--body") + 1], /\u2014/);
+    const create = prAanmaken(nep.aanroepen())[0];
+    assert.equal(create.title, "Klantportaal: shop");
+    assert.match(create.body, /Klantportaal\.\*\* De app staat open voor klanten/);
+    assert.ok(create.body.includes(ZONDER_CAPTCHA), "en in de PR-tekst");
+    assert.doesNotMatch(create.body, /\u2014/);
 
     // Zonder --klantportaal: de app staat erin, dus de workflow start (hier faalt die nep-aanroep),
     // en er komt geen pull request.
@@ -693,7 +748,7 @@ test("--inrichten --klantportaal: een gewone app in toegang.json krijgt een pull
     const gewoon = richtIn(leesArgumenten(["--inrichten", "--naam", "shop", "--eigenaar", "Org"]), { wachtMs: 0 });
     assert.equal(gewoon.status, "mislukt");
     assert.match(gewoon.reden, /de workflow starten mislukte/);
-    assert.ok(!nep.aanroepen().slice(voor).some((a) => a[0] === "pr" && a[1] === "create"));
+    assert.equal(prAanmaken(nep.aanroepen().slice(voor)).length, 0);
   } finally {
     process.env.PATH = oud;
     opruimen(wortel);
@@ -706,9 +761,9 @@ test("--inrichten --klantportaal op een app die al klantportaal is met een ander
   const beheer = "Org/stagetwo-beheer-tier2";
   const nep = nepGh(wortel, {
     "--version": { stdout: "gh version 2.95.0\n" },
-    "auth status": { stdout: "Logged in\n" },
+    "GET user": { stdout: "bart\n" },
     "api users/Org": { stdout: { type: "Organization" } },
-    "repo view": { stdout: { name: "x" } },
+    "GET repo": { stdout: "x\n" },
     [`api repos/${beheer}/contents/toegang.json`]: { stdout: { content: Buffer.from(JSON.stringify(toegang)).toString("base64"), sha: "abc" } },
   });
   const oud = process.env.PATH;
@@ -718,7 +773,7 @@ test("--inrichten --klantportaal op een app die al klantportaal is met een ander
     assert.equal(r.status, "klantportaal-anders");
     assert.match(r.reden, /met afzender "Shop <noreply@shop\.nl>"/);
     assert.match(r.reden, /via een pull request op toegang\.json/);
-    assert.ok(!nep.aanroepen().some((a) => (a[0] === "pr" && a[1] === "create") || (a[0] === "workflow" && a[1] === "run") || a.includes("PUT")), "niets gewijzigd, niets gestart");
+    assert.ok(!prAanmaken(nep.aanroepen()).length > 0 || nep.aanroepen().some((a) => (a[0] === "workflow" && a[1] === "run") || a.includes("PUT")), "niets gewijzigd, niets gestart");
   } finally {
     process.env.PATH = oud;
     opruimen(wortel);
@@ -761,9 +816,9 @@ test("--inrichten: een openbare app met een beheer-repo onder 44 stopt vóór er
   const toegang = { groepen: { kantoor: { domeinen: ["shop.nl"] } }, apps: { shop: ["kantoor"] } };
   const antwoorden = (versie, variant) => ({
     "--version": { stdout: "gh version 2.95.0\n" },
-    "auth status": { stdout: "Logged in\n" },
+    "GET user": { stdout: "bart\n" },
     "api users/Org": { stdout: { type: "Organization" } },
-    "repo view": { stdout: { name: "x" } },
+    "GET repo": { stdout: "x\n" },
     "api repos/Org/shop/contents/.claude/stack-manifest.json": { stdout: { variant } },
     [`api repos/${beheer}/contents/VERSIE`]: { stdout: `${versie}\n` },
     [`api repos/${beheer}/contents/toegang.json`]: { stdout: { content: Buffer.from(JSON.stringify(toegang)).toString("base64"), sha: "abc" } },
@@ -772,7 +827,7 @@ test("--inrichten: een openbare app met een beheer-repo onder 44 stopt vóór er
   const oud = process.env.PATH;
   process.env.PATH = `${nep.pad}:${oud}`;
   const arg = leesArgumenten(["--inrichten", "--naam", "shop", "--eigenaar", "Org"]);
-  const gestart = () => nep.aanroepen().some((a) => (a[0] === "workflow" && a[1] === "run") || (a[0] === "pr" && a[1] === "create") || a.includes("PUT"));
+  const gestart = () => prAanmaken(nep.aanroepen()).length > 0 || nep.aanroepen().some((a) => (a[0] === "workflow" && a[1] === "run") || a.includes("PUT"));
   try {
     const r = richtIn(arg, { wachtMs: 0 });
     assert.equal(r.status, "beheer-te-oud", r.reden);
@@ -803,9 +858,9 @@ test("--inrichten --klantportaal: een app die nog niet is ingericht wordt nooit 
   const beheer = "Org/stagetwo-beheer-tier2";
   const antwoorden = (apps) => ({
     "--version": { stdout: "gh version 2.95.0\n" },
-    "auth status": { stdout: "Logged in\n" },
+    "GET user": { stdout: "bart\n" },
     "api users/Org": { stdout: { type: "Organization" } },
-    "repo view": { stdout: { name: "x" } },
+    "GET repo": { stdout: "x\n" },
     [`api repos/${beheer}/contents/toegang.json`]: {
       stdout: { content: Buffer.from(JSON.stringify({ groepen: { kantoor: { domeinen: ["shop.nl"] } }, apps })).toString("base64"), sha: "abc" },
     },
@@ -814,7 +869,7 @@ test("--inrichten --klantportaal: een app die nog niet is ingericht wordt nooit 
   const oud = process.env.PATH;
   process.env.PATH = `${nep.pad}:${oud}`;
   const portaal = ["--klantportaal", "--afzender", "Shop <noreply@shop.nl>", "--turnstile-sitekey", SITEKEY_VB];
-  const gewijzigd = () => nep.aanroepen().some((a) => (a[0] === "pr" && a[1] === "create") || (a[0] === "workflow" && a[1] === "run") || a.includes("PUT"));
+  const gewijzigd = () => prAanmaken(nep.aanroepen()).length > 0 || nep.aanroepen().some((a) => (a[0] === "workflow" && a[1] === "run") || a.includes("PUT"));
   try {
     // Staat nog niet in toegang.json: geen pull request die hem als klantportaal neerzet.
     const nieuw = richtIn(leesArgumenten(["--inrichten", "--naam", "shop", "--eigenaar", "Org", "--groepen", "kantoor", ...portaal]), { wachtMs: 0 });

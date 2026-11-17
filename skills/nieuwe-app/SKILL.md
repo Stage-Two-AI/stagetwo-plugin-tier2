@@ -8,6 +8,18 @@ is het belangrijkste deel: de keuzes hieronder zijn achteraf duur om te verander
 in gewone taal, stel één vraag tegelijk, en geef bij elke keuze een advies met de reden.
 De gebruiker beslist. Voer niets uit wat hier niet staat.
 
+## In de cloud (een thread op claude.ai)
+
+Meedenken kan daar gewoon (stap 1 tot en met 4). De app aanmaken en laten inrichten (stap 5 en
+5b) kan er nog niet: een cloudsessie mag geen repo aanmaken en ziet alleen de repo's van het
+Project. Zeg dat aan het begin in één zin, zodat de gebruiker het niet pas aan het eind hoort.
+De opdrachten met `gh repo list` en `gh api user/orgs` werken er ook niet: welke apps er zijn,
+zie je aan de mappen van het Project, en de rest vraag je de gebruiker. Sluit stap 4 af met een
+korte samenvatting van de keuzes (naam, eigenaar, omschrijving, wie erbij mag), die de gebruiker
+op een computer aan `/stagetwo-tier2:nieuwe-app` geeft. Draai je de scripts hier toch, dan
+zeggen ze hetzelfde. Staat de nieuwe repo daarna in het Project, dan gaat het bouwen in de cloud
+verder met `/stagetwo-tier2:verder-werken`.
+
 ## Stap 1: hoort het bij een superapp die er al is?
 
 Vraag wat de gebruiker wil maken, in één of twee zinnen. Ga daarna eerst na bij welke

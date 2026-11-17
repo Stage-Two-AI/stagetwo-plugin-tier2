@@ -48,6 +48,12 @@ in de Claude-app daarmee ook andere plugins op deze computer zich niet meer vanz
 samen); `--aan` zet ook dat terug. Apps veranderen in beide gevallen
 nooit vanzelf, alleen via een voorstel dat een bouwer goedkeurt.
 
+**In de cloud** (een thread op claude.ai) is er geen computer om bij te werken: sla deel 1 en
+deel 2 over, de omgeving beheert de programma's en de plugin zelf. De app en de template waar
+hij uit komt, horen allebei in het Project te staan; mist de template, dan zegt het script dat.
+Een oude branch weggooien kan daar niet: het script sluit de oude pull request wel en zegt
+dat de branch is blijven staan.
+
 ## Deel 1: de plugin zelf
 
 Eerst zorgen dat de plugin zichzelf voortaan bijwerkt. Dat staat pas aan als dit script op
@@ -408,6 +414,8 @@ update klaarstaat. Laat de app die open staat (`huidige: true`) weg; die is al g
 van de openbare template heeft `template` en zijn eigen `doel` in zijn regel (de nieuwste
 versie van die template); staat er een `reden` bij, dan kan hij nu niet bijgewerkt worden:
 noem dat in één zin en werk hem niet bij.
+Staat er een `letOp` bij (in de cloud: alleen de apps van het Project zijn te zien), zeg dat dan
+in één regel bij de lijst.
 
 - Loopt er geen andere app achter, zeg dat in één regel en ga naar deel 6.
 - Anders: toon de achterlopers als korte lijst (naam, van welke versie naar `doel`, en

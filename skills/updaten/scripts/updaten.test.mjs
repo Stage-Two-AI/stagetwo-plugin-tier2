@@ -8,13 +8,13 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { git, insteadOfEnv, maakKlantRepo, maakTemplateRepo, nepGh, opruimen, tijdelijkeMap } from "../../../lib/test-hulp.mjs";
+import { git, insteadOfEnv, maakKlantRepo, maakTemplateRepo, nepGh, opruimen, prAanmaken, tijdelijkeMap } from "../../../lib/test-hulp.mjs";
 import { BRANCH, WERKMAP_PREFIX, hoofd as afhHoofd, hoofdversiesUit, prTekst, vreemdeImporters } from "./afhankelijkheden.mjs";
 import { hoofd as overzichtHoofd, leesArgumenten } from "./overzicht.mjs";
 
 const GH_BASIS = {
   "--version": { stdout: "gh version 2.95.0\n" },
-  "auth status": { stdout: "Logged in\n" },
+  "GET user": { stdout: "bart\n" },
 };
 
 function metOmgeving(env, fn) {
@@ -78,7 +78,7 @@ test("overzicht: alleen Cloudflare-template-apps met schrijfrecht (geen Vercel-a
     "api repos/klant/nieuw/contents/.claude/stack-manifest.json": { stdout: CLOUDFLARE_MANIFEST },
     "api repos/klant/vercel-app/contents/.claude/stack-manifest.json": { stdout: { stackVersion: 6 } },
     "api repos/klant/vercel-app/contents/.claude/stack-version": raw(6),
-    "pr list": { stdout: [{ number: 3, headRefName: "stack-bijwerken/v9", url: "https://github.com/klant/portaal/pull/3" }] },
+    "GET pulls": { stdout: [{ number: 3, headRefName: "stack-bijwerken/v9", url: "https://github.com/klant/portaal/pull/3" }] },
   });
   try {
     const r = w.draai(["--json", "--eigenaar", "klant"]);
@@ -112,7 +112,7 @@ test("overzicht: een app met variant cloudflare-openbaar telt mee bij zijn eigen
     "api repos/klant/raar/contents/.claude/stack-version": raw(8),
     "api repos/klant/shop/contents/.claude/stack-manifest.json": { stdout: NIEUW },
     "api repos/klant/raar/contents/.claude/stack-manifest.json": { stdout: { ...NIEUW, template: "app-template-tier2" } },
-    "pr list": { stdout: [] },
+    "GET pulls": { stdout: [] },
   };
   const w = overzichtWereld(gh, {
     levering: ({ wortel, template }) => ({ plugin: "klant/p", template, templateOpenbaar: maakTemplateRepo(wortel, { extraManifest: NIEUW, naam: "openbaar" }) }),
@@ -142,7 +142,7 @@ test("overzicht: een app van de openbare template meet zich aan die template; zo
     "api repos/klant/shop/contents/.claude/stack-version": raw(8),
     "api repos/klant/intern/contents/.claude/stack-manifest.json": { stdout: CLOUDFLARE_MANIFEST },
     "api repos/klant/shop/contents/.claude/stack-manifest.json": { stdout: OPENBAAR_MANIFEST },
-    "pr list": { stdout: [] },
+    "GET pulls": { stdout: [] },
   };
   const met = overzichtWereld(gh, {
     levering: ({ wortel, template }) => ({ plugin: "klant/p", template, templateOpenbaar: maakTemplateRepo(wortel, { tagV9: false, extraManifest: { template: "app-template-tier2-openbaar" }, naam: "openbaar" }) }),
@@ -184,8 +184,76 @@ test("overzicht: zonder open app en zonder --eigenaar kijkt hij naar het eigen a
   }
 });
 
+/** Een app als map met een origin op GitHub, zoals de repo's van een Project in de cloud naast elkaar staan. */
+function appMap(werkmap, naam, { versie, manifest = CLOUDFLARE_MANIFEST }) {
+  const map = join(werkmap, naam);
+  mkdirSync(join(map, ".claude"), { recursive: true });
+  writeFileSync(join(map, ".claude", "stack-manifest.json"), JSON.stringify(manifest));
+  writeFileSync(join(map, ".claude", "stack-version"), `${versie}\n`);
+  git(map, "init", "-q");
+  git(map, "remote", "add", "origin", `https://github.com/klant/${naam}`);
+  return map;
+}
+
+const GEEN_GRAPHQL = { exit: 1, stderr: "HTTP 403: GitHub GraphQL is not available from Claude Code sessions; use the REST API (gh api repos/{owner}/{repo}/...)." };
+const ALLEEN_REPOS = { exit: 1, stderr: "gh: This GitHub API path is not available: sessions are bound to their configured repositories. Use repository-scoped endpoints (repos/{owner}/{repo}/...). (HTTP 403)" };
+
+test("overzicht in de cloud: GitHub weigert de lijst van de organisatie, dan komen de apps uit de mappen van het Project", () => {
+  const w = overzichtWereld({
+    "repo list": GEEN_GRAPHQL,
+    "GET user/orgs": ALLEEN_REPOS,
+    "api repos/klant/voorraad/contents/.claude/stack-version": raw(9),
+    "api repos/klant/voorraad/contents/.claude/stack-manifest.json": { stdout: CLOUDFLARE_MANIFEST },
+    "api repos/klant/portaal/contents/.claude/stack-version": raw(8),
+    "api repos/klant/portaal/contents/.claude/stack-manifest.json": { stdout: CLOUDFLARE_MANIFEST },
+    "GET pulls": { stdout: [] },
+  });
+  try {
+    const project = join(w.leeg, "project");
+    const voorraad = appMap(project, "voorraad", { versie: 9 });
+    appMap(project, "portaal", { versie: 8 });
+    appMap(project, "ander-spoor", { versie: 7, manifest: { variant: "light", stackVersion: 7 } });
+
+    // Vanuit de map van één app: de eigenaar komt uit de origin, de lijst uit de mappen ernaast.
+    const r = w.draai(["--json"], voorraad);
+    assert.equal(r.status, "ok", r.reden);
+    assert.equal(r.bron, "mappen");
+    assert.match(r.letOp, /alleen de apps te zien die in dit Project staan/);
+    assert.deepEqual(r.apps.map((a) => [a.repo, a.versie, a.achter, a.huidige]), [
+      ["klant/portaal", 8, true, false],
+      ["klant/voorraad", 9, false, true],
+    ]);
+
+    // Vanuit de map boven de apps (zo start een thread van een Project): ook de organisaties
+    // zijn niet op te vragen, dus de eigenaren komen uit de mappen.
+    const boven = w.draai(["--json"], project);
+    assert.equal(boven.status, "ok", boven.reden);
+    assert.deepEqual(boven.eigenaren, ["klant"]);
+    assert.deepEqual(boven.apps.map((a) => a.repo), ["klant/portaal", "klant/voorraad"]);
+
+    // Geen enkele app in de buurt: één zin met wat de gebruiker kan doen.
+    const niets = w.draai(["--json"]);
+    assert.equal(niets.status, "mislukt");
+    assert.match(niets.reden, /zet de apps in het Project/);
+  } finally {
+    w.opruimen();
+  }
+});
+
+test("overzicht: een andere fout van GitHub blijft een fout, ook als er apps naast staan", () => {
+  const w = overzichtWereld({ "repo list": { exit: 1, stderr: "HTTP 502: Bad Gateway" } });
+  try {
+    const project = join(w.leeg, "project");
+    const r = w.draai(["--json"], appMap(project, "voorraad", { versie: 9 }));
+    assert.equal(r.status, "mislukt");
+    assert.match(r.reden, /de repo's van klant zijn niet op te vragen: HTTP 502/);
+  } finally {
+    w.opruimen();
+  }
+});
+
 test("overzicht: niet ingelogd bij gh is mislukt met de route naar installatie", () => {
-  const w = overzichtWereld({ "auth status": { exit: 1, stderr: "not logged in" } });
+  const w = overzichtWereld({ "GET user": { exit: 1, stderr: "not logged in" } });
   try {
     const r = w.draai(["--json"]);
     assert.equal(r.status, "mislukt");
@@ -224,8 +292,9 @@ function afhWereld({ gh = {}, pnpm = {} } = {}) {
   const klant = maakKlantRepo(wortel, { githubUrl });
   const nep = nepGh(wortel, {
     ...GH_BASIS,
-    "pr list": { stdout: [] },
-    "pr create": { stdout: "https://github.com/klant/app/pull/5\n" },
+    "GET pulls": { stdout: [] },
+    "GET repo": { stdout: "main\n" },
+  "POST pulls": { stdout: { number: 5, url: "https://github.com/klant/app/pull/5" } },
     ...gh,
   });
   nepPnpm(nep.pad, pnpm);
@@ -264,7 +333,7 @@ test("afhankelijkheden: lockfile veranderd geeft een eigen PR met de naam van de
     const mainVoor = git(w.klant.origin, "rev-parse", "main");
     const r = w.draai(["--json"]);
     assert.equal(r.status, "gepusht", r.reden);
-    assert.deepEqual(r.pr, { url: "https://github.com/klant/app/pull/5", nieuw: true });
+    assert.deepEqual(r.pr, { url: "https://github.com/klant/app/pull/5", number: 5, nieuw: true });
     assert.deepEqual(r.hoofdversies, [{ naam: "vite", huidig: "6.0.0", nieuwste: "7.0.0" }]);
     assert.equal(git(w.klant.origin, "rev-parse", "main"), mainVoor);
     assert.equal(git(w.klant.origin, "log", "-1", "--format=%an <%ae>", BRANCH), "Bart Klant <bart@example.com>");
@@ -277,7 +346,7 @@ test("afhankelijkheden: lockfile veranderd geeft een eigen PR met de naam van de
 
 test("afhankelijkheden: staat de template-PR open, dan bouwt deze PR daarop voort (niet op main)", () => {
   const w = afhWereld({
-    gh: { "pr list": { stdout: [{ number: 3, headRefName: "stack-bijwerken/v9", url: "https://github.com/klant/app/pull/3" }] } },
+    gh: { "GET pulls": { stdout: [{ number: 3, headRefName: "stack-bijwerken/v9", url: "https://github.com/klant/app/pull/3" }] } },
   });
   try {
     // De template-PR: een eigen commit op stack-bijwerken/v9 (zoals bijwerken.mjs hem pusht).
@@ -294,8 +363,8 @@ test("afhankelijkheden: staat de template-PR open, dan bouwt deze PR daarop voor
     assert.equal(r.opTemplate, "https://github.com/klant/app/pull/3");
     assert.deepEqual(git(w.klant.origin, "diff", "--name-only", `stack-bijwerken/v9..${BRANCH}`).split("\n"), ["pnpm-lock.yaml"]);
     assert.equal(git(w.klant.origin, "merge-base", "--is-ancestor", "stack-bijwerken/v9", BRANCH), "");
-    const create = w.nep.aanroepen().find((a) => a[0] === "pr" && a[1] === "create");
-    const body = create[create.indexOf("--body") + 1];
+    const create = prAanmaken(w.nep.aanroepen())[0];
+    const body = create.body;
     assert.match(body, /Merge eerst de pull request van de template\*\* \(https:\/\/github\.com\/klant\/app\/pull\/3\)/);
     // Tot de template-PR gemerged is, raakt deze PR templatebestanden: zonder deze regels is
     // guard:template rood (gevonden bij de test van uitgave 40, business#127 en stagetwo-site#64).
@@ -316,7 +385,7 @@ test("afhankelijkheden: niets veranderd is bij, en een open voorstel stopt zonde
     w.opruimen();
   }
 
-  const o = afhWereld({ gh: { "pr list": { stdout: [{ number: 4, headRefName: BRANCH, url: "https://github.com/klant/app/pull/4" }] } } });
+  const o = afhWereld({ gh: { "GET pulls": { stdout: [{ number: 4, headRefName: BRANCH, url: "https://github.com/klant/app/pull/4" }] } } });
   try {
     const r = o.draai(["--json"]);
     assert.equal(r.status, "gestopt");
@@ -371,7 +440,7 @@ test("overzicht: een app met een vreemde waarde in het veld template telt niet a
     "repo list": { stdout: [{ nameWithOwner: "klant/raar", viewerPermission: "WRITE" }] },
     "api repos/klant/raar/contents/.claude/stack-version": raw(8),
     "api repos/klant/raar/contents/.claude/stack-manifest.json": { stdout: { ...CLOUDFLARE_MANIFEST, template: null } },
-    "pr list": { stdout: [] },
+    "GET pulls": { stdout: [] },
   };
   const w = overzichtWereld(gh);
   try {

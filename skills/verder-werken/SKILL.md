@@ -47,6 +47,10 @@ Template-versie 21 en nieuwer; bij een oudere versie geldt wat in de route van d
   draaien alleen de snelle checks en wordt de preview bijgewerkt. De hook van de plugin weigert
   `gh pr create` zonder `--draft`. Push per afgerond stukje, niet per kleine wijziging, en
   draai vóór elke push `pnpm check`.
+  **In de cloud** (een thread op claude.ai) werkt `gh pr` niet. Open de pull request daar met
+  `gh api repos/<eigenaar>/<naam>/pulls -X POST -f title="..." -f head=<branch> -f base=main -F body=@<bestand> -F draft=true`,
+  of met de GitHub-koppeling van de sessie (met `draft: true`). De hook weigert ook daar een
+  pull request die geen concept is.
 - **Kijk eerst zelf, lokaal, met echte gegevens** (template 34 en nieuwer). De preview in de
   Claude-app start de app op deze computer tegen de testdatabase, waar elke nacht een kopie
   van productie in komt, en logt in als de testgebruiker `testgebruiker@stagetwo.nl` (het
@@ -84,6 +88,12 @@ Template-versie 21 en nieuwer; bij een oudere versie geldt wat in de route van d
   daarna op klaar (`gh pr ready`), wacht zelf op alle checks (`gh pr checks --watch`) en
   repareer wat rood is, net zo lang tot alles groen is. Vraag de gebruiker nooit wat hij met een rode check moet; leg alleen iets voor als een
   check om een besluit vraagt (zoals `guard:migrations`), met jouw advies.
+  **In de cloud** gaan deze drie stappen zo: de PR-tekst bijwerken met
+  `gh api repos/<eigenaar>/<naam>/pulls/<nummer> -X PATCH -F body=@<bestand>`; op klaar zetten
+  met de GitHub-koppeling van de sessie (de pull request bijwerken met `draft: false`; lukt dat
+  niet, vraag de gebruiker dan om op GitHub op **Ready for review** te klikken); en de checks
+  volgen met `gh run list --branch <branch> --limit 10 --json name,status,conclusion,url`, net
+  zo lang tot ze allemaal klaar zijn.
 - **Geen Docker.** De databasetests draaien in GitHub, en de types haal je met
   `pnpm db:types:uit-ci` uit de run.
 

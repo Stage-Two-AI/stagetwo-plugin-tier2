@@ -79,8 +79,10 @@ if controleer_programma node; then
 fi
 controleer_programma pnpm || true
 if controleer_programma gh; then
-  if gh auth status >/dev/null 2>&1; then
-    meld gh_ingelogd "$(gh api user -q .login 2>/dev/null || echo ja)"
+  # Met een echte vraag aan GitHub, niet met `gh auth status`: in een cloudsessie (claude.ai)
+  # zegt die "niet ingelogd" terwijl gh daar gewoon werkt.
+  if gh_login="$(gh api user -q .login 2>/dev/null)"; then
+    meld gh_ingelogd "${gh_login:-ja}"
   else
     meld gh_ingelogd nee
   fi

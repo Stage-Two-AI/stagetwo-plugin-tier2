@@ -80,7 +80,7 @@ import { fileURLToPath } from "node:url";
 import { LEVERING, STAGE_TWO, STAGE_TWO_OPENBAAR, openbaarAanvragen, openbaarNietBereikbaar } from "../../../lib/levering.mjs";
 import { SETTINGS_PAD, kiesPluginBron, metPluginBron } from "../../../lib/plugin-bron.mjs";
 import { geldigTestadres, zetTestadres } from "../../../lib/testmail.mjs";
-import { ghAanwezig, ghIngelogd, git, sh } from "../../../lib/repo.mjs";
+import { ghAanwezig, ghIngelogd, git, inDeCloud, sh } from "../../../lib/repo.mjs";
 
 /** De template uit levering.json (een abonnee), anders die van Stage Two; zie lib/levering.mjs. */
 export const TEMPLATE = LEVERING.template;
@@ -520,13 +520,43 @@ function ghJson(args) {
   return JSON.parse(sh("gh", ["api", ...args]));
 }
 
-function repoBestaat(repo) {
+// Alle aanroepen gaan via de REST-API (`gh api`): `gh repo` en `gh pr` gebruiken GraphQL, en
+// dat is in een cloudsessie (claude.ai) dicht.
+
+export function repoBestaat(repo) {
   try {
-    sh("gh", ["repo", "view", repo, "--json", "name"]);
+    sh("gh", ["api", `repos/${repo}`, "-q", ".name"]);
     return true;
   } catch {
     return false;
   }
+}
+
+/** Maakt de besloten repo aan als kopie van de template (alleen de standaardbranch). */
+export function maakRepoUitTemplate(repo, { template = TEMPLATE, omschrijving = null } = {}) {
+  const [eigenaar, naam] = repo.split("/");
+  sh("gh", [
+    "api", `repos/${template}/generate`, "-X", "POST",
+    "-f", `owner=${eigenaar}`,
+    "-f", `name=${naam}`,
+    "-F", "private=true",
+    ...(omschrijving ? ["-f", `description=${omschrijving}`] : []),
+    "-q", ".full_name",
+  ]);
+}
+
+/**
+ * Het adres om een repo te klonen, zoals `gh repo clone` het kiest: ssh als de gebruiker gh zo
+ * heeft ingesteld, anders https.
+ */
+export function kloonAdres(repo) {
+  let protocol = "https";
+  try {
+    protocol = sh("gh", ["config", "get", "git_protocol", "-h", "github.com"]) || "https";
+  } catch {
+    // geen instelling: https
+  }
+  return protocol === "ssh" ? `git@github.com:${repo}.git` : `https://github.com/${repo}.git`;
 }
 
 function login() {
@@ -985,8 +1015,8 @@ function leesToegang(beheer) {
  */
 function vraagToegangAan(beheer, arg, toegang, sha, { portaal = null, omzetten = false } = {}) {
   const branch = omzetten ? `toegang/${arg.naam}-klantportaal` : `toegang/${arg.naam}`;
-  const bestaand = JSON.parse(sh("gh", ["pr", "list", "--repo", beheer, "--head", branch, "--state", "open", "--json", "url"]));
-  if (bestaand[0]?.url) return bestaand[0].url;
+  const bestaand = sh("gh", ["api", `repos/${beheer}/pulls?state=open&head=${beheer.split("/")[0]}:${branch}`, "-q", ".[0].html_url // empty"]);
+  if (bestaand) return bestaand;
   const mainSha = sh("gh", ["api", `repos/${beheer}/git/ref/heads/main`, "-q", ".object.sha"]);
   try {
     sh("gh", ["api", `repos/${beheer}/git/refs`, "-X", "POST", "-f", `ref=refs/heads/${branch}`, "-f", `sha=${mainSha}`]);
@@ -1018,11 +1048,26 @@ function vraagToegangAan(beheer, arg, toegang, sha, { portaal = null, omzetten =
     ? `De app **${arg.naam}** wordt een klantportaal in toegang.json.${portaalTekst}\n\nAangevraagd met /stagetwo-tier2:nieuwe-app. Deze pull request wijzigt alleen toegang.json.`
     : `De nieuwe app **${arg.naam}** komt in toegang.json, voor de groep(en) ${arg.groepen.map((g) => `\`${g}\``).join(", ")}.${portaalTekst}\n\nAangevraagd met /stagetwo-tier2:nieuwe-app. Deze pull request wijzigt alleen toegang.json; na de merge kan de app worden ingericht.`;
   return sh("gh", [
-    "pr", "create", "--repo", beheer, "--base", "main", "--head", branch,
-    "--title", omzetten ? `Klantportaal: ${arg.naam}` : `Toegang: ${arg.naam}`,
-    "--body", body,
+    "api", `repos/${beheer}/pulls`, "-X", "POST", "-q", ".html_url",
+    "-f", "base=main",
+    "-f", `head=${branch}`,
+    "-f", `title=${omzetten ? `Klantportaal: ${arg.naam}` : `Toegang: ${arg.naam}`}`,
+    "-f", `body=${body}`,
   ]);
 }
+
+/**
+ * Een cloudsessie (claude.ai) mag geen repo aanmaken, ziet alleen de repo's van het Project en
+ * krijgt van GitHub niets te horen over de organisatie (leden, plan, de lijst van repo's). Het
+ * aanmaken en het inrichten lopen daar dus vast, met een melding die de verkeerde kant op wijst
+ * ("is geen organisatie"). Daarom stoppen ze er vooraf, met wat de gebruiker wel kan doen.
+ */
+export const NIET_IN_DE_CLOUD = {
+  aanmaken:
+    "een nieuwe app aanmaken kan nog niet vanuit de cloud: een cloudsessie mag geen repo aanmaken en ziet alleen de repo's van het Project. Doe deze ene stap op een computer, met /stagetwo-tier2:nieuwe-app in Claude Code. Zet de nieuwe repo daarna in je Project; dan bouw je in de cloud verder met /stagetwo-tier2:verder-werken",
+  inrichten:
+    "een app laten inrichten kan nog niet vanuit de cloud: een cloudsessie ziet de organisatie en haar beheer-repo niet. Doe deze stap op een computer, met hetzelfde commando",
+};
 
 /**
  * Start de workflow in de beheer-repo en wacht op het resultaat. `gh` doet al het werk
@@ -1030,9 +1075,10 @@ function vraagToegangAan(beheer, arg, toegang, sha, { portaal = null, omzetten =
  * het logboek. Er komt geen sleutel van Cloudflare of Supabase aan te pas: die staan
  * alleen in de omgeving beheer van de beheer-repo.
  */
-export function richtIn(arg, { cwd = process.cwd(), wachtMs = 5000, maxWachtMinuten = 30 } = {}) {
+export function richtIn(arg, { cwd = process.cwd(), wachtMs = 5000, maxWachtMinuten = 30, env = process.env } = {}) {
   const fout = controleerArgumenten(arg);
   if (fout) return { status: "mislukt", reden: fout };
+  if (inDeCloud(env)) return { status: "mislukt", reden: NIET_IN_DE_CLOUD.inrichten, cloud: true };
   if (!ghAanwezig()) return { status: "mislukt", reden: "de GitHub-opdrachtregel (gh) ontbreekt; draai eerst /stagetwo-tier2:installatie" };
   if (!ghIngelogd()) return { status: "mislukt", reden: "log eerst in bij GitHub met `gh auth login` (zie /stagetwo-tier2:installatie)" };
 
@@ -1166,9 +1212,10 @@ export function richtIn(arg, { cwd = process.cwd(), wachtMs = 5000, maxWachtMinu
 
 // ---------------------------------------------------------------- de run
 
-export function voorcontrole(arg, { cwd = process.cwd(), levering = LEVERING } = {}) {
+export function voorcontrole(arg, { cwd = process.cwd(), levering = LEVERING, env = process.env } = {}) {
   const fout = controleerArgumenten(arg);
   if (fout) return { status: "mislukt", reden: fout };
+  if (inDeCloud(env)) return { status: "mislukt", reden: NIET_IN_DE_CLOUD.aanmaken, cloud: true };
   const gekozen = kiesTemplate(arg.template, levering);
   if (gekozen.fout) return { status: "mislukt", reden: gekozen.fout, kanTier2: true };
   for (const cli of ["git", "pnpm"]) {
@@ -1261,15 +1308,7 @@ export function doeHet(arg, { cwd = process.cwd() } = {}) {
 
   if (!hervatten || !repoBestaat(repo)) {
     try {
-      sh("gh", [
-        "repo",
-        "create",
-        repo,
-        "--private",
-        "--template",
-        template,
-        ...(arg.omschrijving ? ["--description", arg.omschrijving] : []),
-      ]);
+      maakRepoUitTemplate(repo, { template, omschrijving: arg.omschrijving });
     } catch (fout) {
       return { status: "mislukt", reden: `de repo aanmaken mislukte: ${foutTekst(fout)}` };
     }
@@ -1293,7 +1332,7 @@ export function doeHet(arg, { cwd = process.cwd() } = {}) {
   try {
     if (!existsSync(map)) {
       mkdirSync(dirname(map), { recursive: true });
-      sh("gh", ["repo", "clone", repo, map, "--", "--quiet"], { timeout: 300000 });
+      sh("git", ["clone", "--quiet", kloonAdres(repo), map], { timeout: 300000 });
     }
     stap = "invullen";
     verwijderNietMeenemen(map);

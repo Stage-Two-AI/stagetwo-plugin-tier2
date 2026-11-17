@@ -32,7 +32,11 @@
  *
  * En één regel dwingt een afspraak af die eerder alleen in de route stond: een pull request
  * begint als concept (`gh pr create --draft`). Een volle Kwaliteitspoort bij elke tussenstap
- * kost GitHub-minuten (meting oktober 2026: de grootste post).
+ * kost GitHub-minuten (meting oktober 2026: de grootste post). Sinds uitgave 45 geldt die regel
+ * ook voor de twee wegen waarlangs een pull request in een cloudsessie (claude.ai) ontstaat,
+ * want `gh pr create` werkt daar niet: `gh api repos/<eigenaar>/<naam>/pulls -X POST` zonder
+ * `draft=true`, en het gereedschap `create_pull_request` van de GitHub-koppeling zonder
+ * `draft: true`.
  *
  * Werkmap (uitgave 39): staat er in de projectmap geen manifest, maar wel apps één niveau
  * dieper, dan beoordeelt beoordeelWerkmap elk bestand in de map van de app waar het in staat,
@@ -48,7 +52,7 @@ import { NIET_IN_LEVERING, TEMPLATE_GEWOON, openbaarNietBereikbaar, templateVan 
 import { actieUit, datumNL, PAGINA_URL } from "../lib/updates.mjs";
 
 /** De gereedschappen die de hook beoordeelt; hooks.json gebruikt dezelfde tekst. */
-export const MATCHER = "Edit|Write|MultiEdit|NotebookEdit|Bash";
+export const MATCHER = "Edit|Write|MultiEdit|NotebookEdit|Bash|mcp__.*__create_pull_request";
 
 /** Per padgereedschap het veld in tool_input dat het pad draagt. */
 const PAD_VELD = {
@@ -60,6 +64,24 @@ const PAD_VELD = {
 
 /** Mappen waarin elk bestand, ook een nieuw, bij de template hoort. */
 export const BESCHERMDE_PREFIXEN = [".github/workflows/", ".claude/"];
+
+/** De uitleg bij de regel "een pull request begint als concept", voor alle drie de wegen. */
+const CONCEPT_REDEN = [
+  "Een pull request begint altijd als concept: `gh pr create --draft`.",
+  "In een cloudsessie werkt `gh pr create` niet. Daar is het",
+  "`gh api repos/<eigenaar>/<naam>/pulls -X POST -f title=... -f head=... -f base=main -f body=... -F draft=true`,",
+  "of het gereedschap van de GitHub-koppeling met `draft: true`.",
+  "",
+  "Waarom: bij een concept draaien alleen de snelle controles. De zware database- en",
+  "browsertest wachten tot de pull request op klaar staat. Zonder concept draait bij elke",
+  "push de volle Kwaliteitspoort, en dat kost de klant GitHub-minuten voor tussenstappen",
+  "die nog niemand hoeft te beoordelen. Dat geldt ook voor een pull request met een migratie.",
+  "",
+  "Op klaar zetten doe je later, als de gebruiker het werk goed vindt (stap 7 van",
+  "docs/routes/verder-werken.md): vul in de PR-tekst het kopje \"Voor de architectuur\" in,",
+  "draai `pnpm check`, en dan `gh pr ready <nummer>` en `gh pr checks --watch` (in een",
+  "cloudsessie: op klaar zetten met de GitHub-koppeling, `draft: false`).",
+].join("\n");
 
 /**
  * De vier Bash-regels uit de vorige hook in de template (.claude/hooks/guard.mjs),
@@ -125,29 +147,54 @@ export const BASH_REGELS = [
     // Snoeipunt 1 van de meting van oktober 2026: concept afdwingen in plaats van vragen. De
     // tekst kan "gh pr create" ook in een commitbericht noemen; daarom kijkt `tenzij` naar de
     // echte opdrachten in de regel, niet naar de tekst.
-    patroon: /\bgh\s+pr\s+create\b/,
+    patroon: /\bgh\s+pr\s+create\b|\bgh\s+api\b[^\n]*\/pulls\b/,
     tenzij: (commando) => !segmenten(lexeer(commando)).some((seg) => isPrZonderConcept(woordenVan(seg))),
-    reden: [
-      "Een pull request begint altijd als concept: `gh pr create --draft`.",
-      "",
-      "Waarom: bij een concept draaien alleen de snelle controles. De zware database- en",
-      "browsertest wachten tot de pull request op klaar staat. Zonder concept draait bij elke",
-      "push de volle Kwaliteitspoort, en dat kost de klant GitHub-minuten voor tussenstappen",
-      "die nog niemand hoeft te beoordelen. Dat geldt ook voor een pull request met een migratie.",
-      "",
-      "Op klaar zetten doe je later, als de gebruiker het werk goed vindt (stap 7 van",
-      "docs/routes/verder-werken.md): vul in de PR-tekst het kopje \"Voor de architectuur\" in,",
-      "draai `pnpm check`, en dan `gh pr ready <nummer>` en `gh pr checks --watch`.",
-    ].join("\n"),
+    reden: CONCEPT_REDEN,
   },
 ];
 
-/** `gh pr create` zonder `--draft` (of `-d`) in deze woorden van één opdracht. */
+/** Een pull request openen zonder concept, in deze woorden van één opdracht: met `gh pr create` of via de REST-API. */
 function isPrZonderConcept(woorden) {
-  const start = woorden.findIndex((w, i) => naamVan(w) === "gh" && woorden[i + 1] === "pr" && woorden[i + 2] === "create");
-  if (start === -1) return false;
-  const vlaggen = woorden.slice(start + 3);
-  return !vlaggen.some((w) => w === "--draft" || w === "-d" || w === "--draft=true");
+  const gh = woorden.findIndex((w) => naamVan(w) === "gh");
+  if (gh === -1) return false;
+  const rest = woorden.slice(gh + 1);
+  if (rest[0] === "pr" && rest[1] === "create") {
+    return !rest.slice(2).some((w) => w === "--draft" || w === "-d" || w === "--draft=true");
+  }
+  if (rest[0] !== "api" || !rest.some((w) => PULLS_PAD.test(w))) return false;
+  // Zonder velden en zonder -X is het een GET (de lijst opvragen); met velden maakt gh er zelf een POST van.
+  const methode = waardeNa(rest, ["-X", "--method"]);
+  const velden = rest.filter((w, i) => VELD_VLAG.has(rest[i - 1]) || /^(?:-[fF]|--(?:raw-)?field=)./.test(w));
+  const maaktAan = methode ? methode.toUpperCase() === "POST" : velden.length > 0;
+  if (!maaktAan) return false;
+  // Met --input staat de inhoud in een bestand; dat kan de bewaker niet lezen.
+  if (rest.some((w) => w === "--input" || w.startsWith("--input="))) return false;
+  return !velden.some((w) => /(?:^|=|[fF])draft=true$/.test(w));
+}
+
+const PULLS_PAD = /^\/?repos\/[^/]+\/[^/]+\/pulls\/?$/;
+const VELD_VLAG = new Set(["-f", "-F", "--field", "--raw-field"]);
+
+/** De waarde van een vlag: `-X POST`, `--method POST`, `-XPOST` of `--method=POST`; anders null. */
+function waardeNa(woorden, vlaggen) {
+  for (let k = 0; k < woorden.length; k++) {
+    for (const vlag of vlaggen) {
+      if (woorden[k] === vlag) return woorden[k + 1] ?? null;
+      if (vlag.startsWith("--") && woorden[k].startsWith(`${vlag}=`)) return woorden[k].slice(vlag.length + 1);
+      if (!vlag.startsWith("--") && woorden[k].startsWith(vlag) && woorden[k].length > vlag.length) return woorden[k].slice(vlag.length);
+    }
+  }
+  return null;
+}
+
+/** Het gereedschap van een GitHub-koppeling dat een pull request aanmaakt (`mcp__<naam>__create_pull_request`). */
+export function isPrKoppeling(toolName) {
+  return typeof toolName === "string" && /^mcp__.+__create_pull_request$/.test(toolName);
+}
+
+/** Een pull request via de GitHub-koppeling: alleen met `draft: true`. */
+function beoordeelPrKoppeling(toolInput) {
+  return toolInput.draft === true ? { weiger: false, reden: null } : { weiger: true, reden: CONCEPT_REDEN };
 }
 
 // ---------------------------------------------------------------- paden
@@ -257,6 +304,8 @@ export function beoordeelTool({ projectmap, manifest, toolName, toolInput, env =
     const geraakt = schrijftOpTemplate({ commando, cwd: cwd ?? projectmap, projectmap, manifest, env });
     return geraakt ? weigerPad(geraakt, { viaBash: true }) : toe;
   }
+
+  if (isPrKoppeling(toolName)) return beoordeelPrKoppeling(toolInput);
 
   if (Object.hasOwn(PAD_VELD, toolName)) {
     if (env?.STACK_ALLOW_POLICY_EDIT === "1") return toe;
@@ -538,7 +587,8 @@ function naVlag(args, vlaggen) {
  * manifest; zie lib/werkmap.mjs). `apps` is de lijst uit appsInWerkmap. Een pad wordt
  * beoordeeld in de app waar het in staat; buiten een app is alles toegestaan. Een
  * Bash-opdracht valt onder BASH_REGELS als hij in een app draait (de cwd ligt in een app,
- * of de opdracht noemt er een met `cd`, `git -C`, `pnpm --dir` of `--repo`/`-R`), en het
+ * of de opdracht noemt er een met `cd`, `git -C`, `pnpm --dir`, `--repo`/`-R` of het pad
+ * `repos/<eigenaar>/<app>/...` van `gh api`), en het
  * schrijven op templatebestanden wordt voor elke app bekeken.
  */
 export function beoordeelWerkmap({ werkmap, apps, toolName, toolInput, env = {}, cwd = null }) {
@@ -553,6 +603,11 @@ export function beoordeelWerkmap({ werkmap, apps, toolName, toolInput, env = {},
     // Het pad als absoluut pad doorgeven: relatief is het ten opzichte van de werkmap, niet van de app.
     const absoluut = pad.join(pad.normalize(werkmap.replaceAll("\\", "/")), relatief);
     return beoordeelTool({ projectmap: app.map, manifest: app.manifest, toolName, toolInput: { ...toolInput, [veld]: absoluut }, env });
+  }
+
+  // De GitHub-koppeling noemt de repo in een eigen veld: de regel geldt als dat een app van hier is.
+  if (isPrKoppeling(toolName)) {
+    return apps.some((a) => a.naam === toolInput.repo) ? beoordeelPrKoppeling(toolInput) : toe;
   }
 
   if (toolName === "Bash") {
@@ -601,6 +656,12 @@ export function appsInOpdracht({ commando, werkmap, cwd, apps }) {
         const app = apps.find((a) => a.naam === String(volgende).split("/").pop());
         if (app) gevonden.add(app);
       }
+    }
+    // `gh api repos/<eigenaar>/<app>/...` wijst de app aan in het pad.
+    for (const w of woorden) {
+      const m = /^\/?repos\/[^/]+\/([^/?]+)/.exec(w);
+      const app = m && apps.find((a) => a.naam === m[1]);
+      if (app) gevonden.add(app);
     }
   }
   return [...gevonden];

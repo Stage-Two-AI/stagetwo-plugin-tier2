@@ -223,6 +223,20 @@ test("workflow Uitleveren: een omschrijving met een dubbele punt staat tussen aa
   }
 });
 
+test("workflow Taggen: alleen in de bronrepo van Stage Two, maakt een tag alleen aan, en gaat niet mee naar een klant", () => {
+  const yml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", ".github", "workflows", "taggen.yml"), "utf8");
+  assert.ok(ALLEEN_IN_BRON.includes(".github/workflows/taggen.yml"), "het bestand blijft bij Stage Two");
+  assert.match(yml, new RegExp(`if: github\\.repository == '${STAGE_TWO.plugin}'`), "tweede slot: in een kopie doet hij niets");
+  const aan = yml.slice(yml.indexOf("\non:"), yml.indexOf("\npermissions:"));
+  assert.match(aan, /push:\n\s+branches: \[main\]/);
+  assert.doesNotMatch(aan, /pull_request|workflow_dispatch|schedule/);
+  assert.match(yml, /\npermissions:\n {2}contents: write\n/, "geen sleutel: de workflow vraagt zelf het recht om te schrijven");
+  assert.doesNotMatch(yml, /secrets\./, "geen geheim nodig");
+  // Aanmaken, nooit verplaatsen of weggooien: geen force, geen PATCH of DELETE op een ref.
+  assert.doesNotMatch(yml, /--force|-X (?:PATCH|DELETE)|push .*--tags|git push/);
+  assert.match(yml, /git\/ref\/tags\/\$tag/, "kijkt eerst of de tag er al is");
+});
+
 test("workflow Uitleveren: alleen met de hand, niet bij een merge en niet elk uur", () => {
   const yml = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", ".github", "workflows", "uitleveren.yml"), "utf8");
   const aan = yml.slice(yml.indexOf("\non:"), yml.indexOf("\npermissions:"));
@@ -684,6 +698,16 @@ const heeftV42 = (() => {
   }
 })();
 
+/**
+ * Wat sinds versie 42 alleen in de bron is gekomen (uitgave 45: de workflow die tagt). Voor elk
+ * zo'n bestand doet Uitleveren één extra `git update-index --force-remove`. Dat verandert niets
+ * aan wat de klant krijgt: de commits en tags bij de klant blijven in de vergelijkingen hieronder
+ * precies gelijk. Die ene aanroep telt daarom niet mee in "dezelfde git-aanroepen".
+ */
+const NA_42_ALLEEN_IN_BRON = [".github/workflows/taggen.yml"];
+const zonderNieuwInBron = (aanroepen) =>
+  aanroepen.filter((a) => !(a.includes("update-index") && a.includes("--force-remove") && NA_42_ALLEEN_IN_BRON.includes(a.at(-1))));
+
 function codeVan42(map) {
   const doel = join(map, "code-42");
   mkdirSync(doel, { recursive: true });
@@ -762,7 +786,7 @@ test("harde eis: een abonnee zonder openbaar krijgt bij Uitleveren exact wat hij
           .replace(new RegExp(`(?:/private)?${tmp}/?uitleveren-(?:template-)?[A-Za-z0-9]{6}`, "g"), "<tmp>"),
       );
     assert.ok(op42.aanroepen.length > 20, "de meeschrijvende git zag de aanroepen");
-    assert.deepEqual(gelijk(nu.aanroepen, wereldNu), gelijk(op42.aanroepen, wereld42), "dezelfde git-aanroepen, in dezelfde volgorde");
+    assert.deepEqual(gelijk(zonderNieuwInBron(nu.aanroepen), wereldNu), gelijk(op42.aanroepen, wereld42), "dezelfde git-aanroepen, in dezelfde volgorde");
     assert.deepEqual(gelijk(nu.uitkomsten, wereldNu), gelijk(op42.uitkomsten, wereld42), "dezelfde uitkomsten");
     assert.deepEqual(nu.refs, op42.refs, "dezelfde commits en tags bij de klant, dus dezelfde bestanden");
     assert.equal(nu.levering, op42.levering, "dezelfde levering.json");
@@ -922,7 +946,7 @@ for (const cli of [false, true]) {
   test(`harde eis, alle scenario's (${cli ? "opdrachtregel" : "bibliotheek"}): zonder openbaar precies versie 42`, { skip: !heeftV42 && `de tag ${V42} ontbreekt in deze kloon` }, async () => {
     const { op42, nu, gelijk, wereld42, wereldNu } = await vergelijkMet42(cli);
     assert.ok(op42.aanroepen.length > 50, "de meeschrijvende git zag de aanroepen");
-    assert.deepEqual(gelijk(nu.aanroepen, wereldNu), gelijk(op42.aanroepen, wereld42), "dezelfde git-aanroepen, in dezelfde volgorde");
+    assert.deepEqual(gelijk(zonderNieuwInBron(nu.aanroepen), wereldNu), gelijk(op42.aanroepen, wereld42), "dezelfde git-aanroepen, in dezelfde volgorde");
     assert.deepEqual(gelijk(nu.uitkomsten, wereldNu), gelijk(op42.uitkomsten, wereld42), "dezelfde uitkomsten, meldingen en exitcodes");
     assert.deepEqual(nu.templates, op42.templates, "dezelfde template bij elke klant, tot op de sha");
     if (cli) {

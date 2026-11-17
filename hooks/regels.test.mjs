@@ -25,6 +25,7 @@ import {
   beoordeelTool,
   beoordeelWerkmap,
   beschermdePaden,
+  isPrKoppeling,
   lexeer,
   meldingAndereApps,
   meldingWerkmap,
@@ -95,7 +96,11 @@ test("regels: BASH_REGELS zijn de vier regels uit guard.mjs plus de conceptregel
 });
 
 test("regels: de matcher noemt precies de gereedschappen die de hook beoordeelt", () => {
-  assert.equal(MATCHER, "Edit|Write|MultiEdit|NotebookEdit|Bash");
+  assert.equal(MATCHER, "Edit|Write|MultiEdit|NotebookEdit|Bash|mcp__.*__create_pull_request");
+  // De hook draait alleen voor wat in hooks.json staat: die twee horen gelijk te blijven.
+  const hooks = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "hooks.json"), "utf8"));
+  assert.equal(hooks.hooks.PreToolUse[0].matcher, MATCHER);
+  assert.match("mcp__github__create_pull_request", new RegExp(`^(?:${MATCHER})$`));
 });
 
 // ---------------------------------------------------------------- beschermdePaden
@@ -854,6 +859,35 @@ test("bash: gh pr create zonder --draft wordt geweigerd, met uitleg waarom en ho
   assert.deepEqual(bash("gh pr ready 12"), TOE);
 });
 
+test("bash: een pull request via de REST-API (de weg in een cloudsessie) begint ook als concept", () => {
+  const post = "gh api repos/klant/app/pulls -X POST -f title=t -f head=x -f base=main -f body=b";
+  geweigerd(bash(post), "draft=true", "GitHub-minuten", "GitHub-koppeling");
+  geweigerd(bash(`${post} -F draft=false`), "draft=true");
+  // Zonder -X maar met velden maakt gh er zelf een POST van.
+  geweigerd(bash("gh api repos/klant/app/pulls -f title=t -f head=x -f base=main"), "draft=true");
+  geweigerd(bash("git push -u origin x && gh api --method POST /repos/klant/app/pulls -f title=t -f head=x -f base=main"), "draft=true");
+  assert.deepEqual(bash(`${post} -F draft=true`), TOE);
+  assert.deepEqual(bash("gh api repos/klant/app/pulls -XPOST -f title=t -f head=x -f base=main --field draft=true"), TOE);
+  assert.deepEqual(bash("gh api repos/klant/app/pulls -X POST --input pr.json"), TOE, "de inhoud van een bestand kan de bewaker niet lezen");
+  // Lezen, bijwerken en reageren zijn geen nieuwe pull request.
+  assert.deepEqual(bash('gh api "repos/klant/app/pulls?state=open" --jq ".[].number"'), TOE);
+  assert.deepEqual(bash("gh api --paginate repos/klant/app/pulls --jq '.[].number'"), TOE);
+  assert.deepEqual(bash("gh api repos/klant/app/pulls/7 -X PATCH -f body=nieuw"), TOE);
+  assert.deepEqual(bash("gh api repos/klant/app/issues/7/comments -X POST -f body=klaar"), TOE);
+  assert.deepEqual(bash("git commit -m 'gh api repos/klant/app/pulls -X POST'"), TOE, "alleen de echte opdracht telt");
+});
+
+test("GitHub-koppeling: create_pull_request zonder draft: true wordt geweigerd", () => {
+  const koppeling = (toolInput, toolName = "mcp__github__create_pull_request") => beoordeelTool({ projectmap: PROJECT, manifest: MANIFEST, toolName, toolInput });
+  geweigerd(koppeling({ owner: "klant", repo: "app", title: "t", head: "x", base: "main" }), "draft: true", "GitHub-minuten");
+  geweigerd(koppeling({ owner: "klant", repo: "app", title: "t", head: "x", base: "main", draft: false }), "draft: true");
+  assert.deepEqual(koppeling({ owner: "klant", repo: "app", title: "t", head: "x", base: "main", draft: true }), TOE);
+  geweigerd(koppeling({ repo: "app", title: "t" }, "mcp__een_andere_naam__create_pull_request"), "draft: true");
+  assert.deepEqual(koppeling({ repo: "app", pullNumber: 7, draft: false }, "mcp__github__update_pull_request"), TOE, "op klaar zetten mag");
+  assert.equal(isPrKoppeling("mcp__github__create_pull_request"), true);
+  assert.equal(isPrKoppeling("create_pull_request"), false);
+});
+
 test("bash: git -C <map> push naar main of met --force wordt ook geweigerd", () => {
   geweigerd(bash("git -C app push origin main"), "Rechtstreeks naar main");
   geweigerd(bash("git -C app push --force"), "Force pushen");
@@ -883,6 +917,11 @@ test("werkmap: Bash-regels alleen als de opdracht in een app draait", () => {
   geweigerd(inWerkmap("Bash", { command: "cd app && git push origin main" }), "Rechtstreeks naar main");
   geweigerd(inWerkmap("Bash", { command: "git -C crm push origin main" }), "Rechtstreeks naar main");
   geweigerd(inWerkmap("Bash", { command: "gh pr create --repo Klant/crm --title x" }), "--draft");
+  geweigerd(inWerkmap("Bash", { command: "gh api repos/Klant/crm/pulls -X POST -f title=x -f head=y -f base=main" }), "draft=true");
+  assert.deepEqual(inWerkmap("Bash", { command: "gh api repos/Klant/architectuur/pulls -X POST -f title=x -f head=y -f base=main" }), TOE, "de architectuur-repo is geen app");
+  geweigerd(inWerkmap("mcp__github__create_pull_request", { owner: "Klant", repo: "crm", title: "x", head: "y", base: "main" }), "draft: true");
+  assert.deepEqual(inWerkmap("mcp__github__create_pull_request", { owner: "Klant", repo: "crm", title: "x", head: "y", base: "main", draft: true }), TOE);
+  assert.deepEqual(inWerkmap("mcp__github__create_pull_request", { owner: "Klant", repo: "architectuur", title: "x", head: "y", base: "main" }), TOE);
   geweigerd(inWerkmap("Bash", { command: "git push origin main" }, { cwd: `${PROJECT}/src` }), "Rechtstreeks naar main");
   assert.deepEqual(inWerkmap("Bash", { command: "cd architectuur && git push origin main" }), TOE, "de architectuur-repo is geen app");
   assert.deepEqual(inWerkmap("Bash", { command: "gh pr create --title x" }, { cwd: `${WERKMAP}/architectuur` }), TOE);
@@ -897,6 +936,7 @@ test("werkmap: appsInOpdracht vindt de app uit cwd, cd, -C, --dir en --repo", ()
   assert.deepEqual(namen("cd crm && pnpm check"), ["crm"]);
   assert.deepEqual(namen("pnpm --dir app check"), ["app"]);
   assert.deepEqual(namen("gh pr view 3 -R Klant/crm"), ["crm"]);
+  assert.deepEqual(namen('gh api "repos/Klant/crm/pulls?state=open"'), ["crm"]);
 });
 
 test("werkmap: de regel bij sessiestart noemt de apps, en alleen achterlopers met hun versie", () => {
