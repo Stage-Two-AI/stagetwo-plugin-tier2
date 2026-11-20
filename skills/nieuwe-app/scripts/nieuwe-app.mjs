@@ -31,7 +31,8 @@
  *       `--template tier2`, is alles zoals het was.
  *
  *   node nieuwe-app.mjs --json --inrichten --naam <naam> --eigenaar <org> [--groepen a,b]
- *        [--klantportaal --afzender "Naam <adres>" (--turnstile-sitekey <sleutel> | --zonder-captcha)]
+ *        [--klantportaal --afzender "Naam <adres>" (--turnstile-sitekey <sleutel> | --zonder-captcha)
+ *         [--klantaccounts]]
  *       kijkt eerst of de app in toegang.json van <org>/stagetwo-beheer-tier2 staat. Zo niet, dan
  *       opent het een pull request op stagetwo-beheer-tier2 die hem toevoegt met de gekozen groepen
  *       (status `wacht-op-toegang`; wie in team toegangsbeheer zit merget, daarna opnieuw draaien). Staat
@@ -41,6 +42,9 @@
  *       Met --klantportaal (sinds versie 43; klanten loggen zelf in per mail) zet een eigen pull
  *       request een app die al achter de deur is ingericht om naar klantportaal in toegang.json
  *       (`klantportaal`, `afzender` en `turnstile_sitekey`; zie beheer/README.md, "Klantportaal").
+ *       Met --klantaccounts erbij (sinds versie 46, alleen de openbare template) loggen klanten in
+ *       met e-mail en wachtwoord, op uitnodiging, in plaats van met een code per mail
+ *       (`"klantportaal_inloggen": "account"`); dat vraagt altijd een captcha.
  *       Een app die nog niet is ingericht wordt nooit meteen klantportaal (sinds versie 44,
  *       `eerst-achter-de-deur`): App inrichten zet bij een klantportaal geen deur neer, dus zo'n
  *       app zou open staan zonder dat iemand hem achter de deur heeft getest. De captcha is de
@@ -116,6 +120,7 @@ export function leesArgumenten(argv) {
     afzender: null,
     turnstileSitekey: null,
     zonderCaptcha: false,
+    klantaccounts: false,
   };
   const metWaarde = {
     "--naam": "naam",
@@ -140,6 +145,7 @@ export function leesArgumenten(argv) {
     else if (a === "--inrichten") uit.inrichten = true;
     else if (a === "--klantportaal") uit.klantportaal = true;
     else if (a === "--zonder-captcha") uit.zonderCaptcha = true;
+    else if (a === "--klantaccounts") uit.klantaccounts = true;
     else if (a in metWaarde) {
       const waarde = argv[i + 1];
       if (waarde === undefined || waarde.startsWith("--")) throw new Error(`${a} vraagt een waarde`);
@@ -190,6 +196,9 @@ export function controleerArgumenten(arg) {
       return "--klantportaal vraagt --afzender: het adres waar de inlogmail vandaan komt, op een domein dat bij Resend is geverifieerd, of \"Naam <adres>\" (in de naam alleen letters, cijfers, spaties en . & ' ( ) -), bijvoorbeeld \"Voorbeeld B.V. <noreply@voorbeeld.nl>\"";
     }
     const sleutel = arg.turnstileSitekey ?? null;
+    if (arg.klantaccounts && arg.zonderCaptcha) {
+      return "--klantaccounts gaat niet samen met --zonder-captcha: bij inloggen met een wachtwoord is de captcha de enige rem op raden. Geef --turnstile-sitekey mee";
+    }
     if (sleutel !== null && arg.zonderCaptcha) {
       return "--turnstile-sitekey en --zonder-captcha gaan niet samen: kies een captcha met de sleutel, of uitdrukkelijk geen";
     }
@@ -202,8 +211,8 @@ export function controleerArgumenten(arg) {
     if (sleutel !== null && sleutel.length > SITEKEY_MAX) {
       return `--turnstile-sitekey heeft de lengte van de GEHEIME sleutel van Turnstile (meer dan ${SITEKEY_MAX} tekens). Geef de openbare (Site Key); de geheime hoort alleen als secret TURNSTILE_GEHEIM in de beheer-repo`;
     }
-  } else if (arg.afzender || arg.turnstileSitekey || arg.zonderCaptcha) {
-    return "--afzender, --turnstile-sitekey en --zonder-captcha horen bij --klantportaal";
+  } else if (arg.afzender || arg.turnstileSitekey || arg.zonderCaptcha || arg.klantaccounts) {
+    return "--afzender, --turnstile-sitekey, --zonder-captcha en --klantaccounts horen bij --klantportaal";
   }
   return null;
 }
@@ -925,12 +934,29 @@ export function voegAppToe(toegang, app, groepen, portaal = null) {
  * `"captcha": false` (beheer zet de captcha bij een klantportaal standaard aan en weigert
  * toegang.json zonder sleutel; uit is de stand tot de app de widget toont).
  */
-export function klantportaalVelden({ afzender, turnstileSitekey = null }) {
+export function klantportaalVelden({ afzender, turnstileSitekey = null, klantaccounts = false }) {
   return {
     klantportaal: true,
     afzender: String(afzender).trim(),
     ...(turnstileSitekey ? { turnstile_sitekey: turnstileSitekey } : { captcha: false }),
+    ...(klantaccounts ? { klantportaal_inloggen: "account" } : {}),
   };
+}
+
+/** Loggen de klanten van dit portaal in met een account (e-mail en wachtwoord)? */
+export const metAccounts = (portaal) => portaal?.klantportaal_inloggen === "account";
+
+/** Klantaccounts vragen een beheer-repo en een app vanaf deze versie. */
+export const ACCOUNTS_VANAF = 46;
+
+/** Wat de bouwer hoort als de beheer-repo te oud is voor klantaccounts, of null als het goed is. */
+export function beheerTeOudVoorAccounts({ beheer, versie }) {
+  if (versie === null || versie === undefined || versie >= ACCOUNTS_VANAF) return null;
+  return (
+    `De beheer-repo ${beheer} staat op versie ${versie}. Klantaccounts (inloggen met e-mail en wachtwoord) kan App inrichten pas vanaf versie ${ACCOUNTS_VANAF}. Er is niets gewijzigd. ` +
+    `De owner brengt de beheer-repo op versie ${ACCOUNTS_VANAF} of hoger (zelf met Claude, of met een abonnement via Stage Two); daarna werkt hetzelfde commando. ` +
+    "Wil je niet wachten: hetzelfde commando zonder --klantaccounts maakt een klantportaal met een code per mail; omzetten naar accounts kan later met een pull request op toegang.json."
+  );
 }
 
 /** Staat de app als klantportaal in toegang.json? */
@@ -950,7 +976,7 @@ export function naarKlantportaal(toegang, app, portaal) {
   if (huidig.publiek !== undefined) {
     throw new Error(`${app} heeft publieke paden (publiek) in toegang.json; die kunnen niet samen met een klantportaal, want dan staat het hele domein al open. Haal publiek weg in een eigen pull request als de app een klantportaal wordt`);
   }
-  const { captcha: _c, turnstile_sitekey: _t, ...rest } = huidig;
+  const { captcha: _c, turnstile_sitekey: _t, klantportaal_inloggen: _i, ...rest } = huidig;
   return { ...toegang, apps: { ...(toegang.apps ?? {}), [app]: { ...rest, ...portaal } } };
 }
 
@@ -961,6 +987,19 @@ export function naarKlantportaal(toegang, app, portaal) {
 export function nogTeDoenKlantportaal({ naam, beheer, portaal }) {
   const domein = leesAfzender(portaal.afzender)?.adres.split("@")[1] ?? "het domein van de afzender";
   const captcha = portaal.captcha !== false;
+  if (metAccounts(portaal)) {
+    return [
+      `Vooraf: ${naam} komt uit de openbare template, staat op versie ${ACCOUNTS_VANAF} of later, heeft een eigen domein in wrangler.jsonc, en de regels in de database (RLS) zijn nagelopen in /stagetwo-tier2:verder-werken. Bij een klantportaal zijn die regels de enige grens.`,
+      `1. Mail en captcha: bij Resend het domein ${domein} verifiëren en een sleutel maken die alleen mag versturen (secret SMTP_WACHTWOORD), en in Cloudflare de Turnstile-widget voor het domein van de app (de geheime sleutel als secret TURNSTILE_GEHEIM); beide secrets in de omgeving van ${beheer}.`,
+      "2. De pull request op toegang.json laten mergen (iemand uit team toegangsbeheer, of de owner).",
+      "3. App inrichten draaien (eerst als droogloop; dit commando zonder --groepen doet het ook): die zet alles klaar, de deur blijft nog staan.",
+      `4. De Edge Function klant-uitnodigen uitrollen (Functies uitrollen in ${beheer}, app ${naam}), ${naam} opnieuw uitrollen en achter de deur testen: een klant uitnodigen, de mail openen, een wachtwoord kiezen, inloggen, de tweede stap aanzetten, en medewerkers komen er nog in.`,
+      "5. Bij Cloudflare op het eigen domein de regel tegen raden zetten (Security, WAF, Rate limiting rules); App inrichten noemt de precieze regel in zijn waarschuwingen.",
+      `6. App inrichten nog een keer, in ${beheer} (Actions), met het vinkje "Deur weghalen": dan gaat het domein open.`,
+      `7. De knop "Controle van buitenaf" in ${beheer}: het domein hoort open te zijn, workers.dev en de previews dicht.`,
+      `De details staan in de README van ${beheer} (beheer/README.md, "Klantportaal met accounts"). Ontbreekt er iets, dan stopt App inrichten vóór de eerste wijziging met een melding en blijft de deur staan.`,
+    ];
+  }
   return [
     `Vooraf: ${naam} staat op versie 43 of later, heeft een eigen domein in wrangler.jsonc (routes met custom_domain; op alleen het workers.dev-adres weigert App inrichten het), en de regels in de database (RLS) zijn nagelopen in /stagetwo-tier2:verder-werken. Bij een klantportaal zijn die regels de enige grens: elke tabel let op de rol, en een nieuw account ziet niets tot de app het goedkeurt.`,
     captcha
@@ -983,10 +1022,10 @@ export function nogTeDoenKlantportaal({ naam, beheer, portaal }) {
 export function klantportaalAnders(toegang, app, portaal, beheer) {
   const regel = toegang?.apps?.[app];
   if (!regel || Array.isArray(regel) || regel.klantportaal !== true) return null;
-  const nu = { afzender: String(regel.afzender ?? "").trim(), sleutel: regel.captcha === false ? null : (regel.turnstile_sitekey ?? null), captcha: regel.captcha !== false };
-  const gevraagd = { afzender: portaal.afzender, sleutel: portaal.turnstile_sitekey ?? null, captcha: portaal.captcha !== false };
-  if (nu.afzender === gevraagd.afzender && nu.sleutel === gevraagd.sleutel && nu.captcha === gevraagd.captcha) return null;
-  const beschrijf = (x) => `afzender "${x.afzender}", captcha ${x.captcha ? (x.sleutel ? `aan (sitekey ${x.sleutel})` : "aan (nog zonder sitekey)") : "uit"}`;
+  const nu = { afzender: String(regel.afzender ?? "").trim(), sleutel: regel.captcha === false ? null : (regel.turnstile_sitekey ?? null), captcha: regel.captcha !== false, accounts: metAccounts(regel) };
+  const gevraagd = { afzender: portaal.afzender, sleutel: portaal.turnstile_sitekey ?? null, captcha: portaal.captcha !== false, accounts: metAccounts(portaal) };
+  if (nu.afzender === gevraagd.afzender && nu.sleutel === gevraagd.sleutel && nu.captcha === gevraagd.captcha && nu.accounts === gevraagd.accounts) return null;
+  const beschrijf = (x) => `afzender "${x.afzender}", captcha ${x.captcha ? (x.sleutel ? `aan (sitekey ${x.sleutel})` : "aan (nog zonder sitekey)") : "uit"}${nu.accounts || gevraagd.accounts ? `, inloggen ${x.accounts ? "met een account" : "met een code per mail"}` : ""}`;
   return (
     `${app} staat al als klantportaal in toegang.json van ${beheer}, met ${beschrijf(nu)}; je gaf ${beschrijf(gevraagd)}. ` +
     `Er is niets gewijzigd en App inrichten is niet gestart. Een wijziging gaat via een pull request op toegang.json in ${beheer} (wie in team toegangsbeheer zit, of de owner, merget hem); ` +
@@ -1042,7 +1081,7 @@ function vraagToegangAan(beheer, arg, toegang, sha, { portaal = null, omzetten =
     "-f", `sha=${huidigSha}`,
   ]);
   const portaalTekst = portaal
-    ? `\n\n**Klantportaal.** De app staat open voor klanten: die loggen zelf in per mail, met een code, van \`${portaal.afzender}\`. De groepen zijn dan alleen de medewerkers. Captcha: ${portaal.turnstile_sitekey ? "aan (Turnstile)" : "uit"}.${portaal.captcha === false ? `\n\n**${ZONDER_CAPTCHA}**` : ""}\n\nDe stappen tot het portaal open is (details in beheer/README.md, hoofdstuk Klantportaal):\n${nogTeDoenKlantportaal({ naam: arg.naam, beheer, portaal }).map((r) => `- ${r}`).join("\n")}`
+    ? `\n\n**Klantportaal.** De app staat open voor klanten: ${metAccounts(portaal) ? `die loggen in met e-mail en wachtwoord (een medewerker nodigt ze uit, de mail komt van \`${portaal.afzender}\`) en kunnen zelf een tweede stap aanzetten` : `die loggen zelf in per mail, met een code, van \`${portaal.afzender}\``}. De groepen zijn dan alleen de medewerkers. Captcha: ${portaal.turnstile_sitekey ? "aan (Turnstile)" : "uit"}.${portaal.captcha === false ? `\n\n**${ZONDER_CAPTCHA}**` : ""}\n\nDe stappen tot het portaal open is (details in beheer/README.md, hoofdstuk Klantportaal):\n${nogTeDoenKlantportaal({ naam: arg.naam, beheer, portaal }).map((r) => `- ${r}`).join("\n")}`
     : "";
   const body = omzetten
     ? `De app **${arg.naam}** wordt een klantportaal in toegang.json.${portaalTekst}\n\nAangevraagd met /stagetwo-tier2:nieuwe-app. Deze pull request wijzigt alleen toegang.json.`
@@ -1108,6 +1147,16 @@ export function richtIn(arg, { cwd = process.cwd(), wachtMs = 5000, maxWachtMinu
   }
   const { staatErin, groepen } = controleerToegang(toegang, arg.naam);
   const portaal = arg.klantportaal ? klantportaalVelden(arg) : null;
+  if (metAccounts(portaal)) {
+    if (!isOpenbareApp(repo)) {
+      return {
+        status: "mislukt",
+        reden: `--klantaccounts kan alleen bij een app van de openbare template, en ${repo} is een app van de gewone template. Laat --klantaccounts weg voor een klantportaal met een code per mail`,
+      };
+    }
+    const teOud = beheerTeOudVoorAccounts({ beheer, versie: leesBeheerVersie(ghBestand(beheer, "VERSIE")) });
+    if (teOud) return { status: "beheer-te-oud", repo, beheer, reden: teOud };
+  }
   // Een klantportaal begint nooit zonder deur: eerst inrichten als gewone app, dan omzetten.
   if (portaal && !isKlantportaalIn(toegang, arg.naam) && !(staatErin && isIngericht(repo))) {
     return { status: "eerst-achter-de-deur", repo, reden: eerstAchterDeDeur(arg.naam) };

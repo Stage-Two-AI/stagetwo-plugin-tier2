@@ -39,6 +39,8 @@ import {
   naarKlantportaal,
   nogTeDoenKlantportaal,
   klantportaalAnders,
+  beheerTeOudVoorAccounts,
+  ACCOUNTS_VANAF,
   SITEKEY_MAX,
   ZONDER_CAPTCHA,
   richtIn,
@@ -887,4 +889,26 @@ test("--inrichten --klantportaal: een app die nog niet is ingericht wordt nooit 
     process.env.PATH = oud;
     opruimen(wortel);
   }
+});
+
+test("klantaccounts (--klantaccounts): het veld voor beheer, altijd met captcha, eigen stappen en een beheer-repo vanaf versie 46", () => {
+  const afzender = "Voorbeeld B.V. <noreply@voorbeeld.nl>";
+  const portaal = klantportaalVelden({ afzender, turnstileSitekey: SITEKEY_VB, klantaccounts: true });
+  assert.deepEqual(portaal, { klantportaal: true, afzender, turnstile_sitekey: SITEKEY_VB, klantportaal_inloggen: "account" });
+  const basis = { droogloop: false, doeHet: false, inrichten: true, naam: "shop", eigenaar: "Org", database: "eigen", template: "openbaar", klantportaal: true, afzender };
+  assert.equal(controleerArgumenten({ ...basis, turnstileSitekey: SITEKEY_VB, klantaccounts: true }), null);
+  assert.match(controleerArgumenten({ ...basis, zonderCaptcha: true, klantaccounts: true }), /enige rem op raden/);
+  assert.match(controleerArgumenten({ ...basis, klantportaal: false, afzender: null, klantaccounts: true }), /horen bij --klantportaal/);
+  const stappen = nogTeDoenKlantportaal({ naam: "shop", beheer: "Org/stagetwo-beheer-tier2", portaal }).join("\n");
+  assert.match(stappen, /klant-uitnodigen/);
+  assert.match(stappen, /Rate limiting rules/);
+  assert.match(stappen, /versie 46/);
+  // Van code naar accounts is een wijziging die de bouwer moet zien, en omzetten haalt de oude keuze weg.
+  const toegang = { groepen: { kantoor: {} }, apps: { shop: { groepen: ["kantoor"], ...klantportaalVelden({ afzender, turnstileSitekey: SITEKEY_VB }) } } };
+  assert.match(klantportaalAnders(toegang, "shop", portaal, "Org/b"), /inloggen met een code per mail; je gaf .*inloggen met een account/);
+  const terug = naarKlantportaal({ ...toegang, apps: { shop: { groepen: ["kantoor"], ...portaal } } }, "shop", klantportaalVelden({ afzender, turnstileSitekey: SITEKEY_VB }));
+  assert.equal(terug.apps.shop.klantportaal_inloggen, undefined);
+  assert.equal(ACCOUNTS_VANAF, 46);
+  assert.equal(beheerTeOudVoorAccounts({ beheer: "Org/b", versie: 46 }), null);
+  assert.match(beheerTeOudVoorAccounts({ beheer: "Org/b", versie: 45 }), /versie 45.*vanaf versie 46/);
 });
