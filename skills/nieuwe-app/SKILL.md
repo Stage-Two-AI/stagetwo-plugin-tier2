@@ -79,9 +79,15 @@ gebruikt worden?"** Leg kort uit waarom je het vraagt: tier 2 heeft twee templat
   zoals altijd. Ga door; laat `--template` hieronder weg.
 - **Ja** (een website, een webshop, een pagina die mensen delen, een portaal voor klanten): de
   openbare template van tier 2. Daar maakt de server elke pagina, zodat Google, WhatsApp en
-  AI-zoekers hem kunnen lezen, en kunnen klanten zelf inloggen met een code per mail. Vraag
+  AI-zoekers hem kunnen lezen, en kunnen klanten zelf inloggen. Vraag
   dan nog één ding: **moeten klanten kunnen inloggen?** Ja is een klantportaal (stap 5b);
   nee is een site die alleen bekeken wordt. Geef hieronder `--template openbaar` mee.
+
+  Bij ja nog één vraag, voor stap 5b: **"Loggen klanten in met een code per mail, of krijgt elke
+  klant een account met een wachtwoord?"** Het advies: een vaste klantenkring die je zelf kent
+  (zakelijke klanten, leden), dan accounts: een medewerker nodigt ze uit, en een klant kan zelf
+  een tweede stap met een authenticator-app aanzetten. Veel losse klanten die zichzelf
+  aanmelden (een webshop), dan de code per mail. Onthoud het antwoord voor stap 5b.
 
 Twijfelt de gebruiker? Adviseer de gewone template als alleen eigen mensen de app gebruiken;
 alleen voor mensen van buiten is de openbare nodig. Overstappen kan later, maar is een
@@ -226,14 +232,17 @@ inlogscherm, met de geheime sleutels als secrets in de beheer-repo. Turnstile is
 maar de standaard: een open inlogformulier zonder captcha kan door één persoon worden platgelegd.
 
 Is dat er, draai dan hetzelfde commando met `--klantportaal --afzender "<Naam> <adres>"
---turnstile-sitekey "<openbare sleutel>"` erbij. Het adres staat op het domein dat bij Resend is
+--turnstile-sitekey "<openbare sleutel>"` erbij, en `--klantaccounts` als de klanten een account
+met wachtwoord krijgen (de vraag in stap 1; sinds versie 46, alleen de openbare template, en
+nooit zonder captcha). Het adres staat op het domein dat bij Resend is
 geverifieerd, en de sleutel is de openbare (Site Key) van de widget, nooit de geheime; vraag
 beide aan de gebruiker, verzin ze niet. Alleen als de gebruiker uitdrukkelijk zonder captcha wil,
 geef je `--zonder-captcha` in plaats van de sleutel; zeg dan de `waarschuwing` uit het antwoord
 letterlijk door (die staat ook in de pull request).
 
-Daarna gaat het in deze volgorde (het antwoord geeft ze in `nogTeDoen`; de details staan in de
-README van de beheer-repo, hoofdstuk Klantportaal):
+Daarna gaat het in deze volgorde (het antwoord geeft ze in `nogTeDoen`, bij accounts met twee
+stappen erbij: de Edge Function `klant-uitnodigen` uitrollen en de regel tegen raden bij
+Cloudflare; de details staan in de README van de beheer-repo, hoofdstuk Klantportaal):
 
 0. Vooraf: de app staat op versie 43 of later, is achter de deur ingericht en uitgerold, heeft
    een eigen domein, en de regels in de database zijn nagelopen (bij een klantportaal de enige
