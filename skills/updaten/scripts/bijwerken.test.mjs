@@ -557,10 +557,10 @@ test("--template-ref: een branch zonder tag wordt als proef toegepast, met eigen
     assert.ok(body.includes("`uitgave/9`"));
     assert.ok(body.includes("vervangen door de echte update"));
     assert.ok(body.endsWith(BEVESTIGING), "de guards van de app lezen de bevestigingsregel ook bij een proef");
-    // Eén verhaal: nergens een aansporing om te mergen, en de herkomst is de werkplaats.
+    // Eén verhaal: nergens een aansporing om te mergen, en de herkomst is de weekupdate.
     assert.doesNotMatch(body, /merget|op Merge|merge die/i);
     assert.doesNotMatch(body, /Aangemaakt met|eigen Claude Code-sessie/);
-    assert.match(body, /^Aangemaakt door de werkplaats van Stage Two, als proef/m);
+    assert.match(body, /^Aangemaakt door de weekupdate van Stage Two, als proef/m);
     assert.match(body, /^Cloudflare-preview: /m, "het PR-formulier vraagt de preview-regel ook bij een proef");
     assert.match(body, /^Geen tests nodig: /m, "guard:tests leest deze regel ook bij een proef");
     for (const regel of body.split("\n").filter((x) => /merge/i.test(x))) {

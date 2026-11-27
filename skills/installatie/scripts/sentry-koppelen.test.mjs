@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { koppel, leesArgumenten, SECRET, VARIABELE } from "./sentry-koppelen.mjs";
 
-const ARG = ["--beheer", "Klant-BV/stagetwo-beheer-tier2", "--sentry-org", "klant-bv"];
+const ARG = ["--beheer", "Klant-BV/stagetwo-beheer-tier2", "--sentry-org", "klant-bv", "--regio", "eu"];
 
 /** Een nagebootste gh die elke aanroep onthoudt. */
 function nepGh({ apps = ["intern", "direct"], secretEr = false, faalt = null } = {}) {
@@ -22,26 +22,36 @@ test("argumenten: beheer-repo en Sentry-organisatie zijn verplicht, apps alleen 
   assert.deepEqual(leesArgumenten([...ARG, "--app", "intern"]).apps, ["intern"]);
   assert.throws(() => leesArgumenten(["--sentry-org", "klant-bv"]), /--beheer/);
   assert.throws(() => leesArgumenten(["--beheer", "Klant-BV/beheer"]), /--sentry-org/);
+  // De regio is verplicht: de browser verraadt hem niet.
+  assert.throws(() => leesArgumenten(ARG.slice(0, 4)), /--regio eu of --regio us/);
+  assert.throws(() => leesArgumenten([...ARG.slice(0, 4), "--regio", "de"]), /--regio eu of --regio us/);
+  assert.equal(leesArgumenten([...ARG.slice(0, 4), "--regio", "us"]).regio, "us");
   assert.throws(() => leesArgumenten([...ARG, "--app", "Intern!"]), /--app/);
   assert.throws(() => leesArgumenten([...ARG, "--token", "x"]), /onbekende optie --token/, "een token als argument kan niet");
 });
 
-test("koppelen: gh vraagt zelf om het token, dan SENTRY_ORG, dan App inrichten per app", () => {
+test("koppelen: gh vraagt zelf om het token, dan SENTRY_ORG en SENTRY_URL, dan App inrichten voor één app en het commando voor de rest", () => {
   const { gh, log } = nepGh();
   const r = koppel(leesArgumenten(ARG), { gh, terminal: true });
   assert.equal(r.status, "gekoppeld");
-  assert.deepEqual(r.apps, ["intern", "direct"]);
+  assert.deepEqual(r.apps, ["intern"]);
   const zet = log.find((l) => l.args[0] === "secret" && l.args[1] === "set");
   assert.deepEqual(zet.args, ["secret", "set", SECRET, "--env", "beheer", "--repo", "Klant-BV/stagetwo-beheer-tier2"]);
   assert.equal(zet.interactief, true, "gh krijgt de terminal: alleen gh ziet de invoer");
   assert.ok(!zet.args.includes("--body"), "de waarde gaat nooit als argument mee");
-  const variabele = log.find((l) => l.args[0] === "variable");
-  assert.deepEqual(variabele.args, ["variable", "set", VARIABELE, "--env", "beheer", "--repo", "Klant-BV/stagetwo-beheer-tier2", "--body", "klant-bv"]);
+  const variabelen = log.filter((l) => l.args[0] === "variable").map((l) => l.args);
+  assert.deepEqual(variabelen, [
+    ["variable", "set", VARIABELE, "--env", "beheer", "--repo", "Klant-BV/stagetwo-beheer-tier2", "--body", "klant-bv"],
+    ["variable", "set", "SENTRY_URL", "--env", "beheer", "--repo", "Klant-BV/stagetwo-beheer-tier2", "--body", "https://de.sentry.io"],
+  ]);
+  // Eén run: GitHub houdt er maar één in de wacht, een derde annuleert die.
   const runs = log.filter((l) => l.args[0] === "workflow").map((l) => l.args);
   assert.deepEqual(runs, [
     ["workflow", "run", "app-inrichten.yml", "--repo", "Klant-BV/stagetwo-beheer-tier2", "-f", "app=intern", "-f", "droogloop=false"],
-    ["workflow", "run", "app-inrichten.yml", "--repo", "Klant-BV/stagetwo-beheer-tier2", "-f", "app=direct", "-f", "droogloop=false"],
   ]);
+  assert.deepEqual(r.nog, ["direct"]);
+  assert.deepEqual(r.volgende, ["gh workflow run app-inrichten.yml --repo Klant-BV/stagetwo-beheer-tier2 -f app=direct -f droogloop=false"]);
+  assert.match(r.daarna, /als de vorige run klaar is/);
 });
 
 test("zonder terminal stopt het voordat er iets wordt gezet, met de uitleg waarom", () => {
@@ -66,7 +76,8 @@ test("droogloop: zegt wat er zou gebeuren en zet niets", () => {
   const { gh, log } = nepGh();
   const r = koppel(leesArgumenten([...ARG, "--droogloop"]), { gh, terminal: false });
   assert.equal(r.status, "proef");
-  assert.match(r.stappen.join("\n"), /gepland: App inrichten voor intern, direct/);
+  assert.match(r.stappen.join("\n"), /gepland: App inrichten voor intern, daarna één voor één voor direct/);
+  assert.match(r.stappen.join("\n"), /SENTRY_URL=https:\/\/de\.sentry\.io/);
   assert.ok(!log.some((l) => ["set", "run"].includes(l.args[1])));
 });
 

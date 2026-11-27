@@ -21,7 +21,7 @@
  * computer staat: dezelfde route, alleen komt de kloon dan rechtstreeks van GitHub
  * (via de gh-login) in plaats van via de origin van de open map.
  *
- * Alleen voor de werkplaats van Stage Two (de skill noemt het niet voor bouwers):
+ * Alleen voor de weekupdate van Stage Two (de skill noemt het niet voor bouwers):
  *
  *   node bijwerken.mjs --json --droogloop --template-ref <branch> [--repo <eigenaar>/<naam>]
  *       een proef van een uitgave die nog niet uit is: de template komt van die branch in
@@ -232,7 +232,7 @@ function alBij(versie, doel) {
   return { status: "bij", van: versie, naar: doel, reden: `deze app staat al op versie ${versie}` };
 }
 
-// ---------------------------------------------------------------- de proef (alleen de werkplaats)
+// ---------------------------------------------------------------- de proef (alleen de weekupdate)
 
 export const PROEF_PREFIX = "stack-proef";
 

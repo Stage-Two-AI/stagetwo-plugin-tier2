@@ -18,13 +18,18 @@ import { ALLEEN_IN_BRON } from "../beheer/uitleveren.mjs";
 const WORTEL = join(dirname(fileURLToPath(import.meta.url)), "..");
 const ABONNEES = join(WORTEL, "abonnees.json");
 
-/** De namen om op te zoeken: org en klant per abonnee, en het eerste deel van de org (Klant-Naam-BV: Klant). */
+/**
+ * De namen om op te zoeken: de hele org en de klant per abonnee, en wat er per abonnee onder
+ * `zoek` staat (een korte merknaam, bijvoorbeeld). Het eerste deel van een org zoekt hij niet
+ * meer vanzelf: dat is vaak een gewoon woord (Stage, Data, Home) dat overal in de plugin staat.
+ */
 export function klantnamen(abonnees) {
   const namen = new Set();
   for (const a of abonnees?.abonnees ?? []) {
     const org = typeof a === "string" ? a : a?.org;
     const klant = typeof a === "object" && a !== null ? a.klant : null;
-    for (const naam of [org, klant, String(org ?? "").split("-")[0]]) {
+    const zoek = typeof a === "object" && a !== null && Array.isArray(a.zoek) ? a.zoek : [];
+    for (const naam of [org, klant, ...zoek]) {
       if (typeof naam === "string" && naam.trim().length >= 4) namen.add(naam.trim().toLowerCase());
     }
   }
@@ -47,9 +52,13 @@ function meeNaarKlant() {
   return [...new Set(uit.split("\n").filter(Boolean))].filter((pad) => !ALLEEN_IN_BRON.includes(pad) && existsSync(join(WORTEL, pad)));
 }
 
-test("klantnamen: zoekNamen vindt een naam ongeacht hoofdletters, en klantnamen leest org, klant en het eerste deel", () => {
-  const namen = klantnamen({ abonnees: ["Los-BV", { org: "Proef-Holland-B-V", klant: "Proefje" }] });
-  assert.deepEqual(namen.sort(), ["los-bv", "proef", "proef-holland-b-v", "proefje"]);
+test("klantnamen: zoekNamen vindt een naam ongeacht hoofdletters, en klantnamen leest org, klant en zoek, niet het eerste deel van de org", () => {
+  const namen = klantnamen({
+    abonnees: ["Los-BV", { org: "Proef-Holland-B-V", klant: "Proefje" }, { org: "Data-Holland-BV", klant: "Voorbeeld", zoek: ["dhbv"] }],
+  });
+  assert.deepEqual(namen.sort(), ["data-holland-bv", "dhbv", "los-bv", "proef-holland-b-v", "proefje", "voorbeeld"]);
+  // Een gewoon woord vooraan in een org (Stage, Data, Home) maakt de controle niet rood.
+  assert.ok(!namen.includes("data"));
   assert.deepEqual(zoekNamen("a\nnoreply@proefapps.com\nb", ["proef"]), [{ regel: 2, naam: "proef" }]);
 });
 
