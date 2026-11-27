@@ -172,14 +172,17 @@ met zijn eigen Sentry-account. Dat gaat met `scripts/sentry-koppelen.mjs` (naast
 een eigen terminal, omdat `gh` daar om het token vraagt en niemand de waarde ziet, ook jij niet:
 
 ```sh
-node "${CLAUDE_SKILL_DIR}/scripts/sentry-koppelen.mjs" --beheer <org>/stagetwo-beheer-tier2 --sentry-org <slug>
+node "${CLAUDE_SKILL_DIR}/scripts/sentry-koppelen.mjs" --beheer <org>/stagetwo-beheer-tier2 --sentry-org <slug> --regio eu
 ```
 
 Vraagt de owner (of Stage Two) erom, draai dan eerst zelf de `--droogloop` (die vraagt niets) en
 laat hem de regel zonder `--droogloop` in zijn eigen terminal draaien. Het token is een interne
 integratie in zijn Sentry-organisatie (Settings, Custom Integrations, Internal Integration) met
-Project: Write, Team: Read en Issue & Event: Read. Daarna start het script App inrichten voor
-elke app in `toegang.json`.
+Organization: Read, Project: Write, Team: Read en Issue & Event: Read. `--regio` is `eu` of `us`:
+waar de organisatie in Sentry staat (Settings, General Settings, Data Storage Location; in
+Nederland bijna altijd `eu`). Daarna start het script App inrichten voor de eerste app, en geeft
+het voor de andere apps het commando om ze daarna één voor één te starten: GitHub laat in de
+beheer-repo één run tegelijk lopen.
 
 ## Stap 6: wat wil je doen?
 

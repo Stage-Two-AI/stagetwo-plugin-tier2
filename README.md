@@ -509,7 +509,8 @@ PATH van elke sessie waarin de plugin aanstaat, ook bij klanten.
   aanbod om App inrichten te starten, of wat er niet werkt en wat de owner start. Niets blokkeert.
 - Sentry koppelen in de beheer-repo: in de projectfase door Stage Two, daarna door de owner:
   `skills/installatie/scripts/sentry-koppelen.mjs` (gh vraagt om het token, niemand ziet de
-  waarde), daarna start het App inrichten voor elke app.
+  waarde) en de regio (`--regio eu` of `us`), daarna start het App inrichten voor de eerste
+  app en geeft het de commando's voor de rest, één voor één.
 
 ### Een klant aansluiten (checklist)
 
@@ -519,7 +520,7 @@ Trust, Supabase) en `<klantorg>/stagetwo-beheer-tier2` is ingericht met de tier 
 (`bin/klant-inrichten.sh --variant cloudflare` in Stage-Two-AI/beheer-template), met minstens
 één groep in `toegang.json`. De klant heeft Write op stagetwo-beheer-tier2, zodat hij de workflow
 mag starten; de sleutels staan in de omgeving `beheer` en zijn voor hem niet te lezen. Sentry koppelt Stage Two in de beheer-repo vóór de eerste app, in een eigen terminal:
-`node skills/installatie/scripts/sentry-koppelen.mjs --beheer <klantorg>/stagetwo-beheer-tier2 --sentry-org <slug>`
+`node skills/installatie/scripts/sentry-koppelen.mjs --beheer <klantorg>/stagetwo-beheer-tier2 --sentry-org <slug> --regio eu`
 (gh vraagt om het token; daarna geeft App inrichten elke app vanzelf een Sentry-project). Dat is
 nooit een stap voor de bouwer; na de overdracht doet de owner het zelf, met zijn eigen Sentry-account.
 
@@ -574,11 +575,12 @@ nooit een stap voor de bouwer; na de overdracht doet de owner het zelf, met zijn
 
 ### Een nieuwe versie uitbrengen
 
-Een nieuwe versie gaat altijd als **uitgave** via de werkplaats (`Stage-Two-AI/stagetwo-werkplaats`,
-README, "De ronde"; besluit 26-10-2026): meldingen verzamelen, één nummer voor plugins, templates
-en beheer, één ronde pull requests, taggen, uitleveren, het changelog op
-stagetwo.nl/plugin en de lessen vastleggen. Daar staat de volgorde van de hele ronde; hieronder alleen wat er per stap in
-deze repo en de template gebeurt. Een sessie buiten de werkplaats brengt zelf geen versie uit.
+Een nieuwe versie gaat altijd als **uitgave** via de weekupdate van Stage Two (de skill
+`weekupdate` in `Stage-Two-AI/Stack`; besluit 26-10-2026): meldingen verzamelen, één nummer voor
+plugins, templates en beheer, één reeks pull requests, taggen, uitleveren, het changelog op
+stagetwo.nl/plugin en de lessen vastleggen. Daar staat de volgorde van de hele weekupdate;
+hieronder alleen wat er per stap in deze repo en de template gebeurt. Een sessie buiten de
+weekupdate brengt zelf geen versie uit.
 
 Volgorde bij elke release: eerst de plugin, dan de template. Een oude plugin stopt op
 een nieuwer manifestformaat; een nieuwe plugin kan altijd met een oudere template
