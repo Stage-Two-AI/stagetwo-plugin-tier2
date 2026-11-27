@@ -13,6 +13,10 @@
     {
       "org": "Together-2-Grow",
       "klant": "Together2Grow"
+    },
+    {
+      "org": "Proefklant-Stage-Two",
+      "klant": "Proefklant"
     }
   ]
 }
